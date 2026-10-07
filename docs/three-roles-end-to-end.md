@@ -623,6 +623,23 @@ que quelqu'un est bloqué. Le lien de confirmation, lui, marche dans les deux
 cas, et une appartenance par domaine attend toujours cette preuve — là,
 l'adresse est la seule preuve que l'organisation ait demandée.
 
+### La taille d'un projet — `staff.products.manage`
+
+`showProjectSettings` ne change rien ; `setProjectSettings` fixe **la taille
+maximale d'un document de projet**, de 1 à 64 Mio, la même pour tous les
+produits (07/10/2026). C'était une constante, et chaque changement était une
+livraison : 1 Mio, puis 4 Mio le matin où le schéma 4 de Plan a dépassé le
+premier. L'exploitant a demandé à la régler depuis le menu de mise en place.
+
+**4 Mio tant que personne n'a choisi**, jamais « sans limite » : une ligne
+absente qui laisserait tout passer mettrait un maillage dans PostgreSQL
+(non négociable n° 9). Elle vaut à partir de l'enregistrement suivant :
+relevée, elle admet ce qui était refusé ; abaissée, elle ne refuse aucun
+document déjà stocké tant que personne ne l'enregistre de nouveau. La réponse
+dit aussi si le plafond d'envoi de l'hébergeur (`post_max_size`) passe sous
+la limite — un document au-delà serait alors perdu par PHP avant que la
+plateforme puisse le refuser en le nommant.
+
 ### Les clients — `staff.tenants.read`, `staff.tenants.manage`, `staff.grant`
 
 Aucune ne demande de motif, et aucune n'est enregistrée (ADR-069, 2026-10-05) : la permission plateforme suffit.
@@ -720,15 +737,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              131
 
-  PLATFORM_ADMIN                                  86
+  PLATFORM_ADMIN                                  88
   publiques, sans compte                           8
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          236
+  total                                          238
 ```
 
-Dont **113 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
+Dont **114 lectures** et **124 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

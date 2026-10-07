@@ -171,6 +171,11 @@ export const APP_NAV: readonly NavSection[] = [
       // which ADR-040 lets the platform lend to a tenant — a tenant authoring its
       // own offers must not decide what the public page advertises.
       { id: 'storefront', label: 'Storefront', to: '/console/storefront', scope: 'platform', permission: 'staff.catalog.manage' },
+      // After the chain, because it is not on it: how large a project
+      // document may be (2026-10-07), a constant until the operator asked to
+      // set it here. One limit for every product, so it is setting the
+      // platform up and answers to the same permission.
+      { id: 'project-settings', label: 'Projects', to: '/console/projects', scope: 'platform', permission: 'staff.products.manage' },
       // After the chain, because it is not on it: what the shell shows each
       // kind of person. The one entry the setup cannot hide from the person
       // who holds it, or the choice could not be undone.

@@ -256,6 +256,9 @@ describe('the navigation is ordered by dependency', () => {
       'translations',
       'storefront',
       // Not on the chain — after it.
+      // How large a project may be (2026-10-07): a platform-wide limit, not a
+      // step a product has to complete.
+      'project-settings',
       'menus',
       'mail',
       'design-system',

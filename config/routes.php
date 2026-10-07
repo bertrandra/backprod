@@ -180,6 +180,7 @@ use App\Staff\Controller\SetMailTemplatesController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetProjectSchemaVersionsController;
+use App\Staff\Controller\SetProjectSettingsController;
 use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\SetRenewalController;
 use App\Staff\Controller\SetSignUpSettingsController;
@@ -191,6 +192,7 @@ use App\Staff\Controller\ShowDemoPageController;
 use App\Staff\Controller\ShowMailTemplatesController;
 use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowProductManifestController;
+use App\Staff\Controller\ShowProjectSettingsController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowSignUpSettingsController;
 use App\Staff\Controller\ShowStaffNavigationController;
@@ -835,6 +837,10 @@ return static function (RouteCollector $routes): void {
     // stranger is shown and what a stranger must prove are two trusts.
     $routes->addRoute('GET', '/api/v1/staff/sign-up/settings', ShowSignUpSettingsController::class);
     $routes->addRoute('PUT', '/api/v1/staff/sign-up/settings', SetSignUpSettingsController::class);
+    // How large a project document may be (2026-10-07): the operator's
+    // choice from the setup menu, platform-wide, rather than a constant.
+    $routes->addRoute('GET', '/api/v1/staff/projects/settings', ShowProjectSettingsController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/projects/settings', SetProjectSettingsController::class);
     // The words the platform's mails say, and a test of the mail host (2026-09-19).
     $routes->addRoute('GET', '/api/v1/staff/mail/templates', ShowMailTemplatesController::class);
     $routes->addRoute('PUT', '/api/v1/staff/mail/templates', SetMailTemplatesController::class);

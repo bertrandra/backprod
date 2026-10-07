@@ -17,6 +17,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Meter } from '@/ui/Meter';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { formatBytes } from '@/ui/Bytes';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
 
@@ -431,6 +432,7 @@ function ProjectRow({
         <span className="text-xs text-subtle">
           {t("schema v")}{project.schema_version} {t("· updated")}{' '}
           {new Date(project.updated_at).toLocaleString(currentLocale())}
+          {project.document_bytes !== null && <> · {formatBytes(project.document_bytes, currentLocale())}</>}
         </span>
       </span>
 

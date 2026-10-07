@@ -23,6 +23,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { AssetsPanel } from './AssetsPanel';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
+import { formatBytes } from '@/ui/Bytes';
 
 /**
  * `workspace.project` — one project: rename, duplicate, snapshot, restore,
@@ -121,6 +122,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
           <h1 className="text-2xl font-semibold">{current.name}</h1>
           <p className="text-xs text-subtle">
             {t("schema v")}{current.schema_version} {t("· updated")}{' '}{new Date(current.updated_at).toLocaleString(currentLocale())}
+            {current.document_bytes !== null && <> · {formatBytes(current.document_bytes, currentLocale())}</>}
           </p>
         </div>
 

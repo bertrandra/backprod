@@ -31,6 +31,7 @@ function project(overrides: Record<string, unknown> = {}) {
     schema_version: 7,
     created_by: 'u-1',
     created_at: '2026-01-01T10:00:00Z',
+    document_bytes: 2_621_440,
     updated_at: '2026-01-02T10:00:00Z',
     document: {},
     ...overrides,
@@ -258,5 +259,13 @@ describe('the way into the product', () => {
     // the component did.
     await waitFor(() => expect(screen.getByRole('button', { name: /duplicate/i })).toBeTruthy());
     expect(screen.queryByTestId('open-project-in-product')).toBeNull();
+  });
+});
+
+describe('the header', () => {
+  it('says how large the document is, beside when it was updated', async () => {
+    render(clientFor());
+
+    await waitFor(() => expect(screen.getByText(/· updated.*· 2\.5 MB/)).toBeTruthy());
   });
 });

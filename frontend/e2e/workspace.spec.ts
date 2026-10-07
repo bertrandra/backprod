@@ -40,6 +40,7 @@ const PROJECT = {
   schema_version: 7,
   created_by: SESSION.user_id,
   created_at: '2026-01-01T10:00:00Z',
+  document_bytes: 2_621_440,
   updated_at: '2026-01-02T10:00:00Z',
   document: {},
 };
