@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   useProductConfiguration,
@@ -54,6 +54,13 @@ import { tx } from '@/i18n/react';
  * version — so every product created here refused every project, and nothing on
  * the platform could change it. Exactly what ADR-042 found about the issuer.
  */
+/**
+ * The anchor of the accepted document versions, which the Products screen
+ * links to: that list is where a product's saves are refused when a release
+ * writes a version nobody added, and an operator looks for it on the product.
+ */
+export const DOCUMENT_VERSIONS = 'document-versions';
+
 export function InvoicingScreen() {
   const productCode = useSessionStore((state) => state.productCode);
 
@@ -341,6 +348,18 @@ function SchemaVersionsForm({
 
   const [versions, setVersions] = useState<number[]>(initial);
   const [entry, setEntry] = useState('');
+  const field = useRef<HTMLInputElement>(null);
+
+  // Arriving from a product's "Document versions" button: this section is
+  // drawn only once the configuration has loaded, which is after the router
+  // has already looked for the anchor, so it brings itself into view and
+  // puts the cursor where the version is typed.
+  useEffect(() => {
+    if (window.location.hash === `#${DOCUMENT_VERSIONS}`) {
+      field.current?.scrollIntoView({ block: 'center' });
+      field.current?.focus({ preventScroll: true });
+    }
+  }, []);
 
   const parsed = Number(entry);
   // What the server would take: a whole number of 1 or more that is not already
@@ -360,7 +379,8 @@ function SchemaVersionsForm({
 
   return (
     <Section
-      className="border-t border-line pt-6"
+      id={DOCUMENT_VERSIONS}
+      className="scroll-mt-4 border-t border-line pt-6"
       title={t("Accepted document versions")}
       description={t("Which versions of this product's project documents the platform will store. A product that accepts none refuses every save, which is the state of one nobody has configured — creating a product writes no configuration at all.")}
     >
@@ -415,6 +435,7 @@ function SchemaVersionsForm({
             <FieldCell width="short">
               <Field id="schema-version" label={t("Add a version")}>
                 <input
+                  ref={field}
                   id="schema-version"
                   type="number"
                   min={1}
