@@ -802,7 +802,7 @@ Two rules are enforced on every write, and both are refusals:
 
 - **Documents are not where assets live** (non-negotiable #9). A `data:` URI
   is refused whatever its size, as is any string over 64 KiB, and the error
-  names the path inside the document. A document over 1 MiB is `413`. Assets
+  names the path inside the document. A document over 4 MiB is `413`. Assets
   get their own endpoints and object storage in M7.
 
 Versions are complete snapshots ([ADR-018](docs/adr/ADR-018-project-versioning.md)).

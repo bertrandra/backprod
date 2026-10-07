@@ -113,7 +113,9 @@ they already have while they migrate it.
 Non-negotiable #9 keeps large assets out of PostgreSQL, and a JSONB column
 will accept a base64 image without complaint. `DocumentPolicy` refuses them
 at the boundary: any `data:` URI whatever its size, any string over 64 KiB,
-any document over 1 MiB, and nesting past 64 levels.
+any document over 4 MiB, and nesting past 64 levels. (1 MiB until
+2026-10-07, when Plan's schema 4 outgrew it; the operator raised it for every
+product.)
 
 The `data:` refusal is deliberately not a size rule. A small embedded asset
 is still an asset in the wrong place, and a client that learns the rule on
