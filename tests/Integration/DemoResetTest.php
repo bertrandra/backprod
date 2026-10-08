@@ -242,9 +242,13 @@ final class DemoResetTest extends DatabaseApiTestCase
         self::assertGreaterThan(0, $expected, 'the story names pictures');
 
         $page = $this->decode($this->request('GET', '/api/v1/public/products/plan/showcase'));
+        $showcase = $page['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        $blocks = $showcase['blocks'] ?? null;
+        self::assertIsArray($blocks);
         $pictured = [];
 
-        foreach ((array) ($page['showcase']['blocks'] ?? []) as $row) {
+        foreach ($blocks as $row) {
             if (is_array($row) && is_string($row['image'] ?? null)) {
                 $pictured[] = $row['image'];
             }
