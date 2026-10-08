@@ -196,7 +196,8 @@ final class DemoResetTest extends DatabaseApiTestCase
     /**
      * Every organisation wears a palette in every product it holds, drawn
      * from the platform's own list (2026-10-07) — which palette is chance,
-     * that there is one is not.
+     * that there is one is not, and where `DemoWorld::PALETTES` names one,
+     * that one.
      */
     public function testEveryOrganisationWearsAPaletteInEachProductItHolds(): void
     {
@@ -213,6 +214,17 @@ final class DemoResetTest extends DatabaseApiTestCase
                  )
                 SQL,
         ), 'a holding without a palette');
+
+        // Except where the world names one: Acme in Plan wears Forest ledger
+        // after every reset (2026-10-08).
+        self::assertSame('forest-ledger', $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT p.palette FROM tenant_palettes p
+                  JOIN tenants t ON t.id = p.tenant_id
+                  JOIN products pr ON pr.id = p.product_id
+                 WHERE t.slug = 'acme' AND pr.code = 'plan'
+                SQL,
+        ));
     }
 
     public function testTheWorldHasMoneyInItAndThePaymentsScreenCanReadIt(): void
