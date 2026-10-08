@@ -596,7 +596,7 @@ final class PostgresDemoFixtures implements DemoFixtures
                     ['tenant' => $tenants[$key], 'product' => $products[$code], 'user' => $assignedBy],
                 );
 
-                $this->palette($tenants[$key], $products[$code], $assignedBy);
+                $this->palette($tenants[$key], $products[$code], $assignedBy, DemoWorld::PALETTES[$key][$code] ?? null);
             }
         }
     }
@@ -615,16 +615,20 @@ final class PostgresDemoFixtures implements DemoFixtures
      *
      * A different draw on every reset is the point: somebody resetting to
      * look again sees the matrix change, and nothing in the demonstration
-     * depends on which colour came out.
+     * depends on which colour came out — except the holdings
+     * `DemoWorld::PALETTES` pins, which take their named palette when the
+     * list still has it and join the draw when it does not.
      */
-    private function palette(string $tenant, string $product, string $chosenBy): void
+    private function palette(string $tenant, string $product, string $chosenBy, ?string $pinned): void
     {
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO tenant_palettes (tenant_id, product_id, palette, chosen_by)
-                SELECT :tenant, :product, name, :user FROM palettes ORDER BY random() LIMIT 1
+                SELECT :tenant, :product, name, :user FROM palettes
+                 ORDER BY (name = CAST(:pinned AS text)) DESC NULLS LAST, random()
+                 LIMIT 1
                 SQL,
-            ['tenant' => $tenant, 'product' => $product, 'user' => $chosenBy],
+            ['tenant' => $tenant, 'product' => $product, 'user' => $chosenBy, 'pinned' => $pinned],
         );
     }
 

@@ -840,6 +840,22 @@ final class DemoWorld
     public const TENANTS_THAT_DECIDE_FOR_THEIR_PEOPLE = ['globex'];
 
     /**
+     * The palettes the demonstration does not leave to chance (2026-10-08):
+     * Acme in Plan wears Forest ledger, so the organisation the bare host
+     * opens on, in the product deployed beside the platform, looks the same
+     * after every reset. Every other holding draws one at random.
+     *
+     * A name, and so only a preference: the list is the operator's, edited
+     * on the console and kept across a reset, and a name it no longer has
+     * falls back to the draw rather than failing the seed.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const PALETTES = [
+        'acme' => ['plan' => 'forest-ledger'],
+    ];
+
+    /**
      * The organisation the bare host addresses (2026-09-17): Acme, as the
      * operator's own. Globex lives at `/globex/`, Initech at `/initech/`.
      */
