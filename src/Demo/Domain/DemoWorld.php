@@ -1114,6 +1114,23 @@ final class DemoWorld
     public const PICTURED_PRODUCT = 'plan';
 
     /**
+     * The picture a showcase row names, or null for most rows.
+     *
+     * A method rather than `$block['picture'] ?? null` at the one call
+     * site, because the story is a constant large enough that static
+     * analysis stops tracking its shape and can no longer say what the key
+     * holds; here the row is any array, and the answer is checked.
+     *
+     * @param array<string, mixed> $block
+     */
+    public static function pictureOf(array $block): ?string
+    {
+        $picture = $block['picture'] ?? null;
+
+        return is_string($picture) && $picture !== '' ? $picture : null;
+    }
+
+    /**
      * Which project document schema versions a product accepts when its own
      * definition names none (non-negotiable #10): a product that declares
      * none accepts no project at all, which is what the demo did until

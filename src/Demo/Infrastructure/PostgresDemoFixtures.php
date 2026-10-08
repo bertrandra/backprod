@@ -927,9 +927,9 @@ final class PostgresDemoFixtures implements DemoFixtures
             // Named here, uploaded by the seeder: a picture is bytes in
             // storage and a sniffed row, which is the showcase module's
             // door and not a table these fixtures write.
-            $picture = $block['picture'] ?? null;
+            $picture = DemoWorld::pictureOf($block);
 
-            if (is_string($picture)) {
+            if ($picture !== null) {
                 $this->pictures[] = [$id, $picture];
             }
 
