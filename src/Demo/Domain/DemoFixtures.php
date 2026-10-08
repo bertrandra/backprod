@@ -46,4 +46,24 @@ interface DemoFixtures
      * @return array<string, bool> check => holds
      */
     public function verify(DemoStructure $structure): array;
+
+    /**
+     * Hangs an uploaded picture on a showcase block (2026-10-08).
+     *
+     * The bytes and the asset row are the showcase module's to write —
+     * sniffed, refused when not a picture, put in storage — so the seeder
+     * uploads through that door and the fixtures only record which block
+     * shows which asset, the one column that is theirs.
+     */
+    public function attachPicture(string $blockId, string $assetId): void;
+
+    /**
+     * The ids of the demonstration's products as they stand, by code —
+     * empty where the world is not seeded. What a reset needs before the
+     * wipe: the pictures those products uploaded live outside the database,
+     * and a truncate would leave the bytes behind with nothing naming them.
+     *
+     * @return array<string, string>
+     */
+    public function productIds(): array;
 }

@@ -61,7 +61,8 @@ export const BAND_META = {
  * legible at the one size the band draws them.
  */
 export const PROBLEM_ICONS = {
-  clock: 'M15 4 V15 L22 19',
+  // A face and two hands: without the face it read as the letter L.
+  clock: 'M15 3 a12 12 0 1 0 0.01 0 M15 9 V15 L20 18',
   cross: 'M6 24 L24 6 M6 6 L24 24',
   house: 'M7 25 V11 L15 5 L23 11 V25 Z M12 25 V17 H18 V25',
   coin: 'M15 8 V22 M12 11 h5 a2.5 2.5 0 0 1 0 5 h-4 a2.5 2.5 0 0 0 0 5 h5',

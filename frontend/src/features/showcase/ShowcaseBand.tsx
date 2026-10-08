@@ -22,6 +22,16 @@ const SURFACE: Record<BandSurface, string> = {
   // The pair that already exists and already flips with the theme: in
   // dark mode `inverse` is the light one, so the problem band stays the
   // band that stands out rather than the one that disappears.
+  //
+  // **The headings have to be told** (2026-10-08). `index.css` paints every
+  // h1–h4 in `--color-ink` so that a screen picks a size and never a
+  // colour — which on the one band whose ground is the ink's own colour
+  // painted the title in its background. The band read as an empty dark
+  // box with three white glyphs in it, and worst on a phone, where the
+  // title is the first thing in the frame. The band's own title and lede
+  // are told below; a band component that draws headings on this ground
+  // says so on each of them (`ProblemBand`), because an arbitrary variant
+  // naming every heading at once reads as a sentence to `gate:i18n`.
   deep: 'bg-inverse text-on-inverse',
 };
 
@@ -101,11 +111,14 @@ export function ShowcaseBand({
                 <span className="text-2xs font-semibold uppercase tracking-[0.14em] text-accent">{eyebrow}</span>
               </p>
             )}
-            <h2 id={`${id}-title`} className="display-type text-display-sm md:text-display-md font-semibold">
+            <h2
+              id={`${id}-title`}
+              className={cn('display-type text-display-sm md:text-display-md font-semibold', surface === 'deep' && 'text-on-inverse')}
+            >
               {title}
             </h2>
             {lede !== undefined && (
-              <p className="max-w-prose text-lg text-muted">{lede}</p>
+              <p className={cn('max-w-prose text-lg', surface === 'deep' ? 'text-on-inverse/75' : 'text-muted')}>{lede}</p>
             )}
           </header>
         )}

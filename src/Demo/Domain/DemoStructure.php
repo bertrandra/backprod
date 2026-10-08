@@ -22,6 +22,15 @@ final class DemoStructure
         public readonly array $tenants,
         public readonly array $users,
         public readonly array $offers,
+        /**
+         * The showcase blocks written with a picture named, as
+         * `[block id, file name]` pairs, in the order they were written
+         * (2026-10-08). The fixtures cannot upload — that is the showcase
+         * module's door — so they say which rows are waiting for one.
+         *
+         * @var list<array{0: string, 1: string}>
+         */
+        public readonly array $pictures = [],
     ) {
     }
 
