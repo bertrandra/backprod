@@ -29,7 +29,8 @@ page still does afterwards, changing a password; change the platform
 administrator's, confirm you can sign in with it, and delete the file — a page
 that can rewrite `.env` has no business staying reachable once it has nothing
 left to do. The sections below are what it automates; read them if you would
-rather do it by hand, or need to understand what it did.
+rather do it by hand, or need to understand what it did. **Upgrading a site
+already installed is §9, and never `setup.php`.**
 
 ---
 
@@ -396,6 +397,108 @@ the script, most often, and SiteGround's cron mail says which. A pass that
 finished seconds ago means it is. The same three facts are on `/console/queue`
 with a threshold you can set, which is where to look later; this is for the
 minute after you typed the line, when signing in to find out would be a detour.
+
+---
+
+## 9. Upgrading — a new bundle, the same database
+
+Everything above installs. An upgrade keeps three things the installation
+made and swaps everything else:
+
+| Kept | Why it is not in the bundle |
+|---|---|
+| the database | the customers, their invoices, their projects — migrated forward, never recreated |
+| `backprod-app/.env` | the signing secrets: a new `AUTH_SIGNING_SECRET` signs everybody out |
+| `backprod-app/var/` | every uploaded file, and `.setup-complete` — the marker that keeps `setup.php` shut |
+
+Uploading a new `backprod-app/` over the old one through the File Manager is the
+shape of the mistake: a folder replaced wholesale takes `.env` and `var/` with
+it, and without the marker the installer is open again — and the installer
+**writes `.env`**. So the bundle carries a script that does the swap and holds
+those three, `bin/upgrade.php`, run over SSH (Site Tools → Devs → SSH Keys
+Manager; every SiteGround plan has it).
+
+**1. Back up the database.** Site Tools → Security → Backups, or `pg_dump`.
+Migrations only go forward; the way back from one is a backup.
+
+**2. Unpack the new bundle beside the site, not in it** — under the same home
+directory, because the swap is a rename and a rename does not cross
+filesystems (the script refuses if it would):
+
+```sh
+mkdir ~/backprod-new && cd ~/backprod-new
+unzip ~/backprod-<version>.zip          # uploaded with the File Manager or scp
+```
+
+**3. Ask it what it would do.** Nothing changes; every check runs:
+
+```sh
+php ~/backprod-new/backprod-app/bin/upgrade.php ~/www/example.com --dry-run
+```
+
+It names the bundle's commit and lists the migrations it would apply — none,
+often, and that is a normal answer. It refuses, with the reason, if
+`.env` or the setup marker is missing, the database in `.env` does not answer,
+or `public_html/index.php` names the application differently from the
+bundle's (the `BACKPROD_APP` line §4 says to edit for `open_basedir`; edit the
+bundle's copy to match and run it again).
+
+**4. Upgrade:**
+
+```sh
+php ~/backprod-new/backprod-app/bin/upgrade.php ~/www/example.com
+```
+
+In this order, each step only once the one before it succeeded:
+
+1. **Migrates the database**, in one transaction, through the new code and the
+   site's own `.env`. A failure rolls back and changes nothing else. The schema
+   moves first because migrations add: the version still running keeps working
+   on the newer schema, whereas new code on an old schema is what breaks.
+2. **Swaps the application by rename**: the live `backprod-app/` becomes
+   `backprod-app.previous-<time>/`, the bundle's takes its place, and `var/`
+   moves across. `.env` is *copied*, so the previous version keeps a working
+   configuration for as long as it might be needed back.
+3. **Replaces only what the build owns in `public_html/`** — `index.php`,
+   `index.html`, `.htaccess`, `assets/` — and moves the ones it replaces into
+   `backprod-app.previous-<time>/public_html-replaced/`. Anything else in the
+   document root is left alone. **`setup.php` is never installed**, and one
+   still there is moved aside with the rest.
+4. **Runs `bin/preflight.php --strict`** on the result, and prints the exact
+   commands that undo the swap.
+
+If a move fails half-way, every move already made is undone and the site goes
+on running the previous version, on the migrated database.
+
+**5. Flush the cache** — Site Tools → Speed → Caching → Dynamic Cache (and
+Memcached if it is on). Otherwise SiteGround keeps serving the previous
+`index.html`, which names scripts the swap just moved aside.
+
+**6. Look, then tidy up.** Sign in, open Console → Set up. The cron line from
+§8 needs nothing: the path it names did not move. Once the new version has
+been seen working:
+
+```sh
+rm -rf ~/www/example.com/backprod-app.previous-<time> ~/backprod-new
+```
+
+**Going back** is the two lines the script printed — the previous application
+and its public files back in place, `var/` moved home. The database stays
+migrated, which the previous version tolerates for the reason the migration
+went first. If you ever need the schema back too, that is the backup from
+step 1.
+
+**`.htaccess` is the build's.** The Content-Security-Policy in it is written
+at build time (`--payment-provider`, `--embed`), so a rule added to the live
+one by hand is replaced like the rest — it is in `public_html-replaced/`; carry
+it into the bundle's copy before upgrading, or rebuild with the flag that
+writes it.
+
+**Without SSH**, the same steps by hand: back up, apply the migrations from
+your machine as in §3 (`composer run migrate`, from a checkout of the bundle's
+commit), then in the File Manager rename `backprod-app/` aside, upload the new
+one, move `.env` and `var/` into it from the old, and replace the four
+entries in `public_html/` — without `setup.php`.
 
 ---
 

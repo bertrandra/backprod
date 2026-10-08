@@ -259,6 +259,10 @@ seeds the demonstration world (docs/demo-world.html: five products, one
 person per role) — then locks itself: a completion marker refuses to do any
 of that again. Change the platform administrator's password on its success
 page, confirm you can sign in, then delete the file (ADR-038, ADR-039).
+
+Upgrading a site that is already installed is not setup.php: unpack this
+bundle beside the site and run backprod-app/bin/upgrade.php against it — it
+migrates the database and keeps .env and var/ (DEPLOY.md, section 9).
 INFO
 
 # Checksums, so a half-finished FTP transfer is a failed check rather than a
