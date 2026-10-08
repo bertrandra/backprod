@@ -110,7 +110,10 @@ foreach ([$live, $livePublic, dirname($newApp)] as $directory) {
     }
 }
 
-if (@stat($liveApp)['dev'] !== @stat($newApp)['dev']) {
+$liveStat = @stat($liveApp);
+$newStat = @stat($newApp);
+
+if ($liveStat === false || $newStat === false || $liveStat['dev'] !== $newStat['dev']) {
     // A rename across filesystems is a copy and a delete, and a copy can stop
     // halfway. Unpacking the bundle under the same home directory avoids it.
     refuse('the bundle and the live site are on different filesystems; unpack the bundle under the same home directory as the site.');
