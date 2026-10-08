@@ -261,6 +261,14 @@ final class DemoResetTest extends DatabaseApiTestCase
         self::assertSame(200, $bytes->getStatusCode());
         self::assertStringStartsWith('image/', $bytes->getHeaderLine('Content-Type'));
 
+        // The first reset deleted Ola with everybody else — that is what
+        // `testTheCallerIsSignedOutByTheirOwnReset` proves — so she is
+        // appointed again before she can reset a second time.
+        $this->appoint(
+            $this->id("INSERT INTO users (auth_subject, email) VALUES ('sub-ola', 'ola@platform.test') RETURNING id"),
+            'PLATFORM_ADMIN',
+        );
+
         self::assertSame(200, $this->reset('ola-token')->getStatusCode());
         self::assertSame($expected, $this->connection->fetchOne('SELECT count(*) FROM product_assets'));
     }
