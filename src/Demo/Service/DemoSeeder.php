@@ -15,6 +15,7 @@ use App\Demo\Domain\SeededWorld;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
+use App\Product\Service\ShowcasePictures;
 use App\Project\Service\ProjectWorkspace;
 use App\Sales\Service\Sales;
 use App\Shared\Exceptions\ConflictException;
@@ -79,6 +80,7 @@ final class DemoSeeder
         private readonly EntitlementRepository $entitlements,
         private readonly Sales $sales,
         private readonly DemoCollection $collection,
+        private readonly ShowcasePictures $pictures,
     ) {
     }
 
@@ -133,6 +135,15 @@ final class DemoSeeder
             );
         }
 
+        // The pictures first, through the door that put them there: they
+        // are bytes in storage, and a truncate would leave them behind with
+        // no row naming them (2026-10-08).
+        foreach ($this->fixtures->productIds() as $productId) {
+            foreach ($this->pictures->of($productId) as $asset) {
+                $this->pictures->delete($productId, $asset->id);
+            }
+        }
+
         $this->fixtures->wipe();
 
         return $this->build();
@@ -144,6 +155,26 @@ final class DemoSeeder
         // store what they are given, and what they are given must never be
         // the plaintext.
         $structure = $this->fixtures->write(password_hash(DemoWorld::PASSWORD, PASSWORD_BCRYPT));
+
+        // The pictures on Plan's page (2026-10-08): real screenshots of the
+        // product, shipped with the platform and uploaded through the same
+        // door the console uses — sniffed, refused if not a picture, served
+        // from the public route. The fixtures named the rows; this hangs
+        // the bytes on them.
+        $pictured = 0;
+
+        foreach ($structure->pictures as [$blockId, $file]) {
+            $path = DemoWorld::PICTURES_DIR . '/' . $file;
+            $contents = @file_get_contents($path);
+
+            if ($contents === false) {
+                throw new RuntimeException("The demonstration names a picture it does not ship: {$file}.");
+            }
+
+            $asset = $this->pictures->upload($structure->product(DemoWorld::PICTURED_PRODUCT), $contents, $file, $structure->user(DemoWorld::STAFF_ADMIN));
+            $this->fixtures->attachPicture($blockId, $asset->id);
+            ++$pictured;
+        }
 
         $subscriptions = [];
         $invoices = [];
@@ -294,6 +325,14 @@ final class DemoSeeder
         }
 
         $checks = [
+            // The page is judged on its pictures as much as its words: a
+            // demonstration whose hero shows a grey box is one nobody
+            // demonstrates (2026-10-08).
+            'every picture the story names is on its row' => $pictured === count($structure->pictures)
+                && $pictured === count(array_filter(
+                    $this->pictures->of($structure->product(DemoWorld::PICTURED_PRODUCT)),
+                    static fn ($asset): bool => $asset->id !== '',
+                )),
             'every project was stored where it was made' => array_filter(
                 array_keys($projects),
                 static fn (int $i): bool => $projects[$i]->tenantId !== $structure->tenant(DemoWorld::PROJECTS[$i]['tenant'])

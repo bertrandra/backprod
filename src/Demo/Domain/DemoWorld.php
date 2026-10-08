@@ -420,64 +420,147 @@ final class DemoWorld
     public const SHOWCASE_HEADINGS = [
         'plan' => [
             'HEADLINE' => [
-                'content' => ['eyebrow' => 'Outdoor plans'],
+                'content' => [
+                    'eyebrow' => 'From an address to a plan',
+                ],
                 'translations' => [
-                    'fr' => ['eyebrow' => 'Plans d’extérieur'],
-                    'es' => ['eyebrow' => 'Planos de exteriores'],
-                    'de' => ['eyebrow' => 'Außenpläne'],
-                    'it' => ['eyebrow' => 'Piani per esterni'],
+                    'fr' => [
+                        'eyebrow' => 'D’une adresse à un plan',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'De una dirección a un plano',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Von einer Adresse zum Plan',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Da un indirizzo a un piano',
+                    ],
                 ],
             ],
             'PROBLEM' => [
                 'content' => [
                     'eyebrow' => 'The problem',
-                    'title' => 'The plan is never the work. It is what has to be redone before the work can start.',
+                    'title' => 'Before drawing anything, you redraw what already exists.',
                 ],
                 'translations' => [
-                    'fr' => ['eyebrow' => 'Le problème', 'title' => 'Le plan n’est jamais le travail. C’est ce qu’il faut refaire avant de pouvoir travailler.'],
-                    'es' => ['eyebrow' => 'El problema', 'title' => 'El plano nunca es el trabajo. Es lo que hay que rehacer antes de poder trabajar.'],
-                    'de' => ['eyebrow' => 'Das Problem', 'title' => 'Der Plan ist nie die Arbeit. Er ist das, was vorher noch einmal gemacht werden muss.'],
-                    'it' => ['eyebrow' => 'Il problema', 'title' => 'Il piano non è mai il lavoro. È ciò che va rifatto prima di poter lavorare.'],
+                    'fr' => [
+                        'eyebrow' => 'Le problème',
+                        'title' => 'Avant de dessiner quoi que ce soit, on redessine ce qui existe déjà.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'El problema',
+                        'title' => 'Antes de dibujar nada, se vuelve a dibujar lo que ya existe.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Das Problem',
+                        'title' => 'Bevor man etwas zeichnet, zeichnet man nach, was es schon gibt.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Il problema',
+                        'title' => 'Prima di disegnare qualsiasi cosa, si ridisegna ciò che esiste già.',
+                    ],
                 ],
             ],
             'STEPS' => [
                 'content' => [
-                    'eyebrow' => 'The tutorial — three moves',
-                    'title' => 'Trace, place, print.',
-                    'lede' => 'No training, no template to download. These are the only three things to know.',
+                    'eyebrow' => 'Three moves',
+                    'title' => 'Type, look, place.',
+                    'lede' => 'No training, no template. The address does the drawing you used to do by hand.',
                 ],
                 'translations' => [
-                    'fr' => ['eyebrow' => 'Le tuto — trois gestes', 'title' => 'Tracer, poser, imprimer.', 'lede' => 'Aucune formation, aucun gabarit à télécharger. Ce sont les trois seules choses à savoir faire.'],
-                    'es' => ['eyebrow' => 'El tutorial — tres gestos', 'title' => 'Trazar, colocar, imprimir.', 'lede' => 'Sin formación, sin plantilla que descargar. Son las tres únicas cosas que hay que saber.'],
-                    'de' => ['eyebrow' => 'Die Anleitung — drei Handgriffe', 'title' => 'Zeichnen, setzen, drucken.', 'lede' => 'Keine Schulung, keine Vorlage zum Herunterladen. Das sind die einzigen drei Dinge.'],
-                    'it' => ['eyebrow' => 'Il tutorial — tre gesti', 'title' => 'Tracciare, posare, stampare.', 'lede' => 'Nessuna formazione, nessun modello da scaricare. Sono le uniche tre cose da sapere.'],
+                    'fr' => [
+                        'eyebrow' => 'Trois gestes',
+                        'title' => 'Tapez, regardez, posez.',
+                        'lede' => 'Aucune formation, aucun gabarit. L’adresse fait le dessin que vous faisiez à la main.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'Tres gestos',
+                        'title' => 'Escriba, mire, coloque.',
+                        'lede' => 'Sin formación, sin plantilla. La dirección hace el dibujo que usted hacía a mano.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Drei Handgriffe',
+                        'title' => 'Tippen, schauen, setzen.',
+                        'lede' => 'Keine Schulung, keine Vorlage. Die Adresse zeichnet, was Sie bisher von Hand zeichneten.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Tre gesti',
+                        'title' => 'Scrivi, guarda, posa.',
+                        'lede' => 'Nessuna formazione, nessun modello. L’indirizzo fa il disegno che facevi a mano.',
+                    ],
                 ],
             ],
             'USE_CASE' => [
-                'content' => ['eyebrow' => 'The result', 'title' => 'The same plot, before and after.'],
-                'translations' => [
-                    'fr' => ['eyebrow' => 'Le résultat', 'title' => 'La même parcelle, avant et après.'],
-                    'es' => ['eyebrow' => 'El resultado', 'title' => 'La misma parcela, antes y después.'],
-                    'de' => ['eyebrow' => 'Das Ergebnis', 'title' => 'Dasselbe Grundstück, vorher und nachher.'],
-                    'it' => ['eyebrow' => 'Il risultato', 'title' => 'La stessa particella, prima e dopo.'],
+                'content' => [
+                    'eyebrow' => 'Who it is for',
+                    'title' => 'On site, on a phone, with the client beside you.',
                 ],
-            ],
-            'DEMO' => [
-                'content' => ['eyebrow' => 'Try it', 'title' => 'Open it and move a corner.'],
                 'translations' => [
-                    'fr' => ['eyebrow' => 'Essayez', 'title' => 'Ouvrez-la et déplacez un coin.'],
-                    'es' => ['eyebrow' => 'Pruébelo', 'title' => 'Ábrala y mueva una esquina.'],
-                    'de' => ['eyebrow' => 'Probieren Sie es', 'title' => 'Öffnen Sie sie und verschieben Sie eine Ecke.'],
-                    'it' => ['eyebrow' => 'Provatela', 'title' => 'Apritela e spostate un angolo.'],
+                    'fr' => [
+                        'eyebrow' => 'Pour qui',
+                        'title' => 'Sur le terrain, sur un téléphone, le client à côté de vous.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'Para quién',
+                        'title' => 'Sobre el terreno, en el móvil, con el cliente al lado.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Für wen',
+                        'title' => 'Vor Ort, auf dem Handy, mit dem Kunden daneben.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Per chi',
+                        'title' => 'Sul posto, sul telefono, con il cliente accanto.',
+                    ],
                 ],
             ],
             'PROOF' => [
-                'content' => ['eyebrow' => 'The proof', 'title' => 'The sheet that comes out, as it comes out.'],
+                'content' => [
+                    'eyebrow' => 'See it',
+                    'title' => 'Real plots, as they come out of it.',
+                ],
                 'translations' => [
-                    'fr' => ['eyebrow' => 'La preuve', 'title' => 'La feuille qui sort, telle quelle.'],
-                    'es' => ['eyebrow' => 'La prueba', 'title' => 'La hoja que sale, tal cual.'],
-                    'de' => ['eyebrow' => 'Der Beleg', 'title' => 'Das Blatt, das herauskommt — so wie es herauskommt.'],
-                    'it' => ['eyebrow' => 'La prova', 'title' => 'Il foglio che esce, così com’è.'],
+                    'fr' => [
+                        'eyebrow' => 'Voyez-le',
+                        'title' => 'De vraies parcelles, telles qu’elles en sortent.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'Véalo',
+                        'title' => 'Parcelas reales, tal como salen.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Sehen Sie selbst',
+                        'title' => 'Echte Grundstücke, so wie sie herauskommen.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Guarda',
+                        'title' => 'Particelle vere, così come escono.',
+                    ],
+                ],
+            ],
+            'DEMO' => [
+                'content' => [
+                    'eyebrow' => 'Try it',
+                    'title' => 'Open it and move a corner.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'eyebrow' => 'Essayez',
+                        'title' => 'Ouvrez-la et déplacez un coin.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'Pruébelo',
+                        'title' => 'Ábrala y mueva una esquina.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Probieren Sie es',
+                        'title' => 'Öffnen Sie sie und verschieben Sie eine Ecke.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Provatela',
+                        'title' => 'Apritela e spostate un angolo.',
+                    ],
                 ],
             ],
             'PRICING' => [
@@ -486,19 +569,41 @@ final class DemoWorld
                     'lede' => 'Draw it in full, print it. You pay only if you make a second one.',
                 ],
                 'translations' => [
-                    'fr' => ['title' => 'Le premier plan ne coûte rien.', 'lede' => 'Dessinez-le en entier, imprimez-le. Vous ne payez que si vous en faites un deuxième.'],
-                    'es' => ['title' => 'El primer plano no cuesta nada.', 'lede' => 'Dibújelo entero, imprímalo. Solo paga si hace un segundo.'],
-                    'de' => ['title' => 'Der erste Plan kostet nichts.', 'lede' => 'Zeichnen Sie ihn ganz, drucken Sie ihn. Sie zahlen erst für den zweiten.'],
-                    'it' => ['title' => 'Il primo piano non costa nulla.', 'lede' => 'Disegnalo per intero, stampalo. Paghi solo se ne fai un secondo.'],
+                    'fr' => [
+                        'title' => 'Le premier plan ne coûte rien.',
+                        'lede' => 'Dessinez-le en entier, imprimez-le. Vous ne payez que si vous en faites un deuxième.',
+                    ],
+                    'es' => [
+                        'title' => 'El primer plano no cuesta nada.',
+                        'lede' => 'Dibújelo entero, imprímalo. Solo paga si hace un segundo.',
+                    ],
+                    'de' => [
+                        'title' => 'Der erste Plan kostet nichts.',
+                        'lede' => 'Zeichnen Sie ihn ganz, drucken Sie ihn. Sie zahlen erst für den zweiten.',
+                    ],
+                    'it' => [
+                        'title' => 'Il primo piano non costa nulla.',
+                        'lede' => 'Disegnalo per intero, stampalo. Paghi solo se ne fai un secondo.',
+                    ],
                 ],
             ],
             'QUESTION' => [
-                'content' => ['title' => 'The questions we are asked'],
+                'content' => [
+                    'title' => 'The questions we are asked',
+                ],
                 'translations' => [
-                    'fr' => ['title' => 'Les questions qu’on nous pose'],
-                    'es' => ['title' => 'Las preguntas que nos hacen'],
-                    'de' => ['title' => 'Die Fragen, die uns gestellt werden'],
-                    'it' => ['title' => 'Le domande che ci fanno'],
+                    'fr' => [
+                        'title' => 'Les questions qu’on nous pose',
+                    ],
+                    'es' => [
+                        'title' => 'Las preguntas que nos hacen',
+                    ],
+                    'de' => [
+                        'title' => 'Die Fragen, die uns gestellt werden',
+                    ],
+                    'it' => [
+                        'title' => 'Le domande che ci fanno',
+                    ],
                 ],
             ],
         ],
@@ -523,180 +628,295 @@ final class DemoWorld
      *
      * The order within each band is the order they are written here.
      *
-     * @var array<string, list<array{block: string, content: array<string, string>, translations: array<string, array<string, string>>}>>
+     * **The pictures are real** (2026-10-08): screenshots of Plan on two
+     * of the demonstration's own projects — a house at Le Vésinet and a
+     * village at Peyrusse-le-Roc, on a phone and on a desktop — shipped in
+     * {@see PICTURES_DIR} and named by file on the rows that show them. The
+     * story the page tells is the address: type it, the plot and the
+     * relief arrive, then the terrace, the pool and the pergola go on.
+     *
+     * @var array<string, list<array{block: string, content: array<string, string>, translations: array<string, array<string, string>>, picture?: string}>>
      */
     public const SHOWCASE = [
         'plan' => [
             [
                 'block' => 'HEADLINE',
                 'content' => [
-                    'headline' => 'Draw a terrace in three minutes',
-                    'subline' => 'From the cadastral plot to a file your builder can read — without redrawing anything by hand.',
+                    'headline' => 'Your address. Your plot, your relief, your terrace.',
+                    'subline' => 'Type the address: the cadastral plot, the neighbours’ buildings and the terrain arrive by themselves. Then place a terrace, a pool, a pergola — in 3D, over the real aerial photo.',
                     'reassurance' => 'Nothing to install. The first plan costs nothing.',
+                    'alt' => 'A house and its garden in 3D over the aerial photo, drawn from one address',
                 ],
                 'translations' => [
                     'fr' => [
-                        'headline' => 'Dessinez une terrasse en trois minutes',
-                        'subline' => 'De la parcelle cadastrale au fichier que votre artisan peut lire, sans rien redessiner à la main.',
+                        'headline' => 'Votre adresse. Votre parcelle, votre relief, votre terrasse.',
+                        'subline' => 'Tapez l’adresse : la parcelle cadastrale, les bâtiments voisins et le relief arrivent tout seuls. Puis posez une terrasse, une piscine, une pergola — en 3D, sur la vraie photo aérienne.',
                         'reassurance' => 'Rien à installer. Le premier plan ne coûte rien.',
+                        'alt' => 'Une maison et son jardin en 3D sur la photo aérienne, dessinés depuis une adresse',
                     ],
                     'es' => [
-                        'headline' => 'Dibuje una terraza en tres minutos',
-                        'subline' => 'De la parcela catastral al archivo que su constructor puede leer, sin volver a dibujar nada a mano.',
+                        'headline' => 'Su dirección. Su parcela, su relieve, su terraza.',
+                        'subline' => 'Escriba la dirección: la parcela catastral, los edificios vecinos y el terreno llegan solos. Luego coloque una terraza, una piscina, una pérgola — en 3D, sobre la foto aérea real.',
                         'reassurance' => 'Nada que instalar. El primer plano no cuesta nada.',
+                        'alt' => 'Una casa y su jardín en 3D sobre la foto aérea, dibujados desde una dirección',
                     ],
                     'de' => [
-                        'headline' => 'Zeichnen Sie eine Terrasse in drei Minuten',
-                        'subline' => 'Vom Katasterplan zur Datei, die Ihr Handwerker lesen kann — ohne etwas von Hand nachzuzeichnen.',
+                        'headline' => 'Ihre Adresse. Ihr Grundstück, Ihr Gelände, Ihre Terrasse.',
+                        'subline' => 'Adresse eintippen: Katasterparzelle, Nachbargebäude und Gelände kommen von allein. Dann Terrasse, Pool, Pergola setzen — in 3D, auf dem echten Luftbild.',
                         'reassurance' => 'Nichts zu installieren. Der erste Plan kostet nichts.',
+                        'alt' => 'Ein Haus und sein Garten in 3D auf dem Luftbild, aus einer Adresse gezeichnet',
                     ],
                     'it' => [
-                        'headline' => 'Disegna una terrazza in tre minuti',
-                        'subline' => 'Dalla particella catastale al file che il tuo costruttore può leggere, senza ridisegnare nulla a mano.',
+                        'headline' => 'Il tuo indirizzo. La tua particella, il tuo rilievo, la tua terrazza.',
+                        'subline' => 'Scrivi l’indirizzo: la particella catastale, gli edifici vicini e il terreno arrivano da soli. Poi posa una terrazza, una piscina, una pergola — in 3D, sulla vera foto aerea.',
                         'reassurance' => 'Niente da installare. Il primo piano non costa nulla.',
+                        'alt' => 'Una casa e il suo giardino in 3D sulla foto aerea, disegnati da un indirizzo',
+                    ],
+                ],
+                'picture' => 'hero-vesinet-3d.webp',
+            ],
+            [
+                'block' => 'PROBLEM',
+                'content' => [
+                    'title' => 'The plot, measured once more',
+                    'body' => 'A tape measure in the garden, a sketch on paper, and boundaries off by a metre.',
+                    'icon' => 'ruler',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'La parcelle, mesurée encore une fois',
+                        'body' => 'Un mètre ruban dans le jardin, un croquis sur papier, et des limites fausses d’un mètre.',
+                    ],
+                    'es' => [
+                        'title' => 'La parcela, medida una vez más',
+                        'body' => 'Una cinta métrica en el jardín, un croquis en papel y unos límites con un metro de error.',
+                    ],
+                    'de' => [
+                        'title' => 'Das Grundstück, noch einmal vermessen',
+                        'body' => 'Ein Maßband im Garten, eine Skizze auf Papier, und Grenzen, die um einen Meter danebenliegen.',
+                    ],
+                    'it' => [
+                        'title' => 'La particella, misurata ancora una volta',
+                        'body' => 'Un metro a nastro in giardino, uno schizzo su carta, e confini sbagliati di un metro.',
                     ],
                 ],
             ],
             [
                 'block' => 'PROBLEM',
                 'content' => [
-                    'title' => 'Half a day for every job',
-                    'body' => 'Measure, transfer to paper, start again because the scale will not come out round.',
-                    'icon' => 'clock',
+                    'title' => 'A slope nobody drew',
+                    'body' => 'The terrace is planned flat; the ground is not. The surprise arrives with the digger.',
+                    'icon' => 'warning',
                 ],
                 'translations' => [
-                    'fr' => ['title' => 'Une demi-journée par chantier', 'body' => 'Mesurer, reporter sur papier, recommencer parce que l’échelle ne tombe pas juste.'],
-                    'es' => ['title' => 'Media jornada por obra', 'body' => 'Medir, pasar al papel, empezar de nuevo porque la escala no sale redonda.'],
-                    'de' => ['title' => 'Ein halber Tag je Baustelle', 'body' => 'Messen, aufs Papier übertragen, von vorn anfangen, weil der Maßstab nicht aufgeht.'],
-                    'it' => ['title' => 'Mezza giornata per cantiere', 'body' => 'Misurare, riportare su carta, ricominciare perché la scala non torna.'],
+                    'fr' => [
+                        'title' => 'Une pente que personne n’a dessinée',
+                        'body' => 'La terrasse est prévue à plat ; le terrain ne l’est pas. La surprise arrive avec la pelleteuse.',
+                    ],
+                    'es' => [
+                        'title' => 'Una pendiente que nadie dibujó',
+                        'body' => 'La terraza se planea plana; el terreno no lo es. La sorpresa llega con la excavadora.',
+                    ],
+                    'de' => [
+                        'title' => 'Ein Gefälle, das niemand gezeichnet hat',
+                        'body' => 'Die Terrasse ist eben geplant; der Boden ist es nicht. Die Überraschung kommt mit dem Bagger.',
+                    ],
+                    'it' => [
+                        'title' => 'Una pendenza che nessuno ha disegnato',
+                        'body' => 'La terrazza è prevista in piano; il terreno no. La sorpresa arriva con l’escavatore.',
+                    ],
                 ],
             ],
             [
                 'block' => 'PROBLEM',
                 'content' => [
-                    'title' => 'Two figures for one area',
-                    'body' => 'The site notebook and the quotation disagree, and nothing decides between them.',
-                    'icon' => 'cross',
+                    'title' => 'A client who cannot picture it',
+                    'body' => 'A pencil plan is not signed. It is discussed, at length, and drawn again.',
+                    'icon' => 'paper',
                 ],
                 'translations' => [
-                    'fr' => ['title' => 'Deux chiffres pour une surface', 'body' => 'Le carnet de chantier et le devis ne disent pas la même chose, et rien ne tranche.'],
-                    'es' => ['title' => 'Dos cifras para una superficie', 'body' => 'El cuaderno de obra y el presupuesto no coinciden, y nada decide entre ellos.'],
-                    'de' => ['title' => 'Zwei Zahlen für eine Fläche', 'body' => 'Das Bautagebuch und das Angebot widersprechen sich, und nichts entscheidet.'],
-                    'it' => ['title' => 'Due cifre per una superficie', 'body' => 'Il quaderno di cantiere e il preventivo non coincidono, e nulla decide.'],
-                ],
-            ],
-            [
-                'block' => 'PROBLEM',
-                'content' => [
-                    'title' => 'A client who sees nothing',
-                    'body' => 'A pencil sketch is not signed. It is discussed, at length, and then drawn again.',
-                    'icon' => 'house',
-                ],
-                'translations' => [
-                    'fr' => ['title' => 'Un client qui ne voit rien', 'body' => 'Un croquis au crayon ne se signe pas. Il se discute, longtemps, puis se refait.'],
-                    'es' => ['title' => 'Un cliente que no ve nada', 'body' => 'Un croquis a lápiz no se firma. Se discute, largamente, y luego se rehace.'],
-                    'de' => ['title' => 'Ein Kunde, der nichts sieht', 'body' => 'Eine Bleistiftskizze wird nicht unterschrieben. Sie wird lange besprochen und dann neu gezeichnet.'],
-                    'it' => ['title' => 'Un cliente che non vede nulla', 'body' => 'Uno schizzo a matita non si firma. Si discute, a lungo, e poi si rifà.'],
-                ],
-            ],
-            [
-                'block' => 'STEPS',
-                'content' => [
-                    'title' => 'Bring in the plot',
-                    'body' => 'Import it from the cadastre by its reference, or trace it yourself. The boundaries come with it.',
-                ],
-                'translations' => [
-                    'fr' => ['title' => 'Faites venir la parcelle', 'body' => 'Importez-la du cadastre par sa référence, ou tracez-la vous-même. Les limites viennent avec.'],
-                    'es' => ['title' => 'Traiga la parcela', 'body' => 'Impórtela del catastro por su referencia, o trácela usted mismo. Los límites vienen con ella.'],
-                    'de' => ['title' => 'Holen Sie das Grundstück herein', 'body' => 'Importieren Sie es über die Katasternummer oder zeichnen Sie es selbst. Die Grenzen kommen mit.'],
-                    'it' => ['title' => 'Porta dentro la particella', 'body' => 'Importala dal catasto tramite il riferimento, o tracciala tu stesso. I confini arrivano con lei.'],
+                    'fr' => [
+                        'title' => 'Un client qui ne se représente rien',
+                        'body' => 'Un plan au crayon ne se signe pas. Il se discute, longtemps, puis se refait.',
+                    ],
+                    'es' => [
+                        'title' => 'Un cliente que no se lo imagina',
+                        'body' => 'Un plano a lápiz no se firma. Se discute, largamente, y se vuelve a dibujar.',
+                    ],
+                    'de' => [
+                        'title' => 'Ein Kunde, der es sich nicht vorstellen kann',
+                        'body' => 'Ein Bleistiftplan wird nicht unterschrieben. Er wird lange besprochen und neu gezeichnet.',
+                    ],
+                    'it' => [
+                        'title' => 'Un cliente che non riesce a immaginarlo',
+                        'body' => 'Un piano a matita non si firma. Si discute, a lungo, e si ridisegna.',
+                    ],
                 ],
             ],
             [
                 'block' => 'STEPS',
                 'content' => [
-                    'title' => 'The terrace follows',
-                    'body' => 'Slopes, levels and edges are computed while you drag. Nothing is redrawn twice.',
+                    'title' => 'Type the address',
+                    'body' => 'The cadastral plot comes in with its boundaries, the neighbouring buildings and the aerial photo underneath. Or trace it yourself.',
+                    'alt' => 'The dialog that starts a project from an address',
                 ],
                 'translations' => [
-                    'fr' => ['title' => 'La terrasse suit', 'body' => 'Pentes, niveaux et bordures se calculent pendant que vous déplacez. Rien ne se redessine deux fois.'],
-                    'es' => ['title' => 'La terraza sigue', 'body' => 'Pendientes, niveles y bordes se calculan mientras arrastra. Nada se vuelve a dibujar dos veces.'],
-                    'de' => ['title' => 'Die Terrasse folgt', 'body' => 'Gefälle, Höhen und Kanten werden beim Ziehen berechnet. Nichts wird zweimal gezeichnet.'],
-                    'it' => ['title' => 'La terrazza segue', 'body' => 'Pendenze, livelli e bordi si calcolano mentre trascini. Nulla viene ridisegnato due volte.'],
+                    'fr' => [
+                        'title' => 'Tapez l’adresse',
+                        'body' => 'La parcelle cadastrale arrive avec ses limites, les bâtiments voisins et la photo aérienne dessous. Ou tracez-la vous-même.',
+                        'alt' => 'La fenêtre qui crée un projet depuis une adresse',
+                    ],
+                    'es' => [
+                        'title' => 'Escriba la dirección',
+                        'body' => 'La parcela catastral llega con sus límites, los edificios vecinos y la foto aérea debajo. O trácela usted mismo.',
+                        'alt' => 'La ventana que crea un proyecto desde una dirección',
+                    ],
+                    'de' => [
+                        'title' => 'Adresse eintippen',
+                        'body' => 'Die Katasterparzelle kommt mit ihren Grenzen, den Nachbargebäuden und dem Luftbild darunter. Oder zeichnen Sie sie selbst.',
+                        'alt' => 'Das Fenster, das ein Projekt aus einer Adresse anlegt',
+                    ],
+                    'it' => [
+                        'title' => 'Scrivi l’indirizzo',
+                        'body' => 'La particella catastale arriva con i suoi confini, gli edifici vicini e la foto aerea sotto. Oppure tracciala tu stesso.',
+                        'alt' => 'La finestra che crea un progetto da un indirizzo',
+                    ],
                 ],
+                'picture' => 'step-adresse.webp',
             ],
             [
                 'block' => 'STEPS',
                 'content' => [
-                    'title' => 'The file prints',
-                    'body' => 'DXF for the builder, a PDF dossier for the client. Both from the same drawing.',
+                    'title' => 'The relief comes with it',
+                    'body' => 'Contour lines, levels and slopes are read from the IGN terrain model. A plot on a hillside looks like one, in plan and in 3D.',
+                    'alt' => 'A hillside village in 3D, its houses standing on the real terrain',
                 ],
                 'translations' => [
-                    'fr' => ['title' => 'Le fichier sort', 'body' => 'DXF pour l’artisan, dossier PDF pour le client. Les deux du même dessin.'],
-                    'es' => ['title' => 'El archivo sale', 'body' => 'DXF para el constructor, dosier PDF para el cliente. Ambos del mismo dibujo.'],
-                    'de' => ['title' => 'Die Datei geht raus', 'body' => 'DXF für den Handwerker, ein PDF-Dossier für den Kunden. Beide aus derselben Zeichnung.'],
-                    'it' => ['title' => 'Il file esce', 'body' => 'DXF per il costruttore, dossier PDF per il cliente. Entrambi dallo stesso disegno.'],
+                    'fr' => [
+                        'title' => 'Le relief vient avec',
+                        'body' => 'Courbes de niveau, altitudes et pentes sont lues dans le modèle de terrain de l’IGN. Une parcelle à flanc de colline y ressemble, en plan comme en 3D.',
+                        'alt' => 'Un village à flanc de colline en 3D, ses maisons posées sur le vrai relief',
+                    ],
+                    'es' => [
+                        'title' => 'El relieve viene con ella',
+                        'body' => 'Curvas de nivel, cotas y pendientes se leen del modelo de terreno del IGN. Una parcela en ladera lo parece, en plano y en 3D.',
+                        'alt' => 'Un pueblo en ladera en 3D, con sus casas sobre el terreno real',
+                    ],
+                    'de' => [
+                        'title' => 'Das Gelände kommt mit',
+                        'body' => 'Höhenlinien, Höhen und Gefälle werden aus dem IGN-Geländemodell gelesen. Ein Hanggrundstück sieht aus wie eines, im Plan wie in 3D.',
+                        'alt' => 'Ein Dorf am Hang in 3D, seine Häuser auf dem echten Gelände',
+                    ],
+                    'it' => [
+                        'title' => 'Il rilievo arriva insieme',
+                        'body' => 'Curve di livello, quote e pendenze si leggono dal modello di terreno dell’IGN. Una particella su un pendio sembra tale, in pianta come in 3D.',
+                        'alt' => 'Un villaggio su un pendio in 3D, con le case sul terreno reale',
+                    ],
                 ],
+                'picture' => 'step-relief-peyrusse-3d.webp',
+            ],
+            [
+                'block' => 'STEPS',
+                'content' => [
+                    'title' => 'Place the terrace, the pool, the pergola',
+                    'body' => 'Drag them into place. Dimensions, levels and the price range are computed while you move them.',
+                    'alt' => 'A terrace, a spa and a parasol on the plot, with their dimensions',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Posez la terrasse, la piscine, la pergola',
+                        'body' => 'Glissez-les en place. Cotes, niveaux et fourchette de prix se calculent pendant que vous les déplacez.',
+                        'alt' => 'Une terrasse, un spa et un parasol sur la parcelle, avec leurs cotes',
+                    ],
+                    'es' => [
+                        'title' => 'Coloque la terraza, la piscina, la pérgola',
+                        'body' => 'Arrástrelas a su sitio. Cotas, niveles y rango de precio se calculan mientras las mueve.',
+                        'alt' => 'Una terraza, un spa y una sombrilla en la parcela, con sus cotas',
+                    ],
+                    'de' => [
+                        'title' => 'Terrasse, Pool, Pergola setzen',
+                        'body' => 'Ziehen Sie sie an ihren Platz. Maße, Höhen und Preisspanne werden berechnet, während Sie sie bewegen.',
+                        'alt' => 'Eine Terrasse, ein Spa und ein Sonnenschirm auf dem Grundstück, mit Maßen',
+                    ],
+                    'it' => [
+                        'title' => 'Posa la terrazza, la piscina, la pergola',
+                        'body' => 'Trascinali al loro posto. Quote, livelli e fascia di prezzo si calcolano mentre li sposti.',
+                        'alt' => 'Una terrazza, una spa e un ombrellone sulla particella, con le quote',
+                    ],
+                ],
+                'picture' => 'step-terrasse-vesinet-plan.webp',
             ],
             [
                 'block' => 'USE_CASE',
                 'content' => [
-                    'who' => 'A landscaper quoting on site',
-                    'before' => 'An afternoon redrawing the plot by hand, and a second afternoon when the client moves the pool.',
-                    'after' => 'The plot is on screen before the coffee is finished, and the second version takes three minutes.',
+                    'who' => 'A homeowner preparing a planning declaration',
+                    'before' => 'A terrace drawn by hand on a cadastral printout, and a town hall that sends the file back.',
+                    'after' => 'The plot, the terrace with its 35 m² and its price range, and the declaration form filled from the same drawing.',
+                    'alt' => 'On a phone: the terrace, its surface, its finished height and its estimated price',
                 ],
                 'translations' => [
                     'fr' => [
-                        'who' => 'Un paysagiste qui chiffre sur place',
-                        'before' => 'Un après-midi à redessiner la parcelle à la main, et un deuxième quand le client déplace la piscine.',
-                        'after' => 'La parcelle est à l’écran avant la fin du café, et la deuxième version prend trois minutes.',
+                        'who' => 'Un particulier qui prépare sa déclaration préalable',
+                        'before' => 'Une terrasse dessinée à la main sur un extrait cadastral, et une mairie qui renvoie le dossier.',
+                        'after' => 'La parcelle, la terrasse avec ses 35 m² et sa fourchette de prix, et le cerfa rempli depuis le même dessin.',
+                        'alt' => 'Sur un téléphone : la terrasse, sa surface, sa hauteur finie et son estimation',
                     ],
                     'es' => [
-                        'who' => 'Un paisajista presupuestando sobre el terreno',
-                        'before' => 'Una tarde redibujando la parcela a mano, y otra cuando el cliente mueve la piscina.',
-                        'after' => 'La parcela está en pantalla antes de acabar el café, y la segunda versión lleva tres minutos.',
+                        'who' => 'Un particular que prepara su declaración de obras',
+                        'before' => 'Una terraza dibujada a mano sobre un extracto catastral, y un ayuntamiento que devuelve el expediente.',
+                        'after' => 'La parcela, la terraza con sus 35 m² y su rango de precio, y el formulario rellenado desde el mismo dibujo.',
+                        'alt' => 'En el móvil: la terraza, su superficie, su altura final y su estimación',
                     ],
                     'de' => [
-                        'who' => 'Ein Garten- und Landschaftsbauer, der vor Ort kalkuliert',
-                        'before' => 'Ein Nachmittag, um das Grundstück von Hand nachzuzeichnen — und ein zweiter, wenn der Kunde den Pool verschiebt.',
-                        'after' => 'Das Grundstuck ist auf dem Bildschirm, bevor der Kaffee ausgetrunken ist, und die zweite Fassung dauert drei Minuten.',
+                        'who' => 'Ein Eigentümer, der seine Bauanzeige vorbereitet',
+                        'before' => 'Eine von Hand auf einen Katasterauszug gezeichnete Terrasse, und ein Rathaus, das die Akte zurückschickt.',
+                        'after' => 'Das Grundstück, die Terrasse mit ihren 35 m² und ihrer Preisspanne, und das Formular aus derselben Zeichnung ausgefüllt.',
+                        'alt' => 'Auf dem Handy: die Terrasse, ihre Fläche, ihre fertige Höhe und ihre Schätzung',
                     ],
                     'it' => [
-                        'who' => 'Un paesaggista che fa un preventivo in cantiere',
-                        'before' => 'Un pomeriggio a ridisegnare la particella a mano, e un secondo quando il cliente sposta la piscina.',
-                        'after' => 'La particella è sullo schermo prima che finisca il caffè, e la seconda versione richiede tre minuti.',
+                        'who' => 'Un privato che prepara la sua dichiarazione preventiva',
+                        'before' => 'Una terrazza disegnata a mano su un estratto catastale, e un comune che rimanda indietro la pratica.',
+                        'after' => 'La particella, la terrazza con i suoi 35 m² e la sua fascia di prezzo, e il modulo compilato dallo stesso disegno.',
+                        'alt' => 'Sul telefono: la terrazza, la sua superficie, l’altezza finita e la stima',
                     ],
                 ],
+                'picture' => 'usecase-telephone-chiffrage.webp',
             ],
             [
                 'block' => 'USE_CASE',
                 'content' => [
-                    'who' => 'A builder reading somebody else’s drawing',
-                    'before' => 'A PDF with no dimensions, and a phone call to ask what the levels were.',
-                    'after' => 'A DXF that opens in the tools they already have, with the levels in it.',
+                    'who' => 'A landscaper quoting on a sloping plot',
+                    'before' => 'An afternoon of measuring, and the slope discovered at the first dig.',
+                    'after' => 'The relief is on screen before the coffee is finished, and the second version takes three minutes.',
+                    'alt' => 'On a phone: a village on its hillside in 3D',
                 ],
                 'translations' => [
                     'fr' => [
-                        'who' => 'Un artisan qui lit le dessin d’un autre',
-                        'before' => 'Un PDF sans cotes, et un coup de fil pour demander les niveaux.',
-                        'after' => 'Un DXF qui s’ouvre dans ses outils, avec les niveaux dedans.',
+                        'who' => 'Un paysagiste qui chiffre un terrain en pente',
+                        'before' => 'Un après-midi de mesures, et la pente découverte au premier coup de pelle.',
+                        'after' => 'Le relief est à l’écran avant la fin du café, et la deuxième version prend trois minutes.',
+                        'alt' => 'Sur un téléphone : un village sur son flanc de colline, en 3D',
                     ],
                     'es' => [
-                        'who' => 'Un constructor que lee el dibujo de otro',
-                        'before' => 'Un PDF sin cotas y una llamada para preguntar por los niveles.',
-                        'after' => 'Un DXF que se abre en las herramientas que ya tiene, con los niveles dentro.',
+                        'who' => 'Un paisajista que presupuesta un terreno en pendiente',
+                        'before' => 'Una tarde de mediciones, y la pendiente descubierta al primer golpe de pala.',
+                        'after' => 'El relieve está en pantalla antes de acabar el café, y la segunda versión lleva tres minutos.',
+                        'alt' => 'En el móvil: un pueblo en su ladera, en 3D',
                     ],
                     'de' => [
-                        'who' => 'Ein Handwerker, der die Zeichnung eines anderen liest',
-                        'before' => 'Ein PDF ohne Maße und ein Anruf, um nach den Höhen zu fragen.',
-                        'after' => 'Eine DXF, die sich in den vorhandenen Werkzeugen öffnet — mit den Höhen darin.',
+                        'who' => 'Ein Landschaftsbauer, der ein Hanggrundstück kalkuliert',
+                        'before' => 'Ein Nachmittag Messen, und das Gefälle beim ersten Spatenstich entdeckt.',
+                        'after' => 'Das Gelände ist auf dem Bildschirm, bevor der Kaffee ausgetrunken ist, und die zweite Fassung dauert drei Minuten.',
+                        'alt' => 'Auf dem Handy: ein Dorf an seinem Hang, in 3D',
                     ],
                     'it' => [
-                        'who' => 'Un costruttore che legge il disegno di un altro',
-                        'before' => 'Un PDF senza quote e una telefonata per chiedere i livelli.',
-                        'after' => 'Un DXF che si apre negli strumenti che ha già, con i livelli dentro.',
+                        'who' => 'Un paesaggista che fa un preventivo su un terreno in pendenza',
+                        'before' => 'Un pomeriggio di misure, e la pendenza scoperta al primo colpo di vanga.',
+                        'after' => 'Il rilievo è sullo schermo prima che finisca il caffè, e la seconda versione richiede tre minuti.',
+                        'alt' => 'Sul telefono: un villaggio sul suo pendio, in 3D',
                     ],
                 ],
+                'picture' => 'usecase-telephone-relief.webp',
             ],
             [
                 'block' => 'QUOTE',
@@ -705,24 +925,77 @@ final class DemoWorld
                     'author' => 'Head of a three-person landscaping firm',
                 ],
                 'translations' => [
-                    'fr' => ['quote' => 'Le devis part le soir même, depuis le même dessin. J’ai arrêté de redessiner à la table de la cuisine.', 'author' => 'Gérant d’une entreprise de paysage de trois personnes'],
-                    'es' => ['quote' => 'El presupuesto sale esa misma tarde, del mismo dibujo. He dejado de redibujar en la mesa de la cocina.', 'author' => 'Responsable de una empresa de paisajismo de tres personas'],
-                    'de' => ['quote' => 'Das Angebot geht noch am selben Abend raus, aus derselben Zeichnung. Ich zeichne nicht mehr am Küchentisch nach.', 'author' => 'Inhaber eines Garten- und Landschaftsbaubetriebs mit drei Leuten'],
-                    'it' => ['quote' => 'Il preventivo parte la sera stessa, dallo stesso disegno. Ho smesso di ridisegnare al tavolo di cucina.', 'author' => 'Titolare di un’impresa di giardinaggio di tre persone'],
+                    'fr' => [
+                        'quote' => 'Le devis part le soir même, depuis le même dessin. J’ai arrêté de redessiner à la table de la cuisine.',
+                        'author' => 'Gérant d’une entreprise de paysage de trois personnes',
+                    ],
+                    'es' => [
+                        'quote' => 'El presupuesto sale esa misma tarde, del mismo dibujo. He dejado de redibujar en la mesa de la cocina.',
+                        'author' => 'Responsable de una empresa de paisajismo de tres personas',
+                    ],
+                    'de' => [
+                        'quote' => 'Das Angebot geht noch am selben Abend raus, aus derselben Zeichnung. Ich zeichne nicht mehr am Küchentisch nach.',
+                        'author' => 'Inhaber eines Garten- und Landschaftsbaubetriebs mit drei Leuten',
+                    ],
+                    'it' => [
+                        'quote' => 'Il preventivo parte la sera stessa, dallo stesso disegno. Ho smesso di ridisegnare al tavolo di cucina.',
+                        'author' => 'Titolare di un’impresa di giardinaggio di tre persone',
+                    ],
                 ],
             ],
             [
-                // Plan, running on the page that sells it (2026-09-30). The
-                // address is the product's own — the same origin `app_url`
-                // names — and `{width}` / `{height}` are the platform's
-                // tokens: the page puts in the pixels it drew at, and nothing
-                // here knows that Plan calls its parameters `x` and `y`.
-                //
-                // **It needs `--embed https://plan.raillard.org` at build
-                // time**, or `frame-src 'self'` refuses the frame and the band
-                // shows its caption over Chrome's "This content is blocked"
-                // box, which names neither the origin nor the directive. That
-                // is why the build says what it allowed.
+                'block' => 'PROOF',
+                'content' => [
+                    'caption' => 'Peyrusse-le-Roc, Aveyron: the plot, the village around it and the contour lines, straight from the cadastre and the IGN terrain model.',
+                    'alt' => 'A hillside village in plan, with its contour lines over the aerial photo',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'caption' => 'Peyrusse-le-Roc, Aveyron : la parcelle, le village autour et les courbes de niveau, directement du cadastre et du modèle de terrain de l’IGN.',
+                        'alt' => 'Un village à flanc de colline en plan, avec ses courbes de niveau sur la photo aérienne',
+                    ],
+                    'es' => [
+                        'caption' => 'Peyrusse-le-Roc, Aveyron: la parcela, el pueblo alrededor y las curvas de nivel, directamente del catastro y del modelo de terreno del IGN.',
+                        'alt' => 'Un pueblo en ladera en plano, con sus curvas de nivel sobre la foto aérea',
+                    ],
+                    'de' => [
+                        'caption' => 'Peyrusse-le-Roc, Aveyron: das Grundstück, das Dorf drumherum und die Höhenlinien, direkt aus Kataster und IGN-Geländemodell.',
+                        'alt' => 'Ein Dorf am Hang im Plan, mit Höhenlinien über dem Luftbild',
+                    ],
+                    'it' => [
+                        'caption' => 'Peyrusse-le-Roc, Aveyron: la particella, il villaggio intorno e le curve di livello, direttamente dal catasto e dal modello di terreno dell’IGN.',
+                        'alt' => 'Un villaggio su un pendio in pianta, con le curve di livello sulla foto aerea',
+                    ],
+                ],
+                'picture' => 'proof-peyrusse-contours.webp',
+            ],
+            [
+                'block' => 'PROOF',
+                'content' => [
+                    'caption' => 'Le Vésinet: the house and its garden in 3D, on a phone, with the sun at the hour you choose.',
+                    'alt' => 'On a phone: a house with a red roof and its garden in 3D over the aerial photo',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'caption' => 'Le Vésinet : la maison et son jardin en 3D, sur un téléphone, avec le soleil à l’heure que vous choisissez.',
+                        'alt' => 'Sur un téléphone : une maison au toit rouge et son jardin en 3D sur la photo aérienne',
+                    ],
+                    'es' => [
+                        'caption' => 'Le Vésinet: la casa y su jardín en 3D, en el móvil, con el sol a la hora que usted elija.',
+                        'alt' => 'En el móvil: una casa de tejado rojo y su jardín en 3D sobre la foto aérea',
+                    ],
+                    'de' => [
+                        'caption' => 'Le Vésinet: das Haus und sein Garten in 3D, auf dem Handy, mit der Sonne zur Stunde Ihrer Wahl.',
+                        'alt' => 'Auf dem Handy: ein Haus mit rotem Dach und sein Garten in 3D über dem Luftbild',
+                    ],
+                    'it' => [
+                        'caption' => 'Le Vésinet: la casa e il suo giardino in 3D, sul telefono, con il sole all’ora che scegli.',
+                        'alt' => 'Sul telefono: una casa dal tetto rosso e il suo giardino in 3D sulla foto aerea',
+                    ],
+                ],
+                'picture' => 'proof-telephone-maison-3d.webp',
+            ],
+            [
                 'block' => 'DEMO',
                 'content' => [
                     'caption' => 'The terrace, in three dimensions, in your browser. Nothing to install.',
@@ -730,10 +1003,43 @@ final class DemoWorld
                     'ratio' => '4:3',
                 ],
                 'translations' => [
-                    'fr' => ['caption' => 'La terrasse, en trois dimensions, dans votre navigateur. Rien à installer.'],
-                    'es' => ['caption' => 'La terraza, en tres dimensiones, en su navegador. Nada que instalar.'],
-                    'de' => ['caption' => 'Die Terrasse, dreidimensional, in Ihrem Browser. Nichts zu installieren.'],
-                    'it' => ['caption' => 'La terrazza, in tre dimensioni, nel vostro browser. Niente da installare.'],
+                    'fr' => [
+                        'caption' => 'La terrasse, en trois dimensions, dans votre navigateur. Rien à installer.',
+                    ],
+                    'es' => [
+                        'caption' => 'La terraza, en tres dimensiones, en su navegador. Nada que instalar.',
+                    ],
+                    'de' => [
+                        'caption' => 'Die Terrasse, dreidimensional, in Ihrem Browser. Nichts zu installieren.',
+                    ],
+                    'it' => [
+                        'caption' => 'La terrazza, in tre dimensioni, nel vostro browser. Niente da installare.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'QUESTION',
+                'content' => [
+                    'question' => 'Does the relief work everywhere?',
+                    'answer' => 'In France, wherever the IGN publishes its terrain model and the cadastre its plots — which is nearly everywhere. Elsewhere, trace the plot and type the levels in yourself.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'question' => 'Le relief marche-t-il partout ?',
+                        'answer' => 'En France, partout où l’IGN publie son modèle de terrain et le cadastre ses parcelles — c’est-à-dire presque partout. Ailleurs, tracez la parcelle et saisissez les niveaux vous-même.',
+                    ],
+                    'es' => [
+                        'question' => '¿El relieve funciona en todas partes?',
+                        'answer' => 'En Francia, allí donde el IGN publica su modelo de terreno y el catastro sus parcelas, es decir, casi en todas partes. En otros lugares, trace la parcela e introduzca las cotas usted mismo.',
+                    ],
+                    'de' => [
+                        'question' => 'Funktioniert das Gelände überall?',
+                        'answer' => 'In Frankreich überall dort, wo das IGN sein Geländemodell und das Kataster seine Parzellen veröffentlicht — also fast überall. Anderswo zeichnen Sie das Grundstück und geben die Höhen selbst ein.',
+                    ],
+                    'it' => [
+                        'question' => 'Il rilievo funziona ovunque?',
+                        'answer' => 'In Francia, ovunque l’IGN pubblichi il suo modello di terreno e il catasto le sue particelle — cioè quasi ovunque. Altrove, traccia la particella e inserisci le quote tu stesso.',
+                    ],
                 ],
             ],
             [
@@ -743,10 +1049,22 @@ final class DemoWorld
                     'answer' => 'Yes. The service stays yours until the end of the period you have paid for, and the request is recorded with the date it takes effect.',
                 ],
                 'translations' => [
-                    'fr' => ['question' => 'Puis-je résilier ?', 'answer' => 'Oui. Le service reste le vôtre jusqu’à la fin de la période payée, et la demande est enregistrée avec sa date d’effet.'],
-                    'es' => ['question' => '¿Puedo cancelar?', 'answer' => 'Sí. El servicio sigue siendo suyo hasta el final del período pagado, y la solicitud se registra con su fecha de efecto.'],
-                    'de' => ['question' => 'Kann ich kündigen?', 'answer' => 'Ja. Die Leistung bleibt Ihnen bis zum Ende des bezahlten Zeitraums, und die Kündigung wird mit ihrem Wirkungsdatum festgehalten.'],
-                    'it' => ['question' => 'Posso disdire?', 'answer' => 'Sì. Il servizio resta tuo fino alla fine del periodo pagato, e la richiesta viene registrata con la sua data di effetto.'],
+                    'fr' => [
+                        'question' => 'Puis-je résilier ?',
+                        'answer' => 'Oui. Le service reste le vôtre jusqu’à la fin de la période payée, et la demande est enregistrée avec sa date d’effet.',
+                    ],
+                    'es' => [
+                        'question' => '¿Puedo cancelar?',
+                        'answer' => 'Sí. El servicio sigue siendo suyo hasta el final del período pagado, y la solicitud se registra con su fecha de efecto.',
+                    ],
+                    'de' => [
+                        'question' => 'Kann ich kündigen?',
+                        'answer' => 'Ja. Die Leistung bleibt Ihnen bis zum Ende des bezahlten Zeitraums, und die Kündigung wird mit ihrem Wirkungsdatum festgehalten.',
+                    ],
+                    'it' => [
+                        'question' => 'Posso disdire?',
+                        'answer' => 'Sì. Il servizio resta tuo fino alla fine del periodo pagato, e la richiesta viene registrata con la sua data di effetto.',
+                    ],
                 ],
             ],
             [
@@ -756,10 +1074,22 @@ final class DemoWorld
                     'answer' => 'No. A read-only seat costs a fraction of one, and it is a seat of its own rather than a smaller version of the product.',
                 ],
                 'translations' => [
-                    'fr' => ['question' => 'Un collègue qui ne fait que consulter a-t-il besoin d’un siège complet ?', 'answer' => 'Non. Un siège en lecture seule coûte une fraction, et c’est un siège à part plutôt qu’une version réduite du produit.'],
-                    'es' => ['question' => '¿Un compañero que solo consulta necesita un asiento completo?', 'answer' => 'No. Un asiento de solo lectura cuesta una fracción, y es un asiento propio y no una versión reducida del producto.'],
-                    'de' => ['question' => 'Braucht ein Kollege, der nur schaut, einen vollen Platz?', 'answer' => 'Nein. Ein Platz mit Lesezugriff kostet einen Bruchteil und ist ein eigener Platz, keine kleinere Fassung des Produkts.'],
-                    'it' => ['question' => 'Un collega che si limita a consultare ha bisogno di una postazione completa?', 'answer' => 'No. Una postazione in sola lettura costa una frazione, ed è una postazione a sé e non una versione ridotta del prodotto.'],
+                    'fr' => [
+                        'question' => 'Un collègue qui ne fait que consulter a-t-il besoin d’un siège complet ?',
+                        'answer' => 'Non. Un siège en lecture seule coûte une fraction, et c’est un siège à part plutôt qu’une version réduite du produit.',
+                    ],
+                    'es' => [
+                        'question' => '¿Un compañero que solo consulta necesita un asiento completo?',
+                        'answer' => 'No. Un asiento de solo lectura cuesta una fracción, y es un asiento propio y no una versión reducida del producto.',
+                    ],
+                    'de' => [
+                        'question' => 'Braucht ein Kollege, der nur schaut, einen vollen Platz?',
+                        'answer' => 'Nein. Ein Platz mit Lesezugriff kostet einen Bruchteil und ist ein eigener Platz, keine kleinere Fassung des Produkts.',
+                    ],
+                    'it' => [
+                        'question' => 'Un collega che si limita a consultare ha bisogno di una postazione completa?',
+                        'answer' => 'No. Una postazione in sola lettura costa una frazione, ed è una postazione a sé e non una versione ridotta del prodotto.',
+                    ],
                 ],
             ],
         ],
@@ -772,6 +1102,16 @@ final class DemoWorld
      * `DemoWorldTest` fails the day the two disagree.
      */
     public const PROJECTS_QUOTA = 'max_projects';
+
+    /**
+     * Where the showcase's pictures ship, and the one product they belong
+     * to. A path under the source tree rather than storage, because they
+     * are part of the demonstration the way the Plan document is: the
+     * seeder uploads them through the showcase module's door on every
+     * reset, and storage holds the copy.
+     */
+    public const PICTURES_DIR = __DIR__ . '/../pictures';
+    public const PICTURED_PRODUCT = 'plan';
 
     /**
      * Which project document schema versions a product accepts when its own

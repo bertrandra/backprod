@@ -458,6 +458,34 @@ describe('the problem band', () => {
 
     expect(screen.queryByTestId('showcase-problem')).toBeNull();
   });
+
+  // The band's ground is the ink's own colour, and `index.css` paints
+  // every heading in the ink — so until 2026-10-08 the band's title and the
+  // three points' titles were painted in their own background. The band
+  // says once, for every heading it holds, that they take the inverse ink.
+  it('writes its headings in the inverse ink, so they can be read on the dark ground', () => {
+    renderStory({
+      ...FULL,
+      headings: { PROBLEM: { eyebrow: null, title: 'Before drawing anything', lede: 'You redraw what exists.' } },
+    });
+
+    const band = screen.getByTestId('showcase-problem');
+    expect(band.className).toContain('bg-inverse');
+    expect(band.querySelector('h2')?.className).toContain('text-on-inverse');
+    expect(band.querySelector('h3')?.className).toContain('text-on-inverse');
+    // The lede too: `text-muted` is a tone of the ink, not of its inverse.
+    expect(screen.getByText('You redraw what exists.').className).toContain('text-on-inverse');
+  });
+
+  // On a phone the three points read as one list, each icon beside its
+  // title; the three cards are a `md` layout. The classes are the contract.
+  it('lays the points out as a divided list under md and three cards from md', () => {
+    renderStory(FULL);
+
+    const list = within(screen.getByTestId('showcase-problem')).getByRole('list');
+    expect(list.className).toContain('divide-y');
+    expect(list.className).toContain('md:grid-cols-3');
+  });
 });
 
 describe('the quote band', () => {

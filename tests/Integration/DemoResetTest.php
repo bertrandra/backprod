@@ -227,6 +227,40 @@ final class DemoResetTest extends DatabaseApiTestCase
         ));
     }
 
+    /**
+     * Plan's page shows the product (2026-10-08): real screenshots, shipped
+     * with the platform, uploaded through the showcase's own door on every
+     * reset, and served to a stranger from the public route. A second reset
+     * leaves the same number behind — the previous ones are deleted through
+     * that door too, bytes included, rather than orphaned by the truncate.
+     */
+    public function testPlansPageCarriesItsPicturesAndAResetDoesNotHoardThem(): void
+    {
+        self::assertSame(200, $this->reset('ola-token')->getStatusCode());
+
+        $expected = count(array_filter(DemoWorld::SHOWCASE['plan'], static fn (array $block): bool => isset($block['picture'])));
+        self::assertGreaterThan(0, $expected, 'the story names pictures');
+
+        $page = $this->decode($this->request('GET', '/api/v1/public/products/plan/showcase'));
+        $pictured = [];
+
+        foreach ((array) ($page['showcase']['blocks'] ?? []) as $row) {
+            if (is_array($row) && is_string($row['image'] ?? null)) {
+                $pictured[] = $row['image'];
+            }
+        }
+
+        self::assertCount($expected, $pictured, 'every row the story gave a picture answers one on the public page');
+
+        // Served, as a picture, to somebody with no account at all.
+        $bytes = $this->request('GET', $pictured[0]);
+        self::assertSame(200, $bytes->getStatusCode());
+        self::assertStringStartsWith('image/', $bytes->getHeaderLine('Content-Type'));
+
+        self::assertSame(200, $this->reset('ola-token')->getStatusCode());
+        self::assertSame($expected, $this->connection->fetchOne('SELECT count(*) FROM product_assets'));
+    }
+
     public function testTheWorldHasMoneyInItAndThePaymentsScreenCanReadIt(): void
     {
         self::assertSame(200, $this->reset('ola-token')->getStatusCode());

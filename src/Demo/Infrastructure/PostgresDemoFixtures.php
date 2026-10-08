@@ -69,8 +69,40 @@ final class PostgresDemoFixtures implements DemoFixtures
         'local_credentials', 'auth_refresh_tokens',
     ];
 
+    /**
+     * The showcase blocks written with a picture named, collected while
+     * the story is written and handed back on the structure.
+     *
+     * @var list<array{0: string, 1: string}>
+     */
+    private array $pictures = [];
+
     public function __construct(private readonly Connection $connection)
     {
+    }
+
+    public function attachPicture(string $blockId, string $assetId): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE product_showcase SET asset_id = :asset WHERE id = :block',
+            ['asset' => $assetId, 'block' => $blockId],
+        );
+    }
+
+    public function productIds(): array
+    {
+        $ids = [];
+
+        foreach ($this->connection->fetchAllAssociative(
+            'SELECT id, code FROM products WHERE code = ANY(CAST(:codes AS text[]))',
+            ['codes' => self::textArray(DemoWorld::productCodes())],
+        ) as $row) {
+            if (is_string($row['id']) && is_string($row['code'])) {
+                $ids[$row['code']] = $row['id'];
+            }
+        }
+
+        return $ids;
     }
 
     public function foreignProducts(): array
@@ -127,7 +159,7 @@ final class PostgresDemoFixtures implements DemoFixtures
 
             $this->customers($tenants);
 
-            return new DemoStructure($products, $tenants, $users, $offers);
+            return new DemoStructure($products, $tenants, $users, $offers, $this->pictures);
         });
     }
 
@@ -868,6 +900,8 @@ final class PostgresDemoFixtures implements DemoFixtures
             return;
         }
 
+        $this->pictures = [];
+
         // Positions within a kind, minted from the order they are written
         // in, in tens — `display_order`'s habit, so one can be slipped
         // between two others without renumbering anybody.
@@ -889,6 +923,13 @@ final class PostgresDemoFixtures implements DemoFixtures
                     'content' => json_encode($block['content'], JSON_THROW_ON_ERROR),
                 ],
             );
+
+            // Named here, uploaded by the seeder: a picture is bytes in
+            // storage and a sniffed row, which is the showcase module's
+            // door and not a table these fixtures write.
+            if (isset($block['picture'])) {
+                $this->pictures[] = [$id, $block['picture']];
+            }
 
             foreach ($block['translations'] as $locale => $content) {
                 $this->connection->executeStatement(

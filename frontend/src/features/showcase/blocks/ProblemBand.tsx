@@ -18,6 +18,21 @@ import { BAND_META, PROBLEM_ICONS } from './meta';
  * band says "this part is the trouble" without a word, and it is short on
  * purpose: nobody stays on a page to read about their own problem.
  *
+ * **On a phone it is a list, not three cards** (2026-10-08). Three boxes
+ * stacked on a 360px screen, each with an icon alone on its first line and
+ * a title on its second, read as three empty panels; the operator's word
+ * was that it "looked like nothing". So under `md` the icon sits beside the
+ * title on one line and the body hangs under them, with a hairline between
+ * points rather than a box around each — the same three sentences, read in
+ * the order they are written, in a third of the height. From `md` the three
+ * stand side by side, where a card each is what gives them equal weight.
+ *
+ * **Every colour on this band is the inverse ink, named.** The band's
+ * ground is the colour the rest of the page writes with, and `index.css`
+ * paints headings in that colour; `ShowcaseBand` overrides it for its own
+ * title and for these. The body is the inverse ink at three quarters
+ * rather than `opacity`, which would have faded the icon with it.
+ *
  * The icon is drawn from {@see PROBLEM_ICONS} and is decorative — the point
  * is the sentence beside it, which is why it carries `aria-hidden` and no
  * label. A name this bundle cannot draw renders no icon rather than a gap.
@@ -42,37 +57,39 @@ export function ProblemBand({
       lede={heading?.lede ?? undefined}
       data-testid="showcase-problem"
     >
-      <ul className="grid gap-5 md:grid-cols-3 lg:gap-6">
+      <ul className="divide-y divide-on-inverse/15 md:grid md:grid-cols-3 md:gap-6 md:divide-y-0">
         {rows.map((row) => (
           <li
             key={row.id}
             data-problem={row.id}
             data-icon={row.content.icon ?? 'none'}
-            className="rounded-card border border-line/40 bg-on-inverse/5 p-6 md:p-7"
+            className="py-5 first:pt-0 last:pb-0 md:rounded-card md:border md:border-on-inverse/15 md:bg-on-inverse/[0.06] md:p-7 md:first:pt-7 md:last:pb-7"
           >
-            {row.content.icon !== null && (
-              <svg
-                width="30"
-                height="30"
-                viewBox="0 0 30 30"
-                aria-hidden="true"
-                className="mb-4 block"
-              >
-                <path
-                  d={PROBLEM_ICONS[row.content.icon]}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
+            <div className="flex items-center gap-3 md:block">
+              {row.content.icon !== null && (
+                <svg
+                  width="30"
+                  height="30"
+                  viewBox="0 0 30 30"
+                  aria-hidden="true"
+                  className="block size-7 shrink-0 text-accent md:mb-4 md:size-[30px]"
+                >
+                  <path
+                    d={PROBLEM_ICONS[row.content.icon]}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
 
-            <h3 className="text-xl font-semibold">{row.content.title}</h3>
+              <h3 className="text-lg font-semibold text-on-inverse md:text-xl">{row.content.title}</h3>
+            </div>
 
             {row.content.body !== null && row.content.body !== '' && (
-              <p className="mt-2.5 max-w-prose text-base opacity-80">{row.content.body}</p>
+              <p className="mt-2 max-w-prose text-base text-on-inverse/75 md:mt-2.5">{row.content.body}</p>
             )}
           </li>
         ))}
