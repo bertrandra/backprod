@@ -104,13 +104,16 @@ final class DemoWorld
             // roofs deduced from BD TOPO (Plan's `MD/spec-toit-ign.md`: a hipped
             // roof on every IGN building, and one on the demonstration's house),
             // schema 4 since the release that started saving it (2026-10-06:
-            // every save was refused "accepted: 1, 2, 3" until it was added).
-            // All four, and not just the newest: a document written by an
+            // every save was refused "accepted: 1, 2, 3" until it was added),
+            // schema 5 since Plan 3.x distinguishes the fields that came after
+            // the relief (pool, pergola, fence, measured roof bodies, 3D windows
+            // and neighbourhood), which a schema-4 reader would lose.
+            // All five, and not just the newest: a document written by an
             // earlier release is still a document its owner opens, and a product
             // that stopped accepting the version it wrote last month would refuse
             // its own customers' work. Plan's `contrat/plan-produit.json` is
             // where this list comes from.
-            'schema_versions' => [1, 2, 3, 4],
+            'schema_versions' => [1, 2, 3, 4, 5],
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
             'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
             // The seven Plan proposes (its `src/plateforme/capacites.ts`). The
