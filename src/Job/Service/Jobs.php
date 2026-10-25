@@ -6,7 +6,9 @@ namespace App\Job\Service;
 
 use App\Job\Domain\Job;
 use App\Job\Domain\JobRepository;
+use App\Job\Domain\Schedule;
 use App\Shared\Exceptions\ConflictException;
+use App\Shared\Exceptions\ForbiddenException;
 use App\Shared\Exceptions\NotFoundException;
 
 /**
@@ -44,6 +46,30 @@ final class Jobs
         // attempts ran out, which looks like a broken queue rather than a bad
         // request.
         $this->handlers->for($type);
+
+        // A periodic type is a pass over the whole platform — dunning,
+        // renewal, expiry, the rollups — and its trigger is the schedule's,
+        // never a tenant's (2026-10-26). `jobs.manage` is every customer
+        // administrator's: before this, one of them could queue the platform's
+        // dunning pass under the scheduler's own key and cancel it, and the
+        // night's pass counted that row as done.
+        if (Schedule::isPeriodic($type)) {
+            throw new ForbiddenException(
+                'JOB_TYPE_NOT_REQUESTABLE',
+                'That kind of job runs on the platform\'s own schedule, not on request.',
+                ['type' => $type],
+            );
+        }
+
+        // The scheduler's key is the scheduler's: it is how it reads back
+        // what it has done ({@see JobRepository::scheduleHistory}).
+        if ($idempotencyKey === Schedule::KEY) {
+            throw new ConflictException(
+                'JOB_KEY_RESERVED',
+                'That idempotency key is reserved for the platform\'s schedule.',
+                ['idempotency_key' => $idempotencyKey],
+            );
+        }
 
         return $this->jobs->enqueue(
             $type,

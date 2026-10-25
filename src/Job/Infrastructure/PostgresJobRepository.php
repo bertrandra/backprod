@@ -10,6 +10,7 @@ use App\Job\Domain\QueueLiveness;
 use App\Job\Domain\Schedule;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Exceptions\ConflictException;
 use DateTimeImmutable;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
@@ -82,6 +83,17 @@ final class PostgresJobRepository implements JobRepository
             // exists is the honest answer — the caller asked for this to
             // happen, and it is going to.
             $existing = $this->findPendingByKey($type, $idempotencyKey);
+
+            // Handed back only to its own owner (2026-10-26). The index is
+            // global, so a key can collide with another tenant's job — or the
+            // platform's — and returning that job would publish its payload
+            // and result to whoever guessed the key.
+            if ($existing !== null && ($existing->tenantId !== $tenantId || $existing->productId !== $productId)) {
+                throw new ConflictException(
+                    'JOB_KEY_TAKEN',
+                    'A job with that idempotency key is already pending. Choose another key.',
+                );
+            }
 
             if ($existing === null) {
                 // It finished between the insert failing and this lookup,
@@ -275,6 +287,9 @@ final class PostgresJobRepository implements JobRepository
                            count(*) FILTER (WHERE status IN ('QUEUED', 'RUNNING')) AS pending
                       FROM jobs
                      WHERE idempotency_key = :key
+                       -- The scheduler enqueues with no tenant; a row naming
+                       -- one is somebody else's and decides nothing here.
+                       AND tenant_id IS NULL
                        AND type IN (:types)
                      GROUP BY type
                     SQL,

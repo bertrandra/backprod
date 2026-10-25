@@ -46,8 +46,8 @@ final class ProjectPresenter
             'created_by' => $project->createdBy,
             // Whose subscription pays for it (2026-09-30). Not the same person
             // as `created_by` when a colleague works on somebody's seat, and
-            // the administrator — who reaches every project the organisation
-            // holds — needs the list to say whose each one is or it is a
+            // the administrator â€” who reaches every project the organisation
+            // holds â€” needs the list to say whose each one is or it is a
             // jumble. Null where the holder's account was erased (Â§30).
             'holder_user_id' => $project->holderUserId,
             // How close it is to the limit (2026-10-07). Measured by the

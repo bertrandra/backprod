@@ -28,7 +28,7 @@ final class CloseVatPeriodController implements RouteHandler
     {
         $context = TaxRoute::manageable($request);
 
-        $declaration = $this->reporting->close(TaxRoute::periodId($request), $context->userId);
+        $declaration = $this->reporting->close($context->tenantId, TaxRoute::periodId($request), $context->userId);
 
         return new JsonResponse([
             'declaration' => TaxPresenter::declaration($declaration),

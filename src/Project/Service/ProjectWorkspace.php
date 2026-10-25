@@ -66,7 +66,7 @@ final class ProjectWorkspace
      * Their own holding first when they have one, which is what
      * `holdersCovering` orders by: somebody who holds a seat *and* sits on
      * a colleague's makes their own work, not the colleague's. Null when
-     * nothing covers them — which cannot happen through the HTTP surface,
+     * nothing covers them â€” which cannot happen through the HTTP surface,
      * where `requireSubscription()` has already refused, and can happen to a
      * seeded or system-made project, whose holder is then nobody.
      */
@@ -81,7 +81,7 @@ final class ProjectWorkspace
         // `covers_people` (ADR-056) reaches every member of the tenant and
         // has no holder at all, and the work somebody does under a trial is
         // still theirs. Found by the endpoint tests, which entitle their
-        // people exactly that way — every project came out belonging to
+        // people exactly that way â€” every project came out belonging to
         // nobody and was invisible to the person who had just made it.
         return $this->subscriptions->holdersCovering($tenantId, $productId, $callerId)[0] ?? $callerId;
     }
@@ -95,7 +95,7 @@ final class ProjectWorkspace
         // The caller is always one of their own holders, for the same
         // reason: work made under a grant rather than a subscription belongs
         // to whoever made it, and a reach built only from subscriptions
-        // would hide it from them. It leaks nothing — it names them.
+        // would hide it from them. It leaks nothing â€” it names them.
         return Reach::heldBy(array_merge(
             [$callerId],
             $this->subscriptions->holdersCovering($tenantId, $productId, $callerId),

@@ -280,6 +280,27 @@ final class SignInTest extends DatabaseApiTestCase
         );
     }
 
+    /**
+     * One address may be tried so many times in a window, whoever is trying
+     * and from wherever (2026-10-26): the per-IP bucket alone let guessing at
+     * one account from many addresses through. Past the bound even the right
+     * password is refused — the answer must not depend on whether it was.
+     */
+    public function testOneAddressIsTriedOnlySoManyTimesInAWindow(): void
+    {
+        for ($i = 0; $i < Sessions::SIGN_IN_LIMIT; ++$i) {
+            self::assertSame(401, $this->signIn('ada@acme.test', 'wrong password')->getStatusCode());
+        }
+
+        $refused = $this->signIn();
+
+        self::assertSame(429, $refused->getStatusCode());
+        self::assertSame('RATE_LIMITED', $this->errorOf($refused)['code'] ?? null);
+
+        // Another address is untouched.
+        self::assertSame(401, $this->signIn('nobody@acme.test', 'wrong password')->getStatusCode());
+    }
+
     public function testASignedInPersonStaysSignedInThroughTheCookie(): void
     {
         $cookie = $this->cookieFrom($this->signIn());

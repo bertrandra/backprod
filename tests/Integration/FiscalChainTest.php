@@ -52,11 +52,21 @@ final class FiscalChainTest extends DatabaseApiTestCase
             "INSERT INTO users (auth_subject, email) VALUES ('sub-alice', 'alice@example.test') RETURNING id",
         );
 
+        // The platform's own return is read and closed by its finance staff
+        // (2026-10-26), never through a tenant route.
+        $finance = $this->id(
+            "INSERT INTO users (auth_subject, email) VALUES ('sub-fin', 'fin@platform.test') RETURNING id",
+        );
+        $this->connection->executeStatement(
+            "INSERT INTO platform_staff (user_id, platform_role_id) SELECT :user, id FROM platform_roles WHERE code = 'FINANCE_ADMIN'",
+            ['user' => $finance],
+        );
+
         $this->configure();
         $this->seedCatalogue();
 
         $this->override([
-            AuthProvider::class => new FakeAuthProvider(['alice-token' => 'sub-alice']),
+            AuthProvider::class => new FakeAuthProvider(['alice-token' => 'sub-alice', 'fin-token' => 'sub-fin']),
 
             ProductRepository::class => new InMemoryProductRepository([
                 new Product($this->product, 'atlas', 'Atlas', true),
@@ -638,7 +648,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
         );
 
         $view = $this->decode(
-            $this->request('GET', '/api/v1/tax/reports/' . $period, $this->headers()),
+            $this->request('GET', '/api/v1/admin/vat-reports/' . $period, $this->financeHeaders()),
         );
 
         $totals = $view['totals'] ?? null;
@@ -727,7 +737,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
     public function testClosingAPeriodNeedsMoreThanReadAccess(): void
     {
-        $period = $this->openPeriod();
+        $period = $this->openPeriodOf($this->tenant);
 
         $this->override([
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
@@ -736,7 +746,75 @@ final class FiscalChainTest extends DatabaseApiTestCase
         ]);
 
         // Closure is one-way and audited, so it takes tax.manage.
-        self::assertSame(403, $this->closePeriod($period)->getStatusCode());
+        self::assertSame(403, $this->closeOwnPeriod($period)->getStatusCode());
+    }
+
+    /**
+     * The hole this closes (2026-10-26): `tax.manage` is every customer
+     * administrator's, and the tenant routes read and closed the platform's
+     * own return — the VAT charged to every other customer, frozen for good
+     * by whoever pressed first.
+     */
+    public function testATenantCanNeitherReadNorCloseThePlatformsReturn(): void
+    {
+        $period = $this->openPeriod();
+
+        $list = $this->decode($this->request('GET', '/api/v1/tax/reports', $this->headers()));
+        self::assertSame([], $list['periods'] ?? null);
+
+        $show = $this->request('GET', '/api/v1/tax/reports/' . $period, $this->headers());
+        self::assertSame(404, $show->getStatusCode());
+
+        $close = $this->closeOwnPeriod($period);
+        self::assertSame(404, $close->getStatusCode());
+        self::assertSame('PERIOD_NOT_FOUND', $this->errorOf($close)['code'] ?? null);
+
+        self::assertSame(
+            'OPEN',
+            $this->connection->fetchOne('SELECT status FROM vat_reporting_periods WHERE id = :id', ['id' => $period]),
+        );
+    }
+
+    /**
+     * An organisation's return is its own: the VAT it charged on what it sold
+     * (ADR-055). It reads and closes it through the tenant routes, and the
+     * platform's finance staff do not find it among the platform's.
+     */
+    public function testAnOrganisationClosesItsOwnReturnAndOnlyItsOwn(): void
+    {
+        $own = $this->openPeriodOf($this->tenant);
+        $platform = $this->openPeriod();
+
+        $list = $this->decode($this->request('GET', '/api/v1/tax/reports', $this->headers()));
+        $ids = array_map(
+            static fn (mixed $p): mixed => is_array($p) ? ($p['id'] ?? null) : null,
+            is_array($list['periods'] ?? null) ? $list['periods'] : [],
+        );
+        self::assertSame([$own], $ids);
+
+        self::assertSame(200, $this->closeOwnPeriod($own)->getStatusCode());
+
+        self::assertSame(404, $this->request('GET', '/api/v1/admin/vat-reports/' . $own, $this->financeHeaders())->getStatusCode());
+        self::assertSame(200, $this->request('GET', '/api/v1/admin/vat-reports/' . $platform, $this->financeHeaders())->getStatusCode());
+    }
+
+    /** Support answers a customer's question; it does not declare the platform's taxes. */
+    public function testSupportStaffCannotReadThePlatformsReturn(): void
+    {
+        $supporter = $this->id(
+            "INSERT INTO users (auth_subject, email) VALUES ('sub-sam', 'sam@platform.test') RETURNING id",
+        );
+        $this->connection->executeStatement(
+            "INSERT INTO platform_staff (user_id, platform_role_id) SELECT :user, id FROM platform_roles WHERE code = 'SUPPORT_ADMIN'",
+            ['user' => $supporter],
+        );
+        $this->override([
+            AuthProvider::class => new FakeAuthProvider(['alice-token' => 'sub-alice', 'fin-token' => 'sub-fin', 'sam-token' => 'sub-sam']),
+        ]);
+
+        $response = $this->request('GET', '/api/v1/admin/vat-reports', ['Authorization' => 'Bearer sam-token']);
+
+        self::assertSame(403, $response->getStatusCode());
     }
 
     /**
@@ -848,9 +926,34 @@ final class FiscalChainTest extends DatabaseApiTestCase
         );
     }
 
+    /** A period of an organisation's own return. */
+    private function openPeriodOf(string $tenantId): string
+    {
+        return $this->id(
+            'INSERT INTO vat_reporting_periods (issuer_tenant_id, jurisdiction, period_kind, starts_on, ends_on)'
+            . " VALUES (:tenant, 'FR', 'MONTHLY', current_date - 40, current_date - 10) RETURNING id",
+            ['tenant' => $tenantId],
+        );
+    }
+
+    /** Closes a period of the platform's own return, as its finance staff do. */
     private function closePeriod(string $periodId): ResponseInterface
     {
+        return $this->request('POST', '/api/v1/admin/vat-reports/' . $periodId . '/close', $this->financeHeaders());
+    }
+
+    /** Closes a period of the organisation's own return, through the tenant route. */
+    private function closeOwnPeriod(string $periodId): ResponseInterface
+    {
         return $this->request('POST', '/api/v1/tax/reports/' . $periodId . '/close', $this->headers());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function financeHeaders(): array
+    {
+        return ['Authorization' => 'Bearer fin-token'];
     }
 
     /**

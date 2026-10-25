@@ -39,7 +39,7 @@ final class ProjectRoute
      * every subscription on the organisation screen, and an administrator
      * who cannot see the work cannot take it back when somebody leaves.
      * Everybody else reaches the projects of the subscriptions covering
-     * them — which for most people is their own, and for a colleague on
+     * them â€” which for most people is their own, and for a colleague on
      * somebody's seat is that seat's.
      *
      * Named here rather than written at twelve call sites, so the rule has

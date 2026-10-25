@@ -54,7 +54,7 @@ filtre oublié une élévation de privilège.
 | Il achète | **oui** — et lui seul | non (ADR-055 §2b) | non |
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
-| Permissions | 21 | 30 | 20 (dont 5 côté `admin.*`) |
+| Permissions | 21 | 30 | 22 (dont 7 côté `admin.*`) |
 | Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 36 propres + 70 partagées + 17 sans permission = **123** | **81** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
@@ -381,8 +381,11 @@ laquelle.
 
 ### 6. Il tient la comptabilité de TVA
 
-Profil fiscal, taux, transactions, périodes. Clôturer une période **dépose une
-déclaration et la fige, définitivement**, par une règle que la base impose.
+Profil fiscal, taux, transactions, périodes. Les périodes sont celles de la
+déclaration **de l'organisation** — la TVA qu'elle a facturée sur ce qu'elle a
+vendu (ADR-055) —, jamais celle de la plateforme, qui se lit à la console
+(2026-10-26). Clôturer une période **dépose une déclaration et la fige,
+définitivement**, par une règle que la base impose.
 
 ### 7. Il ne travaille pas, sauf s'il a acheté
 
@@ -440,8 +443,8 @@ démonstration l'affirme à voix haute pour cette raison.
 | `listTaxRates` | Rien. Les taux et leurs fenêtres de validité. |
 | `calculateTax` | Rien n'est écrit. Ce qui s'appliquerait, et **pourquoi** — le même chemin de code que la facturation, pour que deux implémentations ne dérivent pas. |
 | `listVatTransactions` | Rien. Les faits fiscaux de l'organisation, les siens seuls. |
-| `listVatPeriods`, `showVatPeriod` | Rien. |
-| `closeVatPeriod` | **Dépose une déclaration et fige la période, définitivement.** Une correction va dans une période ultérieure, jamais en arrière — la même règle que la numérotation sans trou et que l'avoir. |
+| `listVatPeriods`, `showVatPeriod` | Rien. Les périodes de la déclaration de l'organisation, les siennes seules. Jusqu'au 2026-10-26, c'étaient celles de la plateforme : tout administrateur client lisait la TVA facturée à tous les autres clients. |
+| `closeVatPeriod` | **Dépose la déclaration de l'organisation et fige la période, définitivement.** Une période d'un autre émetteur n'est pas trouvée. Une correction va dans une période ultérieure, jamais en arrière — la même règle que la numérotation sans trou et que l'avoir. |
 
 ### Les ventes — `sales.manage`
 
@@ -680,6 +683,8 @@ l'ADR-069.
 | `listAdminPayments` | `admin.finance.read` | Rien. L'autre moitié d'une facture : ce qui était dû se lisait déjà, ce qui est arrivé nulle part. Le client de chaque ligne vient de l'**instantané** de la facture (§25), et son numéro reste nul tant qu'elle est un brouillon. |
 | `listAdminTenants`, `listAdminUsers` | `admin.directory.read` | Rien. L'annuaire. |
 | `showQueue`, `listAdminJobs` | `admin.health.read` | Rien. La santé de la file. |
+| `listPlatformVatPeriods`, `showPlatformVatPeriod` | `admin.tax.read` | Rien. La déclaration de TVA **de la plateforme** : ce qu'elle a facturé sur ce qu'elle a vendu. Détenue par PLATFORM_ADMIN et FINANCE_ADMIN (2026-10-26). |
+| `closePlatformVatPeriod` | `admin.tax.manage` | **Dépose la déclaration de la plateforme et fige la période, définitivement.** C'était une route tenant, que tout administrateur client pouvait appeler. |
 | `eraseUser` | `admin.privacy.erase` | **Efface une personne** (§26) : nom et adresse vidés, les lignes qui la nomment conservées. Ce que la loi impose de garder — les factures — reste. La seule opération vraiment destructive de la console. |
 
 ### Les menus, le courrier, les palettes, la démonstration
@@ -737,15 +742,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              131
 
-  PLATFORM_ADMIN                                  88
+  PLATFORM_ADMIN                                  91
   publiques, sans compte                           8
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          238
+  total                                          241
 ```
 
-Dont **114 lectures** et **124 écritures**. Chaque écriture a sa ligne dans les
+Dont **116 lectures** et **125 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

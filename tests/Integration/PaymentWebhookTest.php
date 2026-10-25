@@ -792,7 +792,8 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
 
         $reporting = $this->container()->get(VatReporting::class);
         self::assertInstanceOf(VatReporting::class, $reporting);
-        $declared = $reporting->close($period, null);
+        // The platform's own return: the period names no issuer.
+        $declared = $reporting->close(null, $period, null);
         self::assertSame(580, $declared->totalVat);
 
         self::assertSame(202, $this->refund()->getStatusCode());

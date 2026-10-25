@@ -30,7 +30,7 @@ import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
 import { OrdersScreen } from '@/features/sales/OrdersScreen';
 import { TaxProfileScreen } from '@/features/tax/TaxProfileScreen';
 import { TaxRatesScreen } from '@/features/tax/TaxRatesScreen';
-import { VatReportsScreen } from '@/features/tax/VatReportsScreen';
+import { PlatformVatReportsScreen, VatReportsScreen } from '@/features/tax/VatReportsScreen';
 import { PaletteChoiceScreen } from '@/features/palettes/PaletteChoiceScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
@@ -128,6 +128,7 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/tenants', component: StaffTenantsScreen },
   { path: '/console/conversations', component: SupportConversationsScreen },
   { path: '/console/metrics', component: MetricsScreen },
+  { path: '/console/vat-reports', component: PlatformVatReportsScreen },
   { path: '/console/directory', component: DirectoryScreen },
   { path: '/console/products', component: ProductsScreen },
   { path: '/console/features', component: FeaturesScreen },

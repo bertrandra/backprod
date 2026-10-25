@@ -413,6 +413,49 @@ final class Taxation
     }
 
     /**
+     * An invoice's facts, turned round — the one way a declared sale is
+     * undone (a credit note, and since 2026-10-26 the cancellation of a final
+     * invoice).
+     *
+     * Everything that describes *why* the tax was what it was — the rule, the
+     * regime, the country, the rate, the customer's number and its status —
+     * is copied unchanged, because that is what was true when the sale
+     * happened. Only the two amounts change sign: §25.3 forbids recomputing
+     * historical VAT with today's rates.
+     *
+     * Keyed by supply type, because that is the one field {@see recordFor}
+     * takes per call rather than per fact.
+     *
+     * @param list<VatTransaction> $facts
+     *
+     * @return array<string, list<TaxCalculation>>
+     */
+    public static function reversalOf(array $facts, string $why): array
+    {
+        /** @var array<string, list<TaxCalculation>> $bySupply */
+        $bySupply = [];
+
+        foreach ($facts as $fact) {
+            $bySupply[$fact->supplyType][] = new TaxCalculation(
+                $fact->ruleId,
+                $fact->vatRegime,
+                $fact->country,
+                $fact->vatRate,
+                -$fact->taxableBase,
+                -$fact->vatAmount,
+                $fact->currency,
+                $fact->reverseCharge,
+                $fact->customerTaxStatus,
+                $fact->customerTaxNumber,
+                null,
+                [$why],
+            );
+        }
+
+        return $bySupply;
+    }
+
+    /**
      * Writes the fiscal facts of a document.
      *
      * **Must be called inside the caller's transaction**, and opens none of

@@ -423,27 +423,7 @@ final class CreditNotes
      */
     private static function negate(array $facts): array
     {
-        /** @var array<string, list<TaxCalculation>> $bySupply */
-        $bySupply = [];
-
-        foreach ($facts as $fact) {
-            $bySupply[$fact->supplyType][] = new TaxCalculation(
-                $fact->ruleId,
-                $fact->vatRegime,
-                $fact->country,
-                $fact->vatRate,
-                -$fact->taxableBase,
-                -$fact->vatAmount,
-                $fact->currency,
-                $fact->reverseCharge,
-                $fact->customerTaxStatus,
-                $fact->customerTaxNumber,
-                null,
-                ['Reversal of the invoice this credit note corrects.'],
-            );
-        }
-
-        return $bySupply;
+        return Taxation::reversalOf($facts, 'Reversal of the invoice this credit note corrects.');
     }
 
     private function requireInvoice(string $tenantId, string $productId, string $invoiceId): Invoice

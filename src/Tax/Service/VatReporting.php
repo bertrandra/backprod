@@ -18,6 +18,11 @@ use DateTimeImmutable;
  * service refuses earlier with a message a human can act on — the trigger is
  * the guarantee, this is the manners. The order matters: if the two ever
  * disagree, the database wins, which is the point of putting it there.
+ *
+ * Every call names whose return it is about (2026-10-26): an organisation's,
+ * or the platform's when `$issuerTenantId` is null. A period of another
+ * issuer's return is not found, never refused — the same answer a project
+ * out of reach gives.
  */
 final class VatReporting
 {
@@ -38,18 +43,19 @@ final class VatReporting
     /**
      * @return list<VatReportingPeriod>
      */
-    public function periods(?string $jurisdiction): array
+    public function periods(?string $issuerTenantId, ?string $jurisdiction): array
     {
-        return $this->tax->periods($jurisdiction);
+        return $this->tax->periods($issuerTenantId, $jurisdiction);
     }
 
     public function open(
+        ?string $issuerTenantId,
         string $jurisdiction,
         string $periodKind,
         DateTimeImmutable $startsOn,
         DateTimeImmutable $endsOn,
     ): VatReportingPeriod {
-        return $this->tax->openPeriod($jurisdiction, $periodKind, $startsOn, $endsOn);
+        return $this->tax->openPeriod($issuerTenantId, $jurisdiction, $periodKind, $startsOn, $endsOn);
     }
 
     /**
@@ -68,9 +74,9 @@ final class VatReporting
      *     }
      * }
      */
-    public function show(string $periodId): array
+    public function show(?string $issuerTenantId, string $periodId): array
     {
-        $period = $this->require($periodId);
+        $period = $this->require($issuerTenantId, $periodId);
         $declaration = $this->tax->declarationFor($periodId);
 
         // A closed period reports what it declared, not what a fresh query
@@ -90,9 +96,9 @@ final class VatReporting
         return ['period' => $period, 'declaration' => $declaration, 'totals' => $totals];
     }
 
-    public function close(string $periodId, ?string $actorUserId): VatDeclaration
+    public function close(?string $issuerTenantId, string $periodId, ?string $actorUserId): VatDeclaration
     {
-        $period = $this->require($periodId);
+        $period = $this->require($issuerTenantId, $periodId);
 
         if ($period->isClosed()) {
             throw new ConflictException(
@@ -124,9 +130,9 @@ final class VatReporting
         return $this->tax->close($period, $actorUserId);
     }
 
-    private function require(string $periodId): VatReportingPeriod
+    private function require(?string $issuerTenantId, string $periodId): VatReportingPeriod
     {
-        $period = $this->tax->findPeriod($periodId);
+        $period = $this->tax->findPeriod($issuerTenantId, $periodId);
 
         if ($period === null) {
             throw new NotFoundException('Reporting period not found.', [], 'PERIOD_NOT_FOUND');

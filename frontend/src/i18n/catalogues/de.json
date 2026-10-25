@@ -1545,5 +1545,8 @@
   "your seat": "Ihr Platz",
   "Your seat has started; what it entitles you to is yours now.": "Ihr Platz hat begonnen; was er Ihnen gewährt, gehört jetzt Ihnen.",
   "Your subscription": "Ihr Abonnement",
-  "Your subscription is suspended for non-payment": "Ihr Abonnement ist wegen Nichtzahlung gesperrt"
+  "Your subscription is suspended for non-payment": "Ihr Abonnement ist wegen Nichtzahlung gesperrt",
+  "Platform VAT": "MwSt. der Plattform",
+  "Platform VAT periods": "MwSt.-Zeiträume der Plattform",
+  "The platform's own return: the VAT it charged on what it sold. An organisation's return is on its own Tax screen.": "Die eigene Erklärung der Plattform: die MwSt., die sie auf ihre Verkäufe berechnet hat. Die einer Organisation steht auf deren eigenem Steuer-Bildschirm."
 }

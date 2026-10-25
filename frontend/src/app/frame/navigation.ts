@@ -209,6 +209,9 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'threads', label: 'Conversations', to: '/console/conversations', scope: 'platform', permission: 'support.read' },
       { id: 'directory', label: 'Directory', to: '/console/directory', scope: 'platform', permission: 'admin.directory.read' },
       { id: 'metrics', label: 'Metrics', to: '/console/metrics', scope: 'platform', permission: 'admin.finance.read' },
+      // The platform's own VAT return (2026-10-26), apart from any
+      // organisation's: it used to be what /tax/reports showed every tenant.
+      { id: 'platform-vat', label: 'Platform VAT', to: '/console/vat-reports', scope: 'platform', permission: 'admin.tax.read', secondary: true },
     ],
   },
   {

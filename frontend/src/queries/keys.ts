@@ -120,6 +120,10 @@ export const keys = {
     rates: (on: string) => ['tax', 'rates', on] as const,
     periods: ['tax', 'periods'] as const,
     period: (id: string) => ['tax', 'period', id] as const,
+    // The platform's own return (/admin/vat-reports): its own keys, so an
+    // organisation's period and the platform's never share a cache entry.
+    platformPeriods: ['tax', 'platform', 'periods'] as const,
+    platformPeriod: (id: string) => ['tax', 'platform', 'period', id] as const,
     transactions: (limit: number, offset: number) =>
       ['tax', 'transactions', limit, offset] as const,
   },

@@ -38,7 +38,7 @@ final class PostgresTaxRepository implements TaxRepository
         SQL;
 
     private const PERIOD_COLUMNS = <<<'SQL'
-        id, jurisdiction, period_kind, starts_on, ends_on, status, closed_at, closed_by
+        id, jurisdiction, period_kind, starts_on, ends_on, status, closed_at, closed_by, issuer_tenant_id
         SQL;
 
     public function __construct(private readonly Connection $connection)
@@ -377,35 +377,45 @@ final class PostgresTaxRepository implements TaxRepository
     /**
      * @return list<VatReportingPeriod>
      */
-    public function periods(?string $jurisdiction): array
+    public function periods(?string $issuerTenantId, ?string $jurisdiction): array
     {
+        if ($issuerTenantId !== null && !Uuid::isValid($issuerTenantId)) {
+            return [];
+        }
+
         $rows = $this->connection->fetchAllAssociative(
             'SELECT ' . self::PERIOD_COLUMNS . <<<'SQL'
               FROM vat_reporting_periods
-             WHERE (CAST(:jurisdiction AS TEXT) IS NULL OR jurisdiction = CAST(:jurisdiction AS TEXT))
+             WHERE issuer_tenant_id IS NOT DISTINCT FROM CAST(:issuer AS uuid)
+               AND (CAST(:jurisdiction AS TEXT) IS NULL OR jurisdiction = CAST(:jurisdiction AS TEXT))
              ORDER BY starts_on DESC
             SQL,
-            ['jurisdiction' => $jurisdiction === null ? null : strtoupper($jurisdiction)],
+            ['issuer' => $issuerTenantId, 'jurisdiction' => $jurisdiction === null ? null : strtoupper($jurisdiction)],
         );
 
         return array_map(self::toPeriod(...), $rows);
     }
 
-    public function findPeriod(string $periodId): ?VatReportingPeriod
+    public function findPeriod(?string $issuerTenantId, string $periodId): ?VatReportingPeriod
     {
-        if (!Uuid::isValid($periodId)) {
+        if (!Uuid::isValid($periodId) || ($issuerTenantId !== null && !Uuid::isValid($issuerTenantId))) {
             return null;
         }
 
         $row = $this->connection->fetchAssociative(
-            'SELECT ' . self::PERIOD_COLUMNS . ' FROM vat_reporting_periods WHERE id = :id',
-            ['id' => $periodId],
+            'SELECT ' . self::PERIOD_COLUMNS . <<<'SQL'
+              FROM vat_reporting_periods
+             WHERE id = :id
+               AND issuer_tenant_id IS NOT DISTINCT FROM CAST(:issuer AS uuid)
+            SQL,
+            ['id' => $periodId, 'issuer' => $issuerTenantId],
         );
 
         return $row === false ? null : self::toPeriod($row);
     }
 
     public function openPeriod(
+        ?string $issuerTenantId,
         string $jurisdiction,
         string $periodKind,
         DateTimeImmutable $startsOn,
@@ -413,13 +423,14 @@ final class PostgresTaxRepository implements TaxRepository
     ): VatReportingPeriod {
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
-            INSERT INTO vat_reporting_periods (jurisdiction, period_kind, starts_on, ends_on)
-            VALUES (:jurisdiction, :kind, :startsOn, :endsOn)
-            ON CONFLICT (jurisdiction, starts_on, ends_on) DO UPDATE
+            INSERT INTO vat_reporting_periods (issuer_tenant_id, jurisdiction, period_kind, starts_on, ends_on)
+            VALUES (CAST(:issuer AS uuid), :jurisdiction, :kind, :startsOn, :endsOn)
+            ON CONFLICT (issuer_tenant_id, jurisdiction, starts_on, ends_on) DO UPDATE
                 SET jurisdiction = EXCLUDED.jurisdiction
             RETURNING
             SQL . ' ' . self::PERIOD_COLUMNS,
             [
+                'issuer' => $issuerTenantId,
                 'jurisdiction' => strtoupper($jurisdiction),
                 'kind' => $periodKind,
                 'startsOn' => $startsOn->format('Y-m-d'),
@@ -456,11 +467,12 @@ final class PostgresTaxRepository implements TaxRepository
                    count(*) AS entries
               FROM vat_transactions
              WHERE country = :jurisdiction
-               -- The platform's own return, and nobody else's (2026-09-26).
-               -- Without this line the VAT an organisation charged its own
-               -- staff on a seat it sold (ADR-055) is summed in here, and a
-               -- closed period would file it permanently.
-               AND issuer_tenant_id IS NULL
+               -- The period's issuer's return, and nobody else's: the
+               -- platform's when the period names none (2026-09-26), an
+               -- organisation's when it names one (2026-10-26). Without this
+               -- line one issuer's VAT is filed in another's return, and a
+               -- closed period files it permanently.
+               AND issuer_tenant_id IS NOT DISTINCT FROM CAST(:issuer AS uuid)
                AND transaction_date >= :startsOn
                AND transaction_date < (CAST(:endsOn AS DATE) + INTERVAL '1 day')
              GROUP BY vat_regime, vat_rate, currency
@@ -468,6 +480,7 @@ final class PostgresTaxRepository implements TaxRepository
             SQL,
             [
                 'jurisdiction' => $period->jurisdiction,
+                'issuer' => $period->issuerTenantId,
                 'startsOn' => $period->startsOn->format('Y-m-d'),
                 'endsOn' => $period->endsOn->format('Y-m-d'),
             ],
@@ -709,6 +722,7 @@ final class PostgresTaxRepository implements TaxRepository
             Row::string($row, 'status'),
             Row::nullableTimestamp($row, 'closed_at'),
             Row::nullableString($row, 'closed_by'),
+            Row::nullableString($row, 'issuer_tenant_id'),
         );
     }
 

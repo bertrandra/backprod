@@ -71,7 +71,7 @@ final class SeatVatTest extends DatabaseApiTestCase
         $this->seedCatalogue();
 
         $this->override([
-            AuthProvider::class => new FakeAuthProvider(['ada-token' => 'sub-ada']),
+            AuthProvider::class => new FakeAuthProvider(['ada-token' => 'sub-ada', 'fin-token' => 'sub-fin']),
             ProductRepository::class => new InMemoryProductRepository([
                 new Product($this->product, 'atlas', 'Atlas', true),
             ]),
@@ -149,6 +149,13 @@ final class SeatVatTest extends DatabaseApiTestCase
 
         self::assertSame(0, $totals['total_vat'] ?? null);
         self::assertSame(0, $totals['transaction_count'] ?? null);
+
+        // Acme's own return holds it (2026-10-26): a period naming Acme as
+        // its issuer, read through Acme's tenant route.
+        $own = $this->ownTotals('FR');
+
+        self::assertSame($fact['vat_amount'], $own['total_vat'] ?? null);
+        self::assertSame(1, $own['transaction_count'] ?? null);
     }
 
     /**
@@ -455,6 +462,40 @@ final class SeatVatTest extends DatabaseApiTestCase
             'INSERT INTO vat_reporting_periods (jurisdiction, period_kind, starts_on, ends_on)'
             . " VALUES (:jurisdiction, 'MONTHLY', current_date - 1, current_date + 1) RETURNING id",
             ['jurisdiction' => $jurisdiction],
+        );
+
+        // The platform's return is its finance staff's to read (2026-10-26).
+        $finance = $this->id(
+            "INSERT INTO users (auth_subject, email) VALUES ('sub-fin', 'fin@platform.test')"
+            . ' ON CONFLICT (auth_subject) DO UPDATE SET email = EXCLUDED.email RETURNING id',
+        );
+        $this->connection->executeStatement(
+            'INSERT INTO platform_staff (user_id, platform_role_id)'
+            . " SELECT :user, id FROM platform_roles WHERE code = 'FINANCE_ADMIN' ON CONFLICT DO NOTHING",
+            ['user' => $finance],
+        );
+
+        $response = $this->request('GET', '/api/v1/admin/vat-reports/' . $period, ['Authorization' => 'Bearer fin-token']);
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+
+        $totals = $this->decode($response)['totals'] ?? null;
+        self::assertIsArray($totals);
+
+        /** @var array<string, mixed> $totals */
+        return $totals;
+    }
+
+    /**
+     * What Acme would declare for a jurisdiction, through its own tenant route.
+     *
+     * @return array<string, mixed>
+     */
+    private function ownTotals(string $jurisdiction): array
+    {
+        $period = $this->id(
+            'INSERT INTO vat_reporting_periods (issuer_tenant_id, jurisdiction, period_kind, starts_on, ends_on)'
+            . " VALUES (:tenant, :jurisdiction, 'MONTHLY', current_date - 1, current_date + 1) RETURNING id",
+            ['tenant' => $this->tenant, 'jurisdiction' => $jurisdiction],
         );
 
         $response = $this->request('GET', '/api/v1/tax/reports/' . $period, $this->headers());

@@ -867,7 +867,8 @@ return static function (array $overrides = []): ContainerInterface {
             ->constructorParameter('appUrl', $env('APP_URL'))
             ->constructorParameter('rotation', get(RefreshRotation::class))
             ->constructorParameter('maxSessionAge', (int) $env('AUTH_SESSION_MAX_AGE', (string) Sessions::MAX_SESSION_AGE))
-            ->constructorParameter('confirmationGrace', (int) $env('AUTH_EMAIL_CONFIRMATION_GRACE', (string) Sessions::CONFIRMATION_GRACE)),
+            ->constructorParameter('confirmationGrace', (int) $env('AUTH_EMAIL_CONFIRMATION_GRACE', (string) Sessions::CONFIRMATION_GRACE))
+            ->constructorParameter('attempts', get(RateLimiter::class)),
 
         // What a refresh token is replaced by (ADR-062): derived from the
         // secret the access tokens are signed with, and the one before it
@@ -907,8 +908,16 @@ return static function (array $overrides = []): ContainerInterface {
             // may send, so it is believed only from an address we put there.
             ->constructorParameter('trustedProxies', $list($env('TRUSTED_PROXIES'))),
 
+        // The longest window any counter uses, not the middleware's alone
+        // (2026-10-26): the per-address sign-in and password-link counters
+        // run over 15 and 60 minutes, and sweeping at the middleware's minute
+        // would reset them part-way through.
         SweepRateLimits::class => autowire()
-            ->constructorParameter('windowSeconds', (int) $env('RATE_LIMIT_WINDOW_SECONDS', '60')),
+            ->constructorParameter('windowSeconds', max(
+                (int) $env('RATE_LIMIT_WINDOW_SECONDS', '60'),
+                Sessions::SIGN_IN_WINDOW,
+                Sessions::RESET_LINK_WINDOW,
+            )),
 
         // No wildcard and no default: an unconfigured deployment allows no
         // cross-origin call at all, which fails the safe way.

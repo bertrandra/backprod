@@ -31,7 +31,7 @@ final class DeleteAssetController implements RouteHandler
         // refused as not-found rather than done.
         $asset = $this->assets->show($context->tenantId, $context->productId, $assetId);
 
-        AssetRoute::reachableProject($this->projects, $context, $asset->projectId);
+        AssetRoute::reachableProject($this->projects, $context, $asset->projectId, changing: true);
 
         $this->assets->delete($context->tenantId, $context->productId, $assetId);
 

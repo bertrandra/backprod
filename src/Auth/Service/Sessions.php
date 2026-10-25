@@ -18,8 +18,11 @@ use App\Notification\Domain\Channel;
 use App\Notification\Domain\NotificationRepository;
 use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\ConflictException;
+use App\Shared\Exceptions\TooManyRequestsException;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Tenant\Domain\JoinRequests;
+use App\Throttle\Domain\RateLimitDecision;
+use App\Throttle\Domain\RateLimiter;
 use App\Webhook\Domain\ProductEvents;
 use App\Webhook\Domain\ProductEventType;
 use Psr\Log\LoggerInterface;
@@ -65,6 +68,26 @@ final class Sessions
 
     /** At most one resent confirmation a minute. */
     public const RESEND_INTERVAL = 60;
+
+    /**
+     * Sign-in attempts one address may make in a window (2026-10-26).
+     *
+     * The per-IP bucket of the middleware was the only brake, and guessing at
+     * one account from many addresses went through it untouched. Generous on
+     * purpose — a person mistyping does not reach it — and counted per
+     * address rather than per failure, because the limiter answers and counts
+     * in one statement and a "did it fail?" read beside it would be a gap two
+     * attempts race through.
+     */
+    public const SIGN_IN_LIMIT = 20;
+    public const SIGN_IN_WINDOW = 900;
+
+    /**
+     * Password links one address may be sent in a window: a SECURITY notice
+     * cannot be muted, so without a bound the form floods an inbox.
+     */
+    public const RESET_LINK_LIMIT = 3;
+    public const RESET_LINK_WINDOW = 3600;
 
     /** How far a race is followed along a chain before it is called something else. */
     private const RACE_STEPS = 8;
@@ -123,6 +146,12 @@ final class Sessions
          * the tenant surface refuses it (ADR-061). `AUTH_EMAIL_CONFIRMATION_GRACE`.
          */
         private readonly int $confirmationGrace = self::CONFIRMATION_GRACE,
+        /**
+         * Counts attempts per address (2026-10-26): sign-ins, and password
+         * links asked for. Null in a test that builds this by hand; the
+         * container always passes the platform's limiter.
+         */
+        private readonly ?RateLimiter $attempts = null,
     ) {
     }
 
@@ -308,6 +337,14 @@ final class Sessions
      */
     public function forgotPassword(string $email): void
     {
+        // Past the bound, the same silence as an unknown address: the answer
+        // must not say whether one exists, and the person already has links.
+        if ($this->overBound('password-link', $email, self::RESET_LINK_WINDOW, self::RESET_LINK_LIMIT) !== null) {
+            $this->logger->info('Password reset asked too often for one address');
+
+            return;
+        }
+
         $credential = $this->credentials->findByEmail($email);
 
         if ($credential === null) {
@@ -428,6 +465,13 @@ final class Sessions
      */
     public function signIn(string $email, #[SensitiveParameter] string $password, ?string $productCode = null): Session
     {
+        $over = $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT);
+
+        if ($over !== null) {
+            // The same refusal whether the address has an account or not.
+            throw new TooManyRequestsException($over->retryAfterSeconds, $over->limit, $over->windowSeconds);
+        }
+
         $credential = $this->credentials->findByEmail($email);
 
         // Verified even when there is no account, and the result thrown away. See
@@ -763,5 +807,26 @@ final class Sessions
     private function hash(#[SensitiveParameter] string $rawToken): string
     {
         return hash('sha256', $rawToken);
+    }
+
+    /**
+     * Counts one attempt for an address, and returns the decision when the
+     * attempt is past its bound — null while it is within it. The address is
+     * hashed, lowercased, before it becomes a bucket: the counter table is
+     * not a list of who tried to sign in.
+     */
+    private function overBound(string $what, string $email, int $window, int $limit): ?RateLimitDecision
+    {
+        if ($this->attempts === null) {
+            return null;
+        }
+
+        $decision = $this->attempts->hit(
+            'auth:' . $what . ':' . hash('sha256', mb_strtolower(trim($email))),
+            $window,
+            $limit,
+        );
+
+        return $decision->allowed() ? null : $decision;
     }
 }

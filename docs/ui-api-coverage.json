@@ -253,6 +253,18 @@
         "showMetrics"
       ]
     },
+    "console.admin.vat_reports": {
+      "authority": "platform",
+      "$comment": "The platform's own VAT return (2026-10-26): the periods of the VAT it charged on what it sold, and their one-way closure. It used to be what `tax.reports` showed every organisation's administrator; that area is now the organisation's own return.",
+      "routes": [
+        "/console/vat-reports"
+      ],
+      "operations": [
+        "closePlatformVatPeriod",
+        "listPlatformVatPeriods",
+        "showPlatformVatPeriod"
+      ]
+    },
     "console.self": {
       "authority": "platform",
       "$comment": "A platform staff member's own profile (2026-09-22): name, language, and since 2026-09-23 a new password by the same emailed link as everybody else — staff sign in with an address and a password, so the link belongs to the account rather than to the authority (see `account.profile`). `account.profile` is a tenant screen and staff with no membership were refused it, which left the platform administrator with no way to their own name or language. The identity itself is bootstrap (showStaffIdentity).",

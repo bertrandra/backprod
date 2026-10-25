@@ -115,13 +115,18 @@ interface TaxRepository
     ): int;
 
     /**
+     * The periods of one issuer's return: an organisation's, or the
+     * platform's when `$issuerTenantId` is null. Never both.
+     *
      * @return list<VatReportingPeriod>
      */
-    public function periods(?string $jurisdiction): array;
+    public function periods(?string $issuerTenantId, ?string $jurisdiction): array;
 
-    public function findPeriod(string $periodId): ?VatReportingPeriod;
+    /** A period of this issuer's return, or null — another issuer's period is not found. */
+    public function findPeriod(?string $issuerTenantId, string $periodId): ?VatReportingPeriod;
 
     public function openPeriod(
+        ?string $issuerTenantId,
         string $jurisdiction,
         string $periodKind,
         DateTimeImmutable $startsOn,

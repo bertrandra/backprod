@@ -25,9 +25,9 @@ final class ShowVatPeriodController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        TaxRoute::readable($request);
+        $context = TaxRoute::readable($request);
 
-        $view = $this->reporting->show(TaxRoute::periodId($request));
+        $view = $this->reporting->show($context->tenantId, TaxRoute::periodId($request));
         $declaration = $view['declaration'];
 
         return new JsonResponse([

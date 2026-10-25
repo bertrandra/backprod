@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { can } from '@/app/access/access';
 import { useViewState } from '@/app/frame/viewState';
 import { useSession } from '@/queries/session';
+import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import {
   isClosed,
   useCloseVatPeriod,
   useVatPeriod,
   useVatPeriods,
   useVatTransactions,
+  type VatAuthority,
   type VatDeclaration,
   type VatPeriod,
 } from '@/queries/tax';
@@ -47,18 +49,36 @@ import { currentLocale, t } from '@/i18n';
  *
  * The selected period lives in `?selected=` (ui-spec.md §4.3), so the accountant
  * being asked about a quarter is sent a link to that quarter.
+ *
+ * **Two returns, one screen** (2026-10-26). `/tax/reports` is the
+ * organisation's own return, the VAT it charged on what it sold; the console's
+ * `/console/vat-reports` is the platform's (`authority="platform"`), behind
+ * `admin.tax.read` and `admin.tax.manage`. The platform's used to be the one
+ * shown at `/tax/reports`, to every customer's administrator.
  */
 export function VatReportsScreen() {
+  return <VatReturnScreen authority="tenant" />;
+}
+
+/** The console's screen: the platform's own return, behind `admin.tax.read`. */
+export function PlatformVatReportsScreen() {
+  return <VatReturnScreen authority="platform" />;
+}
+
+function VatReturnScreen({ authority }: { authority: VatAuthority }) {
   const { data: session } = useSession();
+  const staff = useStaffIdentity();
   const { selected } = useViewState();
   const navigate = useNavigate();
-  const periods = useVatPeriods();
+  const periods = useVatPeriods(authority);
 
-  const mayManage = can(session, 'tax.manage');
+  const mayManage = authority === 'platform'
+    ? can(staffAccess(staff.data), 'admin.tax.manage')
+    : can(session, 'tax.manage');
 
   const select = (id: string | null) => {
     void navigate({
-      to: '/tax/reports',
+      to: authority === 'platform' ? '/console/vat-reports' : '/tax/reports',
       search: id === null ? {} : { selected: id },
     });
   };
@@ -66,8 +86,10 @@ export function VatReportsScreen() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={t("VAT periods")}
-        description={t("A period is open while its figures can still move. Closing one files a declaration and freezes it — permanently, and by a rule the database enforces rather than this screen.")}
+        title={authority === 'platform' ? t("Platform VAT periods") : t("VAT periods")}
+        description={authority === 'platform'
+          ? t("The platform's own return: the VAT it charged on what it sold. An organisation's return is on its own Tax screen.")
+          : t("A period is open while its figures can still move. Closing one files a declaration and freezes it — permanently, and by a rule the database enforces rather than this screen.")}
       />
 
       <div className="grid gap-8 lg:grid-cols-[20rem_1fr]">
@@ -118,12 +140,12 @@ export function VatReportsScreen() {
               description={t("Choose one to see its figures and, if it is closed, the declaration that was filed.")}
             />
           ) : (
-            <PeriodDetail periodId={selected} mayManage={mayManage} />
+            <PeriodDetail periodId={selected} mayManage={mayManage} authority={authority} />
           )}
         </section>
       </div>
 
-      <Transactions />
+      {authority === 'tenant' && <Transactions />}
     </div>
   );
 }
@@ -140,8 +162,8 @@ function StatusBadge({ period }: { period: VatPeriod }) {
   );
 }
 
-function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: boolean }) {
-  const period = useVatPeriod(periodId);
+function PeriodDetail({ periodId, mayManage, authority }: { periodId: string; mayManage: boolean; authority: VatAuthority }) {
+  const period = useVatPeriod(periodId, authority);
 
   if (period.isPending) {
     return <SkeletonRows rows={6} />;
@@ -189,7 +211,7 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
         >
           {t("This period cannot be reopened. Nothing here can change it, and neither can support — the database refuses the change. A figure that turns out to be wrong is corrected in a later period, which is what leaves an audit trail.")}</p>
       ) : (
-        <CloseSection period={current} mayManage={mayManage} />
+        <CloseSection period={current} mayManage={mayManage} authority={authority} />
       )}
     </div>
   );
@@ -203,8 +225,8 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
  * action anyway would invite somebody to try a one-way operation and discover
  * the rule from an error — so the rule is stated where the button would be.
  */
-function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boolean }) {
-  const close = useCloseVatPeriod();
+function CloseSection({ period, mayManage, authority }: { period: VatPeriod; mayManage: boolean; authority: VatAuthority }) {
+  const close = useCloseVatPeriod(authority);
   const [confirming, setConfirming] = useState(false);
 
   // The clock, read **once at mount** rather than on every render. A component
@@ -225,7 +247,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
   if (!mayManage) {
     return (
       <p data-testid="cannot-close" className="text-sm text-muted">
-        {t("Closing a period needs")}{' '}<code>{'tax.manage'}</code>.
+        {t("Closing a period needs")}{' '}<code>{authority === 'platform' ? 'admin.tax.manage' : 'tax.manage'}</code>.
       </p>
     );
   }

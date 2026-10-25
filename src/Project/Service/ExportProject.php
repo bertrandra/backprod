@@ -56,7 +56,7 @@ final class ExportProject implements JobHandler
         // Everything: the reach was decided when the export was asked for
         // (`RequestExportController` fetched the project first, and the job
         // exists only because that succeeded). Resolving it again here would
-        // ask it of nobody — a job has a tenant and a product and no caller —
+        // ask it of nobody â€” a job has a tenant and a product and no caller â€”
         // and would fail every export the moment the requester's seat ended.
         $project = $this->projects->find($job->tenantId, $job->productId, $projectId, Reach::everything());
 
