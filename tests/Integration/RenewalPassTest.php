@@ -19,6 +19,7 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
@@ -218,7 +219,7 @@ final class RenewalPassTest extends DatabaseApiTestCase
 
         // A day later the invoice is still not due, so the collection read does
         // not see it — the subscription is not suspended inside its paid period.
-        $this->connection->executeStatement("UPDATE invoices SET issued_at = issued_at - INTERVAL '1 day'");
+        TestDatabase::forge($this->connection, ['invoices'], "UPDATE invoices SET issued_at = issued_at - INTERVAL '1 day'");
 
         $repository = $this->container()->get(PostgresSubscriptionRepository::class);
         self::assertInstanceOf(PostgresSubscriptionRepository::class, $repository);

@@ -78,6 +78,20 @@ final class Version20260910090000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
+        // Refused while anything legal is held (2026-10-26). These tables are
+        // records the law makes the platform keep; one `migrate prev` against
+        // a database that holds them would erase them. On an empty database
+        // — a developer's — the way back still works.
+        $this->addSql(<<<'SQL'
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM invoice_documents) THEN
+                    RAISE EXCEPTION 'refusing to drop legally retained records (invoice_documents); restore a backup instead';
+                END IF;
+            END
+            $$
+            SQL);
+
         $this->addSql('DROP TRIGGER IF EXISTS invoice_documents_frozen ON invoice_documents');
         $this->addSql('DROP FUNCTION IF EXISTS invoice_document_is_frozen()');
         $this->addSql('DROP TABLE IF EXISTS invoice_documents');

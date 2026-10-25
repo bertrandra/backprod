@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Billing\Domain\InvoiceRepository;
+use App\Billing\Domain\InvoiceStatus;
 use App\Commerce\Service\Subscriptions;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Exceptions\ConflictException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -324,6 +328,37 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
 
         self::assertSame(409, $again->getStatusCode());
         self::assertSame('INVALID_INVOICE_TRANSITION', $this->errorOf($again)['code'] ?? null);
+    }
+
+    /**
+     * A move is conditioned on the status it was decided from (2026-10-26).
+     * Read, then paid by somebody else, then cancelled from the stale read:
+     * the write keyed on the id alone used to cancel a paid invoice.
+     */
+    public function testAMoveDecidedFromAStaleReadIsRefused(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $invoices = $this->container()->get(InvoiceRepository::class);
+        self::assertInstanceOf(InvoiceRepository::class, $invoices);
+
+        $stale = $invoices->find($this->tenant, $this->product, $invoiceId);
+        self::assertNotNull($stale);
+
+        self::assertSame(200, $this->act($invoiceId, 'pay')->getStatusCode());
+
+        try {
+            $invoices->transition($stale, InvoiceStatus::CANCELLED, null);
+            self::fail('A move from a stale read went through.');
+        } catch (ConflictException $refused) {
+            self::assertSame('INVOICE_CHANGED', $refused->errorCode());
+        }
+
+        self::assertSame(
+            'PAID',
+            $this->connection->fetchOne('SELECT status FROM invoices WHERE id = :id', ['id' => $invoiceId]),
+        );
     }
 
     public function testAPaidInvoiceCannotBeCancelled(): void
@@ -645,7 +680,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         $pendingTag = $pending->getHeaderLine('ETag');
 
         // Past due: said so, with the date it went past.
-        $this->connection->executeStatement("UPDATE invoices SET due_at = now() - interval '3 days' WHERE id = :id", ['id' => $invoiceId]);
+        TestDatabase::forge($this->connection, ['invoices'], "UPDATE invoices SET due_at = now() - interval '3 days' WHERE id = :id", ['id' => $invoiceId]);
         $overdue = $this->pdf($invoiceId);
         self::assertSame('OVERDUE', $overdue->getHeaderLine('X-Invoice-Status'));
         self::assertStringContainsString('ANCE D', (string) $overdue->getBody());

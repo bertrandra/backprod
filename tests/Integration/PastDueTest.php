@@ -520,7 +520,9 @@ final class PastDueTest extends DatabaseApiTestCase
         self::assertSame('ACTIVE', $this->statusOf($subscription));
 
         // …and on the day it chose, it chases. Once, on step 1.
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
             "UPDATE invoices SET issued_at = now() - interval '6 days' WHERE id = :id",
             ['id' => $invoice],
         );
@@ -543,7 +545,9 @@ final class PastDueTest extends DatabaseApiTestCase
         $invoice = $this->overdueInvoice($subscription, days: 1);
 
         $this->collect();
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
             "UPDATE invoices SET issued_at = now() - interval '4 days' WHERE id = :id",
             ['id' => $invoice],
         );
@@ -552,7 +556,9 @@ final class PastDueTest extends DatabaseApiTestCase
         self::assertSame(2, $this->noticesRaised(), 'two steps, two notices');
 
         // A month later, and still two: there is no third step to reach.
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
             "UPDATE invoices SET issued_at = now() - interval '40 days' WHERE id = :id",
             ['id' => $invoice],
         );

@@ -117,7 +117,15 @@ final class SubscriptionPeople
             throw new ConflictException('ALREADY_THE_OWNER', 'The owner is covered already.');
         }
 
-        $this->subscriptions->addMember($subscription->id, $userId, $callerId);
+        // The quota again, under a lock this time: the check above is the
+        // early answer, given before an invitation creates an account, and
+        // this is the one two additions at once cannot both pass.
+        $this->subscriptions->addMember(
+            $subscription->id,
+            $userId,
+            $callerId,
+            $this->subscriptions->administersSubscription($subscription->id, $userId) ? null : self::quotaOf($subscription),
+        );
 
         if ($invited && $email !== null) {
             // The account exists with no usable password: the link is how

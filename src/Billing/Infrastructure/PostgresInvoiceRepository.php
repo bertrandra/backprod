@@ -14,6 +14,7 @@ use App\Billing\Domain\TaxRecord;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Exceptions\ConflictException;
 use App\Shared\Validation\Locale;
 use DateTimeImmutable;
 use Doctrine\DBAL\ArrayParameterType;
@@ -345,16 +346,31 @@ final class PostgresInvoiceRepository implements InvoiceRepository
 
     public function applyTransition(Invoice $invoice, string $status, ?string $actorUserId): void
     {
-        $this->connection->executeStatement(
+        // Conditioned on the status the decision was taken from (2026-10-26).
+        // The state machine is asked against a read, and a write keyed on the
+        // id alone applied the move whatever had happened since: a checkout
+        // given up while its payment was landing could cancel a paid invoice,
+        // and two people acting at once could both "succeed". Zero rows means
+        // somebody else moved it first; the caller's transaction rolls back.
+        $moved = $this->connection->executeStatement(
             <<<'SQL'
                 UPDATE invoices
                    SET status = :status,
                        paid_at = CASE WHEN :status = 'PAID' THEN now() ELSE paid_at END,
                        updated_at = now()
                  WHERE id = :id
+                   AND status = :from
                 SQL,
-            ['status' => $status, 'id' => $invoice->id],
+            ['status' => $status, 'id' => $invoice->id, 'from' => $invoice->status],
         );
+
+        if ($moved === 0) {
+            throw new ConflictException(
+                'INVOICE_CHANGED',
+                'This invoice changed while that was being done. Look at it again before trying once more.',
+                ['expected_status' => $invoice->status],
+            );
+        }
 
         $this->record(
             $invoice->tenantId,

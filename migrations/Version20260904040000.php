@@ -390,6 +390,20 @@ final class Version20260904040000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
+        // Refused while anything legal is held (2026-10-26). These tables are
+        // records the law makes the platform keep; one `migrate prev` against
+        // a database that holds them would erase them. On an empty database
+        // — a developer's — the way back still works.
+        $this->addSql(<<<'SQL'
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM vat_transactions) OR EXISTS (SELECT 1 FROM vat_declarations) OR EXISTS (SELECT 1 FROM vat_reporting_periods) THEN
+                    RAISE EXCEPTION 'refusing to drop legally retained records (vat_transactions, vat_declarations, vat_reporting_periods); restore a backup instead';
+                END IF;
+            END
+            $$
+            SQL);
+
         $this->addSql(<<<'SQL'
             DELETE FROM role_permissions
             WHERE permission_id IN (

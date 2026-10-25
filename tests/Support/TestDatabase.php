@@ -287,4 +287,29 @@ final class TestDatabase
             ['tenant' => $tenantId, 'product' => $productId],
         );
     }
+
+    /**
+     * Runs a statement a fixture needs and the schema forbids (2026-10-26):
+     * back-dating an issued invoice, forging its amounts, moving a VAT fact.
+     * Fiscal records are written once, by trigger; a test that has to put
+     * one in a state the application could never reach says so here, for
+     * the tables it names and for this statement only.
+     *
+     * @param list<string> $tables
+     * @param array<string, mixed> $parameters
+     */
+    public static function forge(Connection $connection, array $tables, string $sql, array $parameters = []): void
+    {
+        $connection->transactional(static function (Connection $c) use ($tables, $sql, $parameters): void {
+            foreach ($tables as $table) {
+                $c->executeStatement(sprintf('ALTER TABLE "%s" DISABLE TRIGGER USER', $table));
+            }
+
+            $c->executeStatement($sql, $parameters);
+
+            foreach ($tables as $table) {
+                $c->executeStatement(sprintf('ALTER TABLE "%s" ENABLE TRIGGER USER', $table));
+            }
+        });
+    }
 }

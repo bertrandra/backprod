@@ -542,6 +542,14 @@ final class PostgresTaxRepository implements TaxRepository
         // modified and never says what it declared — the trigger makes that
         // state permanent.
         return $this->connection->transactional(function () use ($period, $actorUserId): VatDeclaration {
+            // No fact may land while the declaration is being counted
+            // (2026-10-26): a sale committing between the sum and the closure
+            // would be dated inside a period whose declaration never saw it.
+            // SHARE blocks writers for the length of this transaction only,
+            // and once the period is closed the database refuses a fact dated
+            // inside it ({@see vat_fact_not_in_a_closed_period}).
+            $this->connection->executeStatement('LOCK TABLE vat_transactions IN SHARE MODE');
+
             $totals = $this->totalsFor($period);
 
             $declaration = $this->connection->fetchAssociative(
