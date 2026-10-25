@@ -34,7 +34,7 @@ final class UploadAssetController implements RouteHandler
     {
         $context = AssetRoute::manageable($request);
 
-        AssetRoute::reachableProject($this->projects, $context, AssetRoute::id($request, 'projectId'));
+        AssetRoute::reachableProject($this->projects, $context, AssetRoute::id($request, 'projectId'), changing: true);
 
         $asset = $this->assets->upload(
             $context->tenantId,

@@ -103,8 +103,14 @@ interface InvoiceRepository
     /**
      * Moves an invoice to a new status, recording the move in the ledger.
      * The caller has already checked that the transition is legal.
+     *
+     * `$alsoInside` runs inside the same transaction, after the move — the
+     * cancellation of a final invoice reverses its fiscal facts there, so the
+     * status and the reversal commit together or not at all.
+     *
+     * @param (callable(Invoice): void)|null $alsoInside
      */
-    public function transition(Invoice $invoice, string $status, ?string $actorUserId): Invoice;
+    public function transition(Invoice $invoice, string $status, ?string $actorUserId, ?callable $alsoInside = null): Invoice;
 
     /**
      * The same move, without a transaction of its own, for a caller that

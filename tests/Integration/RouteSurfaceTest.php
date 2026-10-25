@@ -185,13 +185,15 @@ final class RouteSurfaceTest extends ApiTestCase
     {
         $routes = $this->registeredRoutes();
 
-        // 114 today. The bound is loose on purpose: this is not a count
-        // to keep updated, it is a guard against the collector silently
-        // recording nothing and every assertion above passing on an
-        // empty list.
+        // The bound is loose on purpose: this is not a count to keep
+        // updated, it is a guard against the collector silently recording
+        // nothing and every assertion above passing on an empty list. A
+        // third and not a half since 2026-10-26: the console's own surface
+        // (staff and admin) has grown to nearly as many routes as the
+        // tenant's, which is the console doing its job, not a hole.
         self::assertGreaterThan(50, count($routes));
         self::assertGreaterThan(
-            count($routes) / 2,
+            count($routes) / 3,
             count($this->routesClassified(RoutePolicy::FULL)),
         );
     }

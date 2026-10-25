@@ -6,6 +6,7 @@ namespace App\Billing\Service;
 
 use App\Billing\Domain\BillingProfile;
 use App\Billing\Domain\BillingProfileRepository;
+use App\Billing\Domain\CreditNoteRepository;
 use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
@@ -14,6 +15,7 @@ use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
 use App\Commerce\Service\Subscriptions;
+use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Tax\Service\Taxation;
 use DateTimeImmutable;
@@ -49,6 +51,7 @@ final class Invoicing
         private readonly Taxation $taxation,
         private readonly WhoSellsAndWhoBuys $parties,
         private readonly DocumentPeople $people,
+        private readonly CreditNoteRepository $creditNotes,
     ) {
     }
 
@@ -238,26 +241,69 @@ final class Invoicing
         return $this->invoices->settle($invoice, $this->paid, $actorUserId);
     }
 
+    /**
+     * Cancels an invoice nobody has paid.
+     *
+     * A draft was never sent and declared nothing: it is simply cancelled. An
+     * issued invoice declared its VAT when it was issued — an order raises one
+     * before it is paid, so a checkout given up comes here too — and until
+     * 2026-10-26 cancelling it only changed its status, so the fact stayed
+     * declared: every abandoned checkout remained in the return as a taxable
+     * sale nothing stood behind.
+     *
+     * The cancellation of an issued invoice writes the reversal of its facts,
+     * dated today, in the same transaction as the move: the number stays, as a
+     * cancelled document (the sequence has no gaps), and the return nets to
+     * nothing. The
+     * correction lands in the period it is made in, never back in the one the
+     * sale was declared in, which may be closed.
+     *
+     * An invoice already credited in part is refused: reversing all of it
+     * would reverse the credited part twice.
+     */
     public function cancel(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): Invoice
     {
-        return $this->move($tenantId, $productId, $invoiceId, InvoiceStatus::CANCELLED, $actorUserId);
-    }
-
-    private function move(
-        string $tenantId,
-        string $productId,
-        string $invoiceId,
-        string $status,
-        ?string $actorUserId,
-    ): Invoice {
         $invoice = $this->show($tenantId, $productId, $invoiceId);
 
-        // The state machine decides, not the caller and not the database.
-        // Paying a cancelled invoice would put money against a debt that no
-        // longer exists; re-issuing an issued one would allocate a second
-        // legal number for one document.
-        InvoiceStatus::assertPermits($invoice->status, $status);
+        InvoiceStatus::assertPermits($invoice->status, InvoiceStatus::CANCELLED);
 
-        return $this->invoices->transition($invoice, $status, $actorUserId);
+        if (!InvoiceStatus::isFinal($invoice->status)) {
+            return $this->invoices->transition($invoice, InvoiceStatus::CANCELLED, $actorUserId);
+        }
+
+        if ($this->creditNotes->creditedOn($invoice->id) > 0) {
+            throw new ConflictException(
+                'INVOICE_PARTLY_CREDITED',
+                'Part of this invoice has been credited already. Credit the rest instead of cancelling it.',
+            );
+        }
+
+        // Read before anything is written, as a credit note reads its own.
+        $reversal = Taxation::reversalOf(
+            $this->taxation->factsOfInvoice($invoice->id),
+            'Reversal of the invoice this cancellation withdraws.',
+        );
+        $withdrawnAt = new DateTimeImmutable();
+
+        return $this->invoices->transition(
+            $invoice,
+            InvoiceStatus::CANCELLED,
+            $actorUserId,
+            function (Invoice $cancelled) use ($reversal, $withdrawnAt): void {
+                foreach ($reversal as $supplyType => $calculations) {
+                    $this->taxation->recordFor(
+                        $cancelled->tenantId,
+                        $cancelled->productId,
+                        // The return the sale was filed in (ADR-054).
+                        $cancelled->issuerTenantId,
+                        $cancelled->id,
+                        null,
+                        $supplyType,
+                        $withdrawnAt,
+                        $calculations,
+                    );
+                }
+            },
+        );
     }
 }

@@ -228,6 +228,47 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('0', (string) (is_scalar($count) ? $count : 'not counted'));
     }
 
+    /**
+     * The order's invoice was issued, and its VAT declared, when the checkout
+     * opened. Giving up withdraws it, and since 2026-10-26 the declaration
+     * follows: the invoice's facts are reversed, dated today, so the return
+     * nets to nothing instead of keeping a sale that never happened.
+     */
+    public function testGivingUpReversesTheVatTheInvoiceDeclared(): void
+    {
+        $session = $this->sessionOf($this->open());
+        self::assertIsString($session['invoice_id']);
+
+        $declared = $this->vatOf($session['invoice_id']);
+        self::assertGreaterThan(0, $declared['rows'], 'The order declared its VAT when it was issued.');
+
+        self::assertSame(200, $this->cancel($session)->getStatusCode());
+
+        $after = $this->vatOf($session['invoice_id']);
+        self::assertSame(2 * $declared['rows'], $after['rows'], 'One reversal per fact, and nothing rewritten.');
+        self::assertSame(0, $after['vat']);
+        self::assertSame(0, $after['base']);
+    }
+
+    /**
+     * @return array{rows: int, vat: int, base: int}
+     */
+    private function vatOf(string $invoiceId): array
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT count(*) AS rows, coalesce(sum(vat_amount), 0) AS vat, coalesce(sum(taxable_base), 0) AS base
+               FROM vat_transactions WHERE invoice_id = :id',
+            ['id' => $invoiceId],
+        );
+        self::assertIsArray($row);
+
+        return [
+            'rows' => is_numeric($row['rows']) ? (int) $row['rows'] : -1,
+            'vat' => is_numeric($row['vat']) ? (int) $row['vat'] : -1,
+            'base' => is_numeric($row['base']) ? (int) $row['base'] : -1,
+        ];
+    }
+
     public function testAPaidCheckoutCannotBeGivenUp(): void
     {
         $session = $this->sessionOf($this->open());

@@ -324,10 +324,14 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         return $invoice;
     }
 
-    public function transition(Invoice $invoice, string $status, ?string $actorUserId): Invoice
+    public function transition(Invoice $invoice, string $status, ?string $actorUserId, ?callable $alsoInside = null): Invoice
     {
-        return $this->connection->transactional(function () use ($invoice, $status, $actorUserId): Invoice {
+        return $this->connection->transactional(function () use ($invoice, $status, $actorUserId, $alsoInside): Invoice {
             $this->applyTransition($invoice, $status, $actorUserId);
+
+            if ($alsoInside !== null) {
+                $alsoInside($invoice);
+            }
 
             $updated = $this->find($invoice->tenantId, $invoice->productId, $invoice->id);
 

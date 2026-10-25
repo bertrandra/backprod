@@ -162,16 +162,22 @@ export function useCalculateTax() {
   });
 }
 
-export function useVatPeriods() {
+/**
+ * Whose return a VAT screen shows: the organisation's (`/tax/reports`, behind
+ * `tax.read`) or the platform's own (`/admin/vat-reports`, behind
+ * `admin.tax.read`). Two returns, two authorities — never one list holding both.
+ */
+export type VatAuthority = 'tenant' | 'platform';
+
+export function useVatPeriods(authority: VatAuthority = 'tenant') {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.tax.periods,
+    queryKey: authority === 'platform' ? keys.tax.platformPeriods : keys.tax.periods,
     queryFn: async (): Promise<readonly VatPeriod[]> => {
-      const { data, error, response } = await client.GET(
-        '/api/v1/tax/reports',
-        ambientParams(sessionSnapshot),
-      );
+      const { data, error, response } = authority === 'platform'
+        ? await client.GET('/api/v1/admin/vat-reports')
+        : await client.GET('/api/v1/tax/reports', ambientParams(sessionSnapshot));
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
@@ -189,18 +195,22 @@ export function useVatPeriods() {
  * and the screen has to be able to say that rather than render an empty
  * declaration.
  */
-export function useVatPeriod(periodId: string | null) {
+export function useVatPeriod(periodId: string | null, authority: VatAuthority = 'tenant') {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.tax.period(periodId ?? ''),
+    queryKey: authority === 'platform' ? keys.tax.platformPeriod(periodId ?? '') : keys.tax.period(periodId ?? ''),
     enabled: periodId !== null,
     queryFn: async () => {
       const ambient = ambientParams(sessionSnapshot);
 
-      const { data, error, response } = await client.GET('/api/v1/tax/reports/{periodId}', {
-        params: { ...ambient.params, path: { periodId: periodId ?? '' } },
-      });
+      const { data, error, response } = authority === 'platform'
+        ? await client.GET('/api/v1/admin/vat-reports/{periodId}', {
+          params: { path: { periodId: periodId ?? '' } },
+        })
+        : await client.GET('/api/v1/tax/reports/{periodId}', {
+          params: { ...ambient.params, path: { periodId: periodId ?? '' } },
+        });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
@@ -239,7 +249,7 @@ export function useVatTransactions(limit = 25, offset = 0) {
  * numbers are computed at closure and this client cannot know them. Assuming
  * them would be inventing a filing.
  */
-export function useCloseVatPeriod() {
+export function useCloseVatPeriod(authority: VatAuthority = 'tenant') {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
@@ -247,10 +257,13 @@ export function useCloseVatPeriod() {
     mutationFn: async (periodId: string): Promise<VatDeclaration> => {
       const ambient = ambientParams(sessionSnapshot);
 
-      const { data, error, response } = await client.POST(
-        '/api/v1/tax/reports/{periodId}/close',
-        { params: { ...ambient.params, path: { periodId } } },
-      );
+      const { data, error, response } = authority === 'platform'
+        ? await client.POST('/api/v1/admin/vat-reports/{periodId}/close', {
+          params: { path: { periodId } },
+        })
+        : await client.POST('/api/v1/tax/reports/{periodId}/close', {
+          params: { ...ambient.params, path: { periodId } },
+        });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
@@ -259,10 +272,15 @@ export function useCloseVatPeriod() {
       return data.declaration;
     },
     onSuccess: async (_declaration, periodId) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: keys.tax.periods }),
-        queryClient.invalidateQueries({ queryKey: keys.tax.period(periodId) }),
-      ]);
+      await Promise.all(authority === 'platform'
+        ? [
+          queryClient.invalidateQueries({ queryKey: keys.tax.platformPeriods }),
+          queryClient.invalidateQueries({ queryKey: keys.tax.platformPeriod(periodId) }),
+        ]
+        : [
+          queryClient.invalidateQueries({ queryKey: keys.tax.periods }),
+          queryClient.invalidateQueries({ queryKey: keys.tax.period(periodId) }),
+        ]);
     },
   });
 }

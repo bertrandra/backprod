@@ -147,6 +147,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/vat-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The platform's own VAT periods
+         * @description The periods of the platform's own return: the VAT it charged on what it sold (`issuer_tenant_id` null). An organisation's return is read at `/tax/reports`. Behind `admin.tax.read`, held by PLATFORM_ADMIN and FINANCE_ADMIN.
+         */
+        get: operations["listPlatformVatPeriods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/vat-reports/{periodId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A period of the platform's own return
+         * @description Its totals while open, what it declared once closed. A period of an organisation's return is not found here. Behind `admin.tax.read`.
+         */
+        get: operations["showPlatformVatPeriod"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/vat-reports/{periodId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a period of the platform's own return
+         * @description **One-way**, enforced by a database trigger. Behind `admin.tax.manage`, held by PLATFORM_ADMIN and FINANCE_ADMIN — until 2026-10-26 this was a tenant route any customer's administrator could call.
+         */
+        post: operations["closePlatformVatPeriod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/queue": {
         parameters: {
             query?: never;
@@ -440,7 +500,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel an invoice
-         * @description Only while it is still a draft. A final invoice is corrected by a credit note, never cancelled — cancelling one that has been sent would leave a hole in the legal sequence.
+         * @description A draft is simply cancelled. An issued invoice nobody has paid may be withdrawn: its number stays, as a cancelled document, because the legal sequence has no gaps, and its VAT is reversed the day it is withdrawn (2026-10-26) — before that, the sale stayed declared. A paid invoice is corrected by a credit note, never cancelled.
          */
         post: operations["cancelInvoice"];
         delete?: never;
@@ -2654,7 +2714,7 @@ export interface paths {
         };
         /**
          * The declaration periods
-         * @description Open and closed alike. A closed one cannot be reopened.
+         * @description The periods of the organisation's own return: the VAT it charged on what it sold (ADR-055). Open and closed alike. A closed one cannot be reopened. The platform's own return is not here — it is read at `/admin/vat-reports`.
          */
         get: operations["listVatPeriods"];
         put?: never;
@@ -2696,7 +2756,7 @@ export interface paths {
         put?: never;
         /**
          * Close a period and freeze its declaration
-         * @description One-way, and the database enforces it rather than the service remembering to. A period holding more than one currency is refused: summing across currencies would produce a figure that is not money.
+         * @description One-way, and the database enforces it rather than the service remembering to. A period of the organisation's own return only: another issuer's period is not found. A period holding more than one currency is refused: summing across currencies would produce a figure that is not money.
          */
         post: operations["closeVatPeriod"];
         delete?: never;
@@ -6533,6 +6593,106 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listPlatformVatPeriods: {
+        parameters: {
+            query?: {
+                /** @description An ISO country code; all jurisdictions when absent. */
+                jurisdiction?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The periods. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        periods: components["schemas"]["VatPeriod"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showPlatformVatPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period, its totals, and the declaration if it has one. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        period: components["schemas"]["VatPeriod"];
+                        totals: {
+                            [key: string]: unknown;
+                        };
+                        declaration: components["schemas"]["VatDeclaration"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    closePlatformVatPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The frozen declaration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        declaration: components["schemas"]["VatDeclaration"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Already closed, not yet ended, or holding more than one currency. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     showQueue: {
         parameters: {
             query?: {
@@ -7108,7 +7268,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description Already final; issue a credit note instead. */
+            /** @description Paid, credited or already cancelled (`INVALID_INVOICE_TRANSITION`): money has moved, so it is corrected by a credit note; or credited in part (`INVOICE_PARTLY_CREDITED`), so the rest is credited instead. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8388,8 +8548,8 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description An unknown job type. */
-            422: {
+            /** @description An unknown job type (`JOB_TYPE_UNKNOWN`), the schedule's reserved key (`JOB_KEY_RESERVED`), or a key another owner's pending job holds (`JOB_KEY_TAKEN`) — that job is never handed back. A periodic type, which runs on the platform's own schedule, is refused 403 `JOB_TYPE_NOT_REQUESTABLE`. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -245,6 +245,53 @@ final class AssetEndpointsTest extends DatabaseApiTestCase
         self::assertSame(0, $this->countFilesUnder($this->root));
     }
 
+    /**
+     * The files follow the project (2026-10-26): somebody no subscription
+     * covers reaches neither the project nor, now, its files.
+     */
+    public function testAMemberNoSubscriptionCoversCannotReachAProjectsFiles(): void
+    {
+        $assetId = $this->uploadedId();
+
+        $this->override([
+            EntitlementRepository::class => InMemoryEntitlementRepository::granting([]),
+        ]);
+
+        $show = $this->get('/api/v1/assets/' . $assetId);
+        self::assertSame(403, $show->getStatusCode());
+        self::assertSame('SUBSCRIPTION_REQUIRED', $this->errorOf($show)['code'] ?? null);
+
+        $upload = $this->upload($this->png(), 'more.png');
+        self::assertSame(403, $upload->getStatusCode());
+    }
+
+    /**
+     * A file hanging off no project is the organisation's — its logo is
+     * stored that way — and changing one is its administrator's, as the
+     * logo's own route says (2026-10-26). `assets.manage` alone is every
+     * member's.
+     */
+    public function testAMemberCannotDeleteTheOrganisationsOwnFiles(): void
+    {
+        $assetId = $this->uploadedId();
+        $this->connection->executeStatement('UPDATE assets SET project_id = NULL WHERE id = :id', ['id' => $assetId]);
+
+        $this->override([
+            TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
+                new TenantMembership($this->tenant, $this->user, $this->product, ['USER'], ['assets.read', 'assets.manage']),
+            ]),
+        ]);
+
+        $response = $this->request(
+            'DELETE',
+            '/api/v1/assets/' . $assetId,
+            ['Authorization' => 'Bearer mia-token', 'X-Product' => 'atlas'],
+        );
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame(1, $this->countFilesUnder($this->root));
+    }
+
     // --- Export: where M7's two halves meet ----------------------------------
 
     public function testAnExportReturnsAJobAndProducesAnAssetWhenTheRunnerRuns(): void

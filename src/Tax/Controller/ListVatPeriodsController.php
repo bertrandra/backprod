@@ -21,9 +21,11 @@ final class ListVatPeriodsController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        TaxRoute::readable($request);
+        $context = TaxRoute::readable($request);
 
-        $periods = $this->reporting->periods(TaxRoute::query($request, 'jurisdiction'));
+        // The organisation's own return: the VAT it charged on what it sold
+        // (ADR-055). The platform's is read at /admin/vat-reports.
+        $periods = $this->reporting->periods($context->tenantId, TaxRoute::query($request, 'jurisdiction'));
 
         return new JsonResponse([
             'periods' => array_map(TaxPresenter::period(...), $periods),

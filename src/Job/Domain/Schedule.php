@@ -57,9 +57,12 @@ final class Schedule
      * queue that is behind does not grow a copy per minute of what it has not
      * got to yet.
      *
-     * A client could pass this same key to `POST /jobs`. Nothing breaks if one
-     * does: the collision hands back the pending job that is about to do
-     * exactly the work they asked for.
+     * A client may not pass it to `POST /jobs` (2026-10-26). It used to be
+     * harmless on paper — the collision handed back the pending job — but a
+     * tenant could queue a periodic type under it and cancel the row, and the
+     * schedule then counted the cancelled row as the night's pass. Periodic
+     * types are no longer requestable, this key is refused, and the schedule
+     * only reads rows that name no tenant.
      */
     public const KEY = 'schedule';
 

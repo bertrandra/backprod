@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { heldOpen, renderAtRoute, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
 
-import { VatReportsScreen } from './VatReportsScreen';
+import { PlatformVatReportsScreen, VatReportsScreen } from './VatReportsScreen';
 
 /**
  * Closing a VAT period is the one action in this application that cannot be
@@ -390,5 +390,44 @@ describe('the transactions', () => {
     await waitFor(() => expect(screen.getByTestId('transaction-regime').textContent).toBe('STANDARD'));
     expect(screen.getByText('fr.b2c.standard')).toBeTruthy();
     expect(screen.getByText(/20% · SERVICES/)).toBeTruthy();
+  });
+});
+
+/**
+ * The platform's own return (2026-10-26) is the console's, behind
+ * `admin.tax.read` and `admin.tax.manage`. It used to be what `/tax/reports`
+ * showed every organisation's administrator; the same screen now reads it from
+ * `/admin/vat-reports`, and never shows the organisation's transactions.
+ */
+describe("the platform's own return", () => {
+  const FINANCE = { staff: { user_id: 's-1', roles: ['FINANCE_ADMIN'], permissions: ['admin.tax.read', 'admin.tax.manage'] } };
+  const READ_ONLY = { staff: { user_id: 's-2', roles: ['PLATFORM_ADMIN'], permissions: ['admin.tax.read'] } };
+  const platformAt = (id: string) => ({ path: '/console/vat-reports', initial: `/console/vat-reports?selected=${id}` });
+
+  function platformClient(staff: unknown) {
+    return stubClient({
+      'GET /api/v1/me': { data: SESSION },
+      'GET /api/v1/staff/me': { data: staff },
+      'GET /api/v1/admin/vat-reports': { data: { periods: [ENDED] } },
+      'GET /api/v1/admin/vat-reports/{periodId}': {
+        data: { period: ENDED, totals: RUNNING_TOTALS, declaration: null },
+      },
+    });
+  }
+
+  it('reads the admin routes and offers to close with admin.tax.manage', async () => {
+    renderAtRoute(<PlatformVatReportsScreen />, platformClient(FINANCE), platformAt(ENDED.id));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /close the period/i })).toBeTruthy());
+    expect(screen.getByRole('heading', { name: /platform vat periods/i })).toBeTruthy();
+    // The organisation's transactions are not the platform's return.
+    expect(screen.queryByText(TRANSACTION.rule_id)).toBeNull();
+  });
+
+  it('names the platform permission when it is missing', async () => {
+    renderAtRoute(<PlatformVatReportsScreen />, platformClient(READ_ONLY), platformAt(ENDED.id));
+
+    await waitFor(() => expect(screen.getByTestId('cannot-close')).toBeTruthy());
+    expect(screen.getByTestId('cannot-close').textContent).toMatch(/admin\.tax\.manage/);
   });
 });

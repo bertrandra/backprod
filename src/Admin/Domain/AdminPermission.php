@@ -52,4 +52,14 @@ final class AdminPermission
      * leads to one is to the conversation that leads to the other.
      */
     public const PRIVACY_ERASE = 'admin.privacy.erase';
+
+    /**
+     * The platform's own VAT return (2026-10-26): PLATFORM_ADMIN and
+     * FINANCE_ADMIN. It moved here from the tenant routes, where every
+     * customer's administrator could read it and close it.
+     */
+    public const TAX_READ = 'admin.tax.read';
+
+    /** Closing a period of it, which is one-way: the same two roles. */
+    public const TAX_MANAGE = 'admin.tax.manage';
 }

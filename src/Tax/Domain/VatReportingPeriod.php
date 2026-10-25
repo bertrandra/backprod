@@ -32,6 +32,12 @@ final class VatReportingPeriod
         public readonly string $status,
         public readonly ?DateTimeImmutable $closedAt,
         public readonly ?string $closedBy,
+        /**
+         * Whose return this period declares: the organisation that raised the
+         * documents, or null for the platform (ADR-057). A period is reached
+         * only by its issuer.
+         */
+        public readonly ?string $issuerTenantId = null,
     ) {
     }
 

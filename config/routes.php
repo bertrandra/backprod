@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Admin\Controller\ClosePlatformVatPeriodController;
 use App\Admin\Controller\EraseUserController;
 use App\Admin\Controller\ListAdminInvoicesController;
 use App\Admin\Controller\ListAdminJobsController;
@@ -10,7 +11,9 @@ use App\Admin\Controller\ListAdminSubscriptionsController;
 use App\Admin\Controller\ListAdminTenantsController;
 use App\Admin\Controller\ListAdminUsersController;
 use App\Admin\Controller\ListAuditController;
+use App\Admin\Controller\ListPlatformVatPeriodsController;
 use App\Admin\Controller\ShowMetricsController;
+use App\Admin\Controller\ShowPlatformVatPeriodController;
 use App\Admin\Controller\ShowQueueController;
 use App\Auth\Controller\ForgotPasswordController;
 use App\Auth\Controller\JwksController;
@@ -891,6 +894,13 @@ return static function (RouteCollector $routes): void {
     // every invoice ever raised and not one payment against one of them.
     $routes->addRoute('GET', '/api/v1/admin/payments', ListAdminPaymentsController::class);
     $routes->addRoute('GET', '/api/v1/admin/jobs', ListAdminJobsController::class);
+
+    // The platform's own VAT return (2026-10-26): the facts it issued, its
+    // periods, their closure. It lived at /tax/reports, a tenant route, where
+    // any customer's administrator could read it and close it for good.
+    $routes->addRoute('GET', '/api/v1/admin/vat-reports', ListPlatformVatPeriodsController::class);
+    $routes->addRoute('GET', '/api/v1/admin/vat-reports/{periodId}', ShowPlatformVatPeriodController::class);
+    $routes->addRoute('POST', '/api/v1/admin/vat-reports/{periodId}/close', ClosePlatformVatPeriodController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's

@@ -37,21 +37,38 @@ final class AssetRoute
      *
      * The signed download is deliberately not gated here. Its authority is
      * the signature, issued to somebody who could reach the asset when they
-     * asked for the link � checking again would refuse a link the holder
+     * asked for the link — checking again would refuse a link the holder
      * handed to a customer, which is what the link is for.
      */
     public static function reachableProject(
         ProjectWorkspace $projects,
         RequestContext $context,
         ?string $projectId,
+        bool $changing = false,
     ): void {
         if ($projectId === null) {
             // An asset hanging off no project at all is the organisation's,
             // scoped by tenant and product as it always was. There is no
             // holder to ask about, and inventing a refusal here would hide
             // the tenant's own files from the tenant.
+            //
+            // Changing one is the organisation's administrator's (2026-10-26):
+            // the tenant's logo is stored this way, and its own route asks
+            // `tenant.manage`, while `assets.manage` is every member's — so
+            // any member could delete the logo through this one.
+            if ($changing) {
+                $context->requirePermission('tenant.manage');
+            }
+
             return;
         }
+
+        // The assets follow the project (2026-10-26): reaching the work asks
+        // whether a subscription covers this person first, as every project
+        // route does, so a member nobody covers — or whose subscription is
+        // suspended for an unpaid invoice — no longer lists, uploads, deletes
+        // or links the files of work they cannot open.
+        $context->requireSubscription();
 
         $projects->get(
             $context->tenantId,
