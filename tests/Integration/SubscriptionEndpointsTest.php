@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\Subscription;
+use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\HttpException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
@@ -483,6 +486,44 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
         $mine = $this->decode($this->request('GET', '/api/v1/me/entitlements', $this->headers()));
         self::assertSame([], $mine['capabilities'] ?? null);
+    }
+
+    /**
+     * A cancellation is written conditioned on the read it was decided from
+     * (2026-10-26). Two "cancel now" decided from the same read used to both
+     * pass, and each could raise a buy-out invoice.
+     */
+    public function testACancellationDecidedFromAStaleReadIsRefused(): void
+    {
+        $stale = $this->subscribeTo($this->proOffer);
+
+        $cancel = $this->request('POST', '/api/v1/subscription/cancel', $this->headers(), $this->json(['immediately' => true]));
+        self::assertSame(200, $cancel->getStatusCode(), (string) $cancel->getBody());
+
+        $repository = $this->container()->get(SubscriptionRepository::class);
+        self::assertInstanceOf(SubscriptionRepository::class, $repository);
+
+        $events = $this->connection->fetchOne('SELECT count(*) FROM subscription_events WHERE subscription_id = :id', ['id' => $stale->id]);
+
+        try {
+            $repository->scheduleCancellation(
+                $stale,
+                CancellationDecision::accepted('test.stale', CancellationDecision::IMMEDIATE, new \DateTimeImmutable(), []),
+                null,
+                static function (): void {
+                    self::fail('The charge of a refused cancellation ran.');
+                },
+            );
+            self::fail('A cancellation from a stale read went through.');
+        } catch (ConflictException $refused) {
+            self::assertSame('SUBSCRIPTION_CHANGED', $refused->errorCode());
+        }
+
+        self::assertSame(
+            $events,
+            $this->connection->fetchOne('SELECT count(*) FROM subscription_events WHERE subscription_id = :id', ['id' => $stale->id]),
+            'Nothing of the refused cancellation was recorded.',
+        );
     }
 
     public function testAnImmediatelyFlagMustBeABoolean(): void

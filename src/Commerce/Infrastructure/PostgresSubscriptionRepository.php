@@ -708,6 +708,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                updated_at = now()
                          WHERE id = :id
                            AND current_period_end IS NOT DISTINCT FROM :from
+                           -- And still renewable (2026-10-26): a cancellation
+                           -- that landed after the pass read the row must win,
+                           -- or a cancelled subscription is rolled and billed.
+                           AND status = 'ACTIVE'
+                           AND cancel_at_period_end = false
                         SQL,
                     [
                         'periodEnd' => self::moment($periodEnd),
@@ -1377,7 +1382,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     // Ends now. The entitlement goes with it, because the
                     // clock is what entitlement resolution asks and there is
                     // no period left to be inside.
-                    $this->connection->executeStatement(
+                    $moved = $this->connection->executeStatement(
                         <<<'SQL'
                         UPDATE subscriptions
                            SET status = 'CANCELLED',
@@ -1391,9 +1396,18 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                pending_requested_by = NULL,
                                updated_at = now()
                          WHERE id = :id
+                           AND status = :status
+                           AND cancel_at_period_end = :pending
                         SQL,
-                        ['id' => $subscription->id],
+                        [
+                            'id' => $subscription->id,
+                            'status' => $subscription->status,
+                            'pending' => $subscription->cancelAtPeriodEnd,
+                        ],
+                        ['pending' => ParameterType::BOOLEAN],
                     );
+
+                    self::assertUnchanged($moved);
 
                     // The entitlements go with it. There is no period left to
                     // be inside, and a cancelled subscription still granting
@@ -1410,7 +1424,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     // database refuses to hold both, so clearing it here is
                     // what keeps the CHECK unreachable from the application
                     // rather than something a caller has to remember.
-                    $this->connection->executeStatement(
+                    $moved = $this->connection->executeStatement(
                         <<<'SQL'
                         UPDATE subscriptions
                            SET cancel_at_period_end = true,
@@ -1422,12 +1436,19 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                pending_requested_by = NULL,
                                updated_at = now()
                          WHERE id = :id
+                           AND status = :status
+                           AND cancel_at_period_end = :pending
                         SQL,
                         [
                             'id' => $subscription->id,
                             'effectiveAt' => self::moment($decision->effectiveAt),
+                            'status' => $subscription->status,
+                            'pending' => $subscription->cancelAtPeriodEnd,
                         ],
+                        ['pending' => ParameterType::BOOLEAN],
                     );
+
+                    self::assertUnchanged($moved);
                 }
 
                 $this->record(
@@ -1624,16 +1645,38 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         ), $rows);
     }
 
-    public function addMember(string $subscriptionId, string $userId, ?string $addedBy): void
+    public function addMember(string $subscriptionId, string $userId, ?string $addedBy, ?int $quota = null): void
     {
-        $this->connection->executeStatement(
-            <<<'SQL'
-                INSERT INTO subscription_members (subscription_id, user_id, added_by)
-                VALUES (:id, :user, :by)
-                ON CONFLICT DO NOTHING
-                SQL,
-            ['id' => $subscriptionId, 'user' => $userId, 'by' => $addedBy],
-        );
+        $this->connection->transactional(function () use ($subscriptionId, $userId, $addedBy, $quota): void {
+            if ($quota !== null) {
+                // One addition at a time per subscription: the row lock is
+                // what makes the count below and the insert one decision.
+                $this->connection->fetchOne('SELECT id FROM subscriptions WHERE id = :id FOR UPDATE', ['id' => $subscriptionId]);
+
+                $already = $this->connection->fetchOne(
+                    'SELECT 1 FROM subscription_members WHERE subscription_id = :id AND user_id = :user',
+                    ['id' => $subscriptionId, 'user' => $userId],
+                );
+                $used = $this->placesUsedBy($subscriptionId);
+
+                if ($already === false && $used >= $quota) {
+                    throw new ConflictException(
+                        'PEOPLE_QUOTA_REACHED',
+                        sprintf('This subscription covers %d %s, and they are all taken.', $quota, $quota === 1 ? 'person' : 'people'),
+                        ['quota' => $quota, 'used' => $used],
+                    );
+                }
+            }
+
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    INSERT INTO subscription_members (subscription_id, user_id, added_by)
+                    VALUES (:id, :user, :by)
+                    ON CONFLICT DO NOTHING
+                    SQL,
+                ['id' => $subscriptionId, 'user' => $userId, 'by' => $addedBy],
+            );
+        });
     }
 
     public function removeMember(string $subscriptionId, string $userId): void
@@ -1711,5 +1754,22 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     private static function moment(?DateTimeImmutable $moment): ?string
     {
         return $moment?->format('Y-m-d H:i:s.uP');
+    }
+
+    /**
+     * A cancellation is decided from a read — what it costs, whether it is
+     * allowed — and written conditioned on that read (2026-10-26). Zero rows
+     * means the subscription changed in between: two "cancel now" at once
+     * would otherwise both pass, and both raise a buy-out invoice. The
+     * transaction rolls back, charge included.
+     */
+    private static function assertUnchanged(int|string $moved): void
+    {
+        if ((int) $moved === 0) {
+            throw new ConflictException(
+                'SUBSCRIPTION_CHANGED',
+                'This subscription changed while that was being decided. Look at it again before trying once more.',
+            );
+        }
     }
 }

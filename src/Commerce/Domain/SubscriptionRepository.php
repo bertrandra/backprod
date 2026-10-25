@@ -173,8 +173,16 @@ interface SubscriptionRepository
      */
     public function administersSubscription(string $subscriptionId, string $userId): bool;
 
-    /** Idempotent: adding somebody twice is once. */
-    public function addMember(string $subscriptionId, string $userId, ?string $addedBy): void;
+    /**
+     * Idempotent: adding somebody twice is once.
+     *
+     * `$quota`, when given, is enforced here, under a lock on the
+     * subscription (2026-10-26): the caller's check reads the places used and
+     * this inserts, and two additions at once both passed the read. Null for
+     * a person who takes no place (an administrator) or an offer selling no
+     * bound.
+     */
+    public function addMember(string $subscriptionId, string $userId, ?string $addedBy, ?int $quota = null): void;
 
     /** Idempotent: removing somebody absent is nothing. */
     public function removeMember(string $subscriptionId, string $userId): void;

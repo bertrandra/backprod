@@ -15,6 +15,7 @@ use App\Billing\Domain\Money;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Exceptions\ConflictException;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
@@ -173,6 +174,27 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
             DocumentNumbering::CREDIT_NOTE,
             $invoice->issuerTenantId,
         );
+
+        // The ceiling, read again under the numbering lock (2026-10-26). The
+        // caller checked it before the money moved, but outside any lock, so
+        // two partial refunds at once both saw the same remainder and both
+        // passed: the invoice ended credited past what it charged, and the
+        // reversal declared a negative sale. Every credit note is numbered
+        // under one lock, so the second now sees the first.
+        $gross = $net->plus($vat)->minorUnits;
+        $already = $this->creditedOn($invoice->id);
+
+        if ($already + $gross > $invoice->gross->minorUnits) {
+            throw new ConflictException(
+                'CREDIT_EXCEEDS_INVOICE',
+                'That would credit more than the invoice charged.',
+                [
+                    'invoiced' => $invoice->gross->minorUnits,
+                    'already_credited' => $already,
+                    'requested' => $gross,
+                ],
+            );
+        }
 
         $id = $this->connection->fetchOne(
             <<<'SQL'

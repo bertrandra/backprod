@@ -217,7 +217,9 @@ final class StorefrontTest extends DatabaseApiTestCase
         // **published** version grants is frozen (ADR-033), and the database
         // enforces that with a trigger rather than trusting a service. The
         // fixture obeys the same rule a console would.
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['offer_versions'],
             "UPDATE offer_versions SET status = 'DRAFT' WHERE offer_id = :offer",
             ['offer' => $this->advertised],
         );

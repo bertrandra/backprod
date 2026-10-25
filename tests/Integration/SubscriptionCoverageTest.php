@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Exceptions\ConflictException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -165,6 +167,36 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
         self::assertSame('PEOPLE_QUOTA_REACHED', $this->errorOf($third)['code'] ?? null);
         // And the refusal held: the third person reaches nothing.
         self::assertSame(403, $this->projects('cy-token')->getStatusCode());
+    }
+
+    /**
+     * The quota holds where the row is written, under a lock (2026-10-26):
+     * the service's check is an early answer, read before the insert, and two
+     * additions at once both passed it. Raced here by going around it.
+     */
+    public function testTheQuotaHoldsWhereThePlaceIsTaken(): void
+    {
+        $this->subscribe();
+        self::assertSame(201, $this->addPerson($this->colleague)->getStatusCode());
+
+        $subscriptionId = $this->connection->fetchOne('SELECT id FROM subscriptions WHERE subscriber_user_id = :owner', ['owner' => $this->owner]);
+        self::assertIsString($subscriptionId);
+
+        $repository = $this->container()->get(SubscriptionRepository::class);
+        self::assertInstanceOf(SubscriptionRepository::class, $repository);
+        $full = $repository->placesUsedBy($subscriptionId);
+
+        try {
+            $repository->addMember($subscriptionId, $this->outsider, $this->owner, $full);
+            self::fail('A place past the quota was taken.');
+        } catch (ConflictException $refused) {
+            self::assertSame('PEOPLE_QUOTA_REACHED', $refused->errorCode());
+        }
+
+        self::assertSame($full, $repository->placesUsedBy($subscriptionId));
+
+        // Somebody already on it is not a second place.
+        $repository->addMember($subscriptionId, $this->colleague, $this->owner, $full);
     }
 
     /**

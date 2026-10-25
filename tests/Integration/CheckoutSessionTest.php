@@ -14,6 +14,7 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -148,7 +149,11 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
 
     public function testAnOfferThatIsNotOnSaleIsNotBuyable(): void
     {
-        $this->connection->executeStatement(
+        // A published version never returns to DRAFT; the fixture forges one
+        // that was never published.
+        TestDatabase::forge(
+            $this->connection,
+            ['offer_versions'],
             "UPDATE offer_versions SET status = 'DRAFT' WHERE offer_id = :offer",
             ['offer' => $this->offer],
         );

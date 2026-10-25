@@ -13,6 +13,7 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -390,7 +391,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $this->subscribe();
         $invoice = $this->decode($this->request('POST', '/api/v1/billing/invoices', $this->headers()))['id'] ?? null;
         self::assertIsString($invoice);
-        $this->connection->executeStatement('DELETE FROM vat_transactions');
+        TestDatabase::forge($this->connection, ['vat_transactions'], 'DELETE FROM vat_transactions');
 
         $row = static fn (string $status): string => sprintf(
             <<<'SQL'
@@ -525,7 +526,9 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $this->subscribe();
         $this->request('POST', '/api/v1/billing/invoices', $this->headers());
 
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['vat_transactions'],
             'UPDATE vat_transactions SET transaction_date = current_date - 3, issuer_tenant_id = NULL',
         );
 
@@ -625,7 +628,9 @@ final class FiscalChainTest extends DatabaseApiTestCase
             'INSERT INTO vat_reporting_periods (jurisdiction, period_kind, starts_on, ends_on)'
             . " VALUES ('FR', 'MONTHLY', current_date - 5, current_date - 1) RETURNING id",
         );
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['vat_transactions'],
             'UPDATE vat_transactions SET transaction_date = current_date - 3, issuer_tenant_id = NULL',
         );
 
@@ -634,18 +639,25 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         $declaredVat = $closed['total_vat'] ?? null;
 
-        // Something arrives in the same window afterwards, which is exactly
-        // the situation a closed period must not silently absorb.
-        $this->connection->executeStatement(
-            <<<'SQL'
-            INSERT INTO vat_transactions
-                (invoice_id, tenant_id, product_id, country, supply_type,
-                 taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date)
-            SELECT invoice_id, tenant_id, product_id, country, supply_type,
-                   taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date
-              FROM vat_transactions LIMIT 1
-            SQL,
-        );
+        // Something tries to arrive in the same window afterwards, which is
+        // exactly the situation a closed period must not silently absorb.
+        // Since 2026-10-26 the database refuses it outright: a fact dated in
+        // a closed period would be in no declaration at all.
+        try {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                INSERT INTO vat_transactions
+                    (invoice_id, tenant_id, product_id, country, supply_type,
+                     taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date)
+                SELECT invoice_id, tenant_id, product_id, country, supply_type,
+                       taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date
+                  FROM vat_transactions LIMIT 1
+                SQL,
+            );
+            self::fail('A fact dated inside a closed period was written.');
+        } catch (Throwable $refused) {
+            self::assertStringContainsString('falls in a closed period', $refused->getMessage());
+        }
 
         $view = $this->decode(
             $this->request('GET', '/api/v1/admin/vat-reports/' . $period, $this->financeHeaders()),
@@ -733,6 +745,42 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $response = $this->request('GET', '/api/v1/tax/transactions', $this->headers());
 
         self::assertSame(403, $response->getStatusCode());
+    }
+
+    /**
+     * Fiscal records are written once, by the database (2026-10-26): the
+     * amounts of an issued invoice, its VAT facts and its lines do not move,
+     * whatever statement asks. Its status still does — that is its life.
+     */
+    public function testAnIssuedInvoiceAndItsFactsAreWrittenOnce(): void
+    {
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2B', 'taxable_person' => true, 'vat_number' => 'FR12345678901']);
+        $this->saveBillingProfile();
+        $this->subscribe();
+        $invoice = $this->decode($this->request('POST', '/api/v1/billing/invoices', $this->headers()))['id'] ?? null;
+        self::assertIsString($invoice);
+
+        foreach ([
+            'UPDATE invoices SET gross_minor_units = gross_minor_units + 1 WHERE id = :id',
+            'UPDATE invoices SET number = number || \'-bis\' WHERE id = :id',
+            'DELETE FROM invoices WHERE id = :id',
+            'UPDATE vat_transactions SET vat_amount = 0 WHERE invoice_id = :id',
+            'DELETE FROM vat_transactions WHERE invoice_id = :id',
+            'DELETE FROM invoice_lines WHERE invoice_id = :id',
+        ] as $statement) {
+            try {
+                $this->connection->executeStatement($statement, ['id' => $invoice]);
+                self::fail('The database let this through: ' . $statement);
+            } catch (Throwable $refused) {
+                self::assertStringContainsString('Restrict violation', $refused->getMessage(), $statement);
+            }
+        }
+
+        // Its life goes on: the status moves.
+        self::assertSame(1, $this->connection->executeStatement(
+            "UPDATE invoices SET status = 'CANCELLED', updated_at = now() WHERE id = :id",
+            ['id' => $invoice],
+        ));
     }
 
     public function testClosingAPeriodNeedsMoreThanReadAccess(): void

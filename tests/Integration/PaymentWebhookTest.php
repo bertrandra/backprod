@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Billing\Domain\CreditNoteRepository;
+use App\Billing\Domain\InvoiceRepository;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
 use App\Shared\Database\Row;
+use App\Shared\Exceptions\ConflictException;
 use App\Tax\Service\VatReporting;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -749,6 +753,36 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
     }
 
     /**
+     * The ceiling holds where the credit note is written, under the
+     * numbering lock (2026-10-26): the plan's check is read before the money
+     * moves, and two partial refunds at once both passed it. Raced here by
+     * going around it.
+     */
+    public function testTheCreditCeilingHoldsWhereTheDocumentIsWritten(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        $this->refund(['amount_minor_units' => 1_160]);
+
+        $invoices = $this->container()->get(InvoiceRepository::class);
+        $creditNotes = $this->container()->get(CreditNoteRepository::class);
+        self::assertInstanceOf(InvoiceRepository::class, $invoices);
+        self::assertInstanceOf(CreditNoteRepository::class, $creditNotes);
+
+        $invoice = $invoices->find($this->tenant, $this->product, $this->invoice);
+        self::assertNotNull($invoice);
+
+        try {
+            $creditNotes->issue($invoice, $invoice->lines, $invoice->supplier, $invoice->customer, 'raced', null);
+            self::fail('A credit past what the invoice charged was written.');
+        } catch (ConflictException $refused) {
+            self::assertSame('CREDIT_EXCEEDS_INVOICE', $refused->errorCode());
+        }
+
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+    }
+
+    /**
      * The money and its document are one write or neither.
      *
      * The lever is contrived — an invoice stripped of its lines has no
@@ -762,7 +796,9 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
         $this->seedFiscalFact(2_900, 580, 2_000);
         $this->collect();
 
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoice_lines'],
             'DELETE FROM invoice_lines WHERE invoice_id = :id',
             ['id' => $this->invoice],
         );
@@ -786,7 +822,9 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
             'INSERT INTO vat_reporting_periods (jurisdiction, period_kind, starts_on, ends_on)'
             . " VALUES ('FR', 'MONTHLY', current_date - 5, current_date - 1) RETURNING id",
         );
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['vat_transactions'],
             'UPDATE vat_transactions SET transaction_date = current_date - 3',
         );
 
@@ -828,7 +866,9 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
         )->getStatusCode());
 
         // And this one is the organisation's own document (ADR-054).
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
             'UPDATE invoices SET issuer_tenant_id = :tenant WHERE id = :id',
             ['tenant' => $this->tenant, 'id' => $this->invoice],
         );
@@ -988,11 +1028,15 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
     {
         $vat = intdiv(2_900 * $rate + 5_000, 10_000);
 
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
             'UPDATE invoices SET vat_minor_units = :vat, gross_minor_units = :gross WHERE id = :id',
             ['vat' => $vat, 'gross' => 2_900 + $vat, 'id' => $this->invoice],
         );
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoice_lines'],
             'UPDATE invoice_lines SET vat_rate_basis_points = :rate, vat_minor_units = :vat,'
             . ' gross_minor_units = :gross WHERE invoice_id = :id',
             ['rate' => $rate, 'vat' => $vat, 'gross' => 2_900 + $vat, 'id' => $this->invoice],
@@ -1016,7 +1060,9 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
             ['invoice' => $this->invoice],
         );
 
-        $this->connection->executeStatement(
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
             'UPDATE invoices SET net_minor_units = 3900, vat_minor_units = 635, gross_minor_units = 4535'
             . ' WHERE id = :id',
             ['id' => $this->invoice],

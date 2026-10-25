@@ -391,6 +391,28 @@ final class SalesChainTest extends DatabaseApiTestCase
     }
 
     /**
+     * Back to DRAFT was the door around the freeze: the trigger let a draft be
+     * edited, so a sold version set back to one could have its price rewritten.
+     */
+    public function testAPublishedVersionNeverReturnsToDraft(): void
+    {
+        try {
+            $this->connection->executeStatement(
+                "UPDATE offer_versions SET status = 'DRAFT' WHERE id = :version",
+                ['version' => $this->offerVersion],
+            );
+            self::fail('a published version was set back to DRAFT');
+        } catch (\Doctrine\DBAL\Exception $e) {
+            self::assertStringContainsString('never returns to DRAFT', $e->getMessage());
+        }
+
+        self::assertNotSame('DRAFT', $this->connection->fetchOne(
+            'SELECT status FROM offer_versions WHERE id = :version',
+            ['version' => $this->offerVersion],
+        ));
+    }
+
+    /**
      * Placing an order is **buying**, so it answers to the buyer's permission
      * (`billing.pay`) rather than to `sales.manage` (2026-09-25).
      *
