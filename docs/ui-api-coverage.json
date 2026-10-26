@@ -695,6 +695,7 @@
     "downloadAsset":"Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
     "einvoiceWebhook": "Server-to-server callback from the e-invoicing platform. No human origin, so no screen.",
     "health": "Monitoring probe consumed by infrastructure, not by a person.",
+    "healthReady": "Readiness probe consumed by an outside monitor, not by a person: a verdict and nothing else. The detail is /admin/queue, which the console shows.",
     "paymentWebhook": "Server-to-server callback from the payment provider. No human origin, so no screen.",
     "listProductTenantMembers": "Called by a product’s server with its key and no person present (ADR-051 §4); the console issues the key, the product access log records the read. No human origin, so no screen.",
     "reportProductUsage": "Called by a product’s server with its key, before it does the metered work (ADR-051 §4). No human origin, so no screen.",

@@ -52,8 +52,8 @@ export const DOCUMENT_VERSIONS = 'document-versions';
  * **Three forms, not one save button.** The issuer's identity, the supplier's
  * fiscal position and the document versions the product accepts are separate
  * decisions with separate consequences — who the document names, which country's
- * VAT it charges, and whether a customer's save is taken at all — and they are
- * recorded separately in the access log for that reason.
+ * VAT it charges, and whether a customer's save is taken at all — and each is
+ * saved on its own for that reason.
  *
  * **The third closed the same hole one layer down** (2026-09-29). Creating a
  * product writes a row in `products` and none in `product_configuration`, and a

@@ -136,8 +136,8 @@ export function ContextBar({
       <ConnectionState />
 
       {/* Who this person is on the platform, when they are anybody. The
-          navigation already offers the screens; this says under whose name the
-          access log will record them using one. */}
+          navigation already offers the screens; this says under which platform
+          role the person is acting. */}
       <PlatformBadge />
 
       <button

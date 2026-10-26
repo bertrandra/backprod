@@ -1,6 +1,6 @@
 # ADR-040 — Offer authoring is lent to a tenant, not owned by its role
 
-**Status:** accepted
+**Status:** accepted; partly superseded by [ADR-069](ADR-069-the-console-reads-without-a-reason-and-records-nothing.md) (2026-10-05) — `DELEGATE` / `REVOKE_DELEGATION` are no longer recorded: `staff_access_log` is dropped and nothing staff do writes a trail.
 **Relates to:** [ADR-033](ADR-033-a-published-offer-version-is-frozen.md);
 [ADR-039](ADR-039-the-installer-appoints-the-first-administrator.md);
 Architecture V2 §10.2, §10.3, §12.1, §12.2; non-negotiable #22

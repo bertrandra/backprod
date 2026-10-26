@@ -1,6 +1,6 @@
 # ADR-037 — The shell, and what it offers
 
-**Status:** accepted
+**Status:** accepted; partly superseded by [ADR-046](ADR-046-one-shell-two-authorities.md) — there is one shell (`AppShell`) and one navigation whose entries declare `scope: 'tenant' | 'platform'`. "Two shells", visibly separate and sharing no navigation module, no longer holds.
 **Decides:** UD3, UD4 and UD5 from [ui-roadmap.md](../ui-roadmap.md) §0, and
 revises UD6 from [ADR-036](ADR-036-the-frontend-contract-is-generated-and-checked.md)
 **Relates to:** [ui-spec.md](../ui-spec.md) §2, §4, §5; Architecture V2 §4, §8, §8.1

@@ -49,6 +49,9 @@
         "EInvoice": [
             "Billing"
         ],
+        "Health": [
+            "Job"
+        ],
         "Identity": [
             "Commerce",
             "Navigation",

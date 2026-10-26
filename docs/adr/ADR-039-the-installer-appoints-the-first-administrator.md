@@ -8,6 +8,7 @@ first administrator and `staff.grant` still lives with that role alone. What
 changes is that the first administrator's password is a published one; the
 installer's success page says so and offers the form to change it, which is
 the one thing the page keeps doing after setup.
+**Partly superseded by** [ADR-069](ADR-069-the-console-reads-without-a-reason-and-records-nothing.md) (2026-10-05): grants and revokes are no longer recorded in an access trail (`staff_access_log` is dropped; only `platform_staff.granted_by` remains), and crossing into a tenant needs no motive.
 **Relates to:** [ADR-038](ADR-038-this-platform-issues-its-own-sessions.md);
 M6.2's platform staff identity; Architecture V2 §12.2, §25.2;
 non-negotiables #21, #22

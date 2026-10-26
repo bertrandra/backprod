@@ -1,6 +1,6 @@
 # ADR-041 — The storefront sells to strangers, and says nothing else to them
 
-**Status:** accepted
+**Status:** accepted; the paragraph "The address is not verified first" is superseded by [ADR-061](ADR-061-a-person-registers-freely-and-joins-once-the-address-is-proved.md) (2026-09-27), itself amended by [ADR-063](ADR-063-asking-for-the-proof-is-the-operators-choice-and-it-is-off.md).
 **Amended by:** [ADR-047](ADR-047-a-tenant-has-products-and-the-console-chooses-one.md)
 — there is now `GET /api/v1/public/products`, and it lists the products with a
 publicly-listed offer sellable right now: exactly the set a stranger could

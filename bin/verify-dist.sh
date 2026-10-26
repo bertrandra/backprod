@@ -156,6 +156,12 @@ else
     pass "no tests/"
 fi
 
+if find "$APP/src" -name 'InMemory*.php' | grep -q .; then
+    fail "an InMemory test double is in the bundle"
+else
+    pass "no InMemory test doubles"
+fi
+
 DEV_TOOLS=0
 
 for tool in vendor/bin/phpunit vendor/bin/phpstan vendor/bin/php-cs-fixer vendor/bin/deptrac \

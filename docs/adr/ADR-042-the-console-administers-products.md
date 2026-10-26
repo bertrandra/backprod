@@ -1,6 +1,6 @@
 # ADR-042 — The console administers products, and names which one it means
 
-**Status:** accepted
+**Status:** accepted; partly superseded by [ADR-069](ADR-069-the-console-reads-without-a-reason-and-records-nothing.md) (2026-10-05) — "writes are recorded" no longer holds: `staff_access_log` is dropped and the console's product changes are recorded nowhere.
 **Amended by:** [ADR-047](ADR-047-a-tenant-has-products-and-the-console-chooses-one.md)
 — the console no longer names its product in the URL. The context bar's
 switcher lists every product the platform hosts on `/console/*`, and every

@@ -38,8 +38,8 @@ import { t } from '@/i18n';
  * who holds it, or the choice could not be undone.
  *
  * Saved whole, on one button, after the person has finished: three lists
- * changing on every tick would be three writes to the access log per
- * click, and a half-made choice recorded as a decision.
+ * changing on every tick would be three saves per click, and a half-made
+ * choice taken as a decision.
  */
 const AUDIENCE: Record<Audience, { label: string; scope: NavScope; who: string }> = {
   platform_admin: {

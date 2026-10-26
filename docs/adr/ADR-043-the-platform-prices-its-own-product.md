@@ -1,6 +1,6 @@
 # ADR-043 — The platform prices its own product
 
-**Status:** accepted
+**Status:** accepted; partly superseded by [ADR-069](ADR-069-the-console-reads-without-a-reason-and-records-nothing.md) (2026-10-05) — "writes are recorded" no longer holds: `staff_access_log` is dropped and catalogue changes are recorded nowhere.
 **Relates to:** [ADR-033](ADR-033-a-published-offer-version-is-frozen.md);
 [ADR-040](ADR-040-offer-authoring-is-lent-to-a-tenant.md);
 [ADR-041](ADR-041-the-storefront-sells-to-strangers.md);

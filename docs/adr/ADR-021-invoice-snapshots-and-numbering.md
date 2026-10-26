@@ -1,6 +1,6 @@
 # ADR-021 — An invoice is a snapshot with a gapless number
 
-**Status:** accepted
+**Status:** accepted; partly superseded — the `VatPolicy` approach to VAT by [ADR-029](ADR-029-tax-regimes-and-fiscal-facts.md), and the single platform-wide numbering series by [ADR-054](ADR-054-a-gapless-series-belongs-to-its-issuer.md) (2026-09-25): a number is now continuous within its issuer's series. The snapshot, and `max + 1` under a table lock, still hold.
 **Decides:** how §25's invoicing works, for M6 part 1 in `docs/backend-roadmap.md`
 **Relates to:** Architecture V2 §25, §25.1, §12, §13, non-negotiable #20
 

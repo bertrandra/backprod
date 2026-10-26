@@ -714,9 +714,9 @@ membres, puisque la page la montre déjà à n'importe qui. La vitrine vend à d
 inconnus (ADR-041) ; ce que la plateforme *fait tourner* reste privé, seuls les
 produits qui annoncent quelque chose de vendable sont listés.
 
-### Machines — sept opérations
+### Machines — huit opérations
 
-`health` et `getJwks` (des sondes), `paymentWebhook` et `einvoiceWebhook`
+`health`, `healthReady` et `getJwks` (des sondes), `paymentWebhook` et `einvoiceWebhook`
 (authentifiés par **la signature du prestataire sur le corps brut**, vérifiée
 avant qu'un seul champ soit lu), `downloadAsset` et `getPublicShowcaseAsset`
 (suivis par le navigateur sur une adresse que le serveur a composée),
@@ -744,13 +744,13 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
 
   PLATFORM_ADMIN                                  91
   publiques, sans compte                           8
-  machines et sondes                               7
+  machines et sondes                               8
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          241
+  total                                          242
 ```
 
-Dont **116 lectures** et **125 écritures**. Chaque écriture a sa ligne dans les
+Dont **117 lectures** et **125 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

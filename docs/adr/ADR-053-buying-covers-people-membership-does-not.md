@@ -1,6 +1,7 @@
 # ADR-053 — Buying covers people; membership does not
 
 **Status:** accepted, 2026-09-25.
+**Amended by:** [ADR-056](ADR-056-a-grant-says-whether-it-covers-people.md) (2026-09-25) — a platform grant covers people when it says so (`covers_people`); and [ADR-066](ADR-066-every-subscription-is-a-seat.md) (2026-10-01) — `subscriber_kind` is gone, so "either kind" below is now the only kind.
 **Amends:** the subscriber rule in `CLAUDE.md` and `docs/architecture-v2.md`
 §13.1, and the exclusion in `PostgresEntitlementRepository::IN_FORCE`.
 **Related:** [ADR-015](ADR-015-the-backend-derives-tenant-context.md) (the

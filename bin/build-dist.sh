@@ -145,6 +145,23 @@ for path in src config migrations bin public composer.json composer.lock migrati
     cp -R "$ROOT/$path" "$APP/"
 done
 
+# The in-memory doubles stay behind (2026-10-26). They live in src/ beside the
+# adapters they stand in for, and only the tests construct them; a production
+# container wires none. Shipped, they are a second implementation of tenants,
+# users and entitlements that answers whatever it was built with — and one
+# line in config/container.php from being what production reads. So the build
+# refuses if anything it ships names one, and then leaves them out, before the
+# autoloader lists them.
+if grep -rlE '\bInMemory[A-Z]' "$APP/src" "$APP/config" "$APP/bin" "$APP/public" --include='*.php' \
+        | grep -vE '/InMemory[A-Za-z]*\.php$' | grep -q .; then
+    echo "A shipped file names an InMemory double; production must not reach one:" >&2
+    grep -rlE '\bInMemory[A-Z]' "$APP/src" "$APP/config" "$APP/bin" "$APP/public" --include='*.php' \
+        | grep -vE '/InMemory[A-Za-z]*\.php$' >&2
+    exit 1
+fi
+
+find "$APP/src" -name 'InMemory*.php' -delete
+
 say "Installing PHP dependencies (production only)"
 
 # **Installed into the bundle, not into this checkout.**

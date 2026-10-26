@@ -73,6 +73,7 @@ use App\EInvoice\Controller\EInvoiceWebhookController;
 use App\EInvoice\Controller\ListTransmissionsController;
 use App\EInvoice\Controller\SubmitInvoiceController;
 use App\Health\Controller\HealthController;
+use App\Health\Controller\ReadinessController;
 use App\Identity\Controller\MeContextController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
@@ -260,6 +261,9 @@ use FastRoute\RouteCollector;
  */
 return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/health', HealthController::class);
+    // Whether it can do its work: the database, and the queue when the
+    // operator has said how often it runs. Unauthenticated, verdict only.
+    $routes->addRoute('GET', '/api/v1/health/ready', ReadinessController::class);
 
     // --- Signing in (U12) -------------------------------------------------
     // Three public routes, and the only ones besides /health and the two

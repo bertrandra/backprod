@@ -1030,6 +1030,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Readiness probe
+         * @description Whether this deployment can do its work (2026-10-26): the database answers, and — when the operator has set `HEALTH_QUEUE_STALE_AFTER` — the cron-polled queue has run within that many seconds. Unauthenticated, so the answer is the verdict and nothing else: which check failed is `/admin/queue`'s to say, to somebody allowed to read it. `/health` stays the liveness probe and never reads the database.
+         */
+        get: operations["healthReady"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs": {
         parameters: {
             query?: never;
@@ -5695,61 +5715,61 @@ export interface components {
         };
         AdminSubscription: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            tenant_id?: string;
-            tenant_name?: string;
-            status?: string;
+            tenant_id: string;
+            tenant_name: string;
+            status: string;
             /** Format: date-time */
-            started_at?: string;
-            current_period_end?: string | null;
-            cancel_at_period_end?: boolean;
-            term_ends_at?: string | null;
-            commitment_ends_at?: string | null;
-            offer_code?: string;
-            offer_version?: number;
-            price_minor_units?: number;
-            currency?: string;
+            started_at: string;
+            current_period_end: string | null;
+            cancel_at_period_end: boolean;
+            term_ends_at: string | null;
+            commitment_ends_at: string | null;
+            offer_code: string;
+            offer_version: number;
+            price_minor_units: number;
+            currency: string;
             /** @description Which product this subscription is on. The platform is multi-product and this list was not saying which (2026-09-26). */
-            product_code?: string;
+            product_code: string;
             /**
              * Format: uuid
              * @description Who bought it. Null only for a row from before ownership was recorded.
              */
-            owner_user_id?: string | null;
+            owner_user_id: string | null;
             /** @description That person's display name; null once erased (§26) or never given. */
-            holder_name?: string | null;
+            holder_name: string | null;
             /** @description That person's address; null once erased (§26). */
-            holder_email?: string | null;
+            holder_email: string | null;
         };
         AdminInvoice: {
             /** Format: uuid */
-            id?: string;
-            number?: string | null;
+            id: string;
+            number: string | null;
             /** Format: uuid */
-            tenant_id?: string;
-            tenant_name?: string;
-            status?: string;
-            currency?: string;
-            net_minor_units?: number;
-            vat_minor_units?: number;
-            gross_minor_units?: number;
-            issued_at?: string | null;
-            due_at?: string | null;
-            paid_at?: string | null;
+            tenant_id: string;
+            tenant_name: string;
+            status: string;
+            currency: string;
+            net_minor_units: number;
+            vat_minor_units: number;
+            gross_minor_units: number;
+            issued_at: string | null;
+            due_at: string | null;
+            paid_at: string | null;
             /** @description Which product was billed. The platform is multi-product and this list was not saying which (2026-09-26). */
-            product_code?: string;
+            product_code: string;
             /** @description The legal name in the document's own supplier block, read from the snapshot it keeps and never from a live row (§25): that is what the customer received, and a name changed since must not change the invoice. For a seat it is the organisation's (ADR-055). */
-            supplier_name?: string | null;
+            supplier_name: string | null;
             /** @description The legal name in the document's customer block, from the same snapshot. For a seat it is one person — which is the fact this list could not show before. */
-            customer_name?: string | null;
+            customer_name: string | null;
             /** @description The address the document was made out to, from the snapshot. */
-            customer_email?: string | null;
+            customer_email: string | null;
             /**
              * Format: uuid
              * @description Whose gapless series the number came from (ADR-054). Null is the platform's own; a tenant id means that organisation raised it, which is what a seat's invoice looks like.
              */
-            issuer_tenant_id?: string | null;
+            issuer_tenant_id: string | null;
         };
         AdminJob: {
             /** Format: uuid */
@@ -5772,42 +5792,42 @@ export interface components {
         /** @description One attempt to collect one invoice, seen from the platform. The money is integer minor units with its currency beside it, here as everywhere — nothing on this row is added to anything else. */
         AdminPayment: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            tenant_id?: string;
-            tenant_name?: string;
+            tenant_id: string;
+            tenant_name: string;
             /** @description Which product was being paid for. The platform is multi-product, and a payments list that did not say which would be four lists in one. */
-            product_code?: string;
+            product_code: string;
             /** Format: uuid */
-            invoice_id?: string;
+            invoice_id: string;
             /** @description The invoice's legal number, and **null while that invoice is a draft** — never a placeholder, because a number comes from a gapless sequence at issue and a stand-in is how a hole enters one. */
-            invoice_number?: string | null;
+            invoice_number: string | null;
             /** @description The legal name in the invoice's customer block, read from the snapshot the document keeps and never from a live row (§25): that is who was charged, and a name changed since must not change the paper. For a seat it is one person, not the organisation (ADR-055). */
-            customer_name?: string | null;
+            customer_name: string | null;
             /** @description The address that invoice was made out to, from the same snapshot. */
-            customer_email?: string | null;
+            customer_email: string | null;
             /**
              * Format: uuid
              * @description The subscription this collection is against, where there is one. A one-off sale has none.
              */
-            subscription_id?: string | null;
-            status?: string;
-            amount_minor_units?: number;
-            currency?: string;
+            subscription_id: string | null;
+            status: string;
+            amount_minor_units: number;
+            currency: string;
             /** @description The PSP's name, as the adapter reports it (§24). */
-            provider?: string;
+            provider: string;
             /** @description The provider's own handle. Reconciling this platform against a PSP dashboard is something finance teams actually do, and hiding the handle makes it a support ticket. It is not an instrument: no card data exists anywhere in this platform. */
-            provider_payment_id?: string;
+            provider_payment_id: string;
             /** @description A label — CARD, SEPA_DEBIT, TRANSFER, APPLE_PAY, GOOGLE_PAY, OTHER — and never an instrument. */
-            method?: string | null;
-            failure_code?: string | null;
-            failure_reason?: string | null;
+            method: string | null;
+            failure_code: string | null;
+            failure_reason: string | null;
             /** Format: date-time */
-            succeeded_at?: string | null;
+            succeeded_at: string | null;
             /** Format: date-time */
-            failed_at?: string | null;
+            failed_at: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
         };
         /**
          * @description **A checkout session is an order.** There is no `checkout_sessions` table and no separate lifecycle: `id` is the order's id, and everything a session would hold — is it paid, what was invoiced, did the subscription start — already lives on the order, the invoice and the payment. A second row tracking the same thing is a second answer that can disagree with the first, and the first is the one the money is attached to.
@@ -8509,6 +8529,42 @@ export interface operations {
             };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    healthReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ready. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "ready";
+                    };
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description Not ready: the database did not answer, or the queue has not run within the threshold. Retry after the `Retry-After` header. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "unavailable";
+                    };
+                };
+            };
         };
     };
     listJobs: {

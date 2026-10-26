@@ -1,6 +1,6 @@
 # ADR-031 — The payment period is not the commitment
 
-**Status:** accepted
+**Status:** accepted; partly superseded — who a subscription entitles is decided by coverage ([ADR-053](ADR-053-buying-covers-people-membership-does-not.md), 2026-09-25), and `subscriber_kind` with its two partial unique indexes is dropped by [ADR-066](ADR-066-every-subscription-is-a-seat.md) (2026-10-01): every subscription is a person's seat, under one unique index. The commitment, cancellation and buy-out rules still hold.
 **Decides:** what a subscription commits to, who it entitles, and what leaving early costs
 **Relates to:** Architecture V2 §13, §13.1, §25, §25.3, §37.4;
 extends the entitlement resolution of [ADR-020](ADR-020-entitlement-resolution.md)
