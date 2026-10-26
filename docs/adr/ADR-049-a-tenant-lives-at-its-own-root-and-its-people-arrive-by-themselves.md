@@ -57,6 +57,7 @@ invitation link (`password_resets`, purpose INVITATION); a member of a seat
 is entitled by it. A forgotten password is reset by the same link
 mechanism, always answered 202, and every session is revoked when it is
 used. Migration `Version20260919090000`.
+**Partly superseded by** [ADR-055](ADR-055-the-tenant-surface-sells-seats-and-nothing-else.md) (2026-09-25) and [ADR-066](ADR-066-every-subscription-is-a-seat.md) (2026-10-01): *Buy for the organisation* is withdrawn — the tenant surface sells seats only — and `orders.subscriber_kind` is dropped; the subscriber is always a person.
 **Implements:** [docs/tenant-roots.md](../tenant-roots.md), with the
 departures recorded in §"What the spec had wrong"
 **Amends:** [ADR-041](ADR-041-the-storefront-sells-to-strangers.md) (the

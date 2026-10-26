@@ -83,7 +83,7 @@ export function StaffProfileScreen() {
         <Field
           id="staff-display-name"
           label={t("Display name")}
-          hint={t("Shown beside your initial in the top bar, and in the access log against what you read. Leave empty to remove it.")}
+          hint={t("Shown beside your initial in the top bar. Leave empty to remove it.")}
           error={form.formState.errors.displayName?.message}
         >
           <input

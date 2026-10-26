@@ -1,6 +1,6 @@
 # ADR-034 — A checkout session is an order
 
-**Status:** accepted
+**Status:** accepted; the 2026-09-17 amendment below is partly superseded by [ADR-055](ADR-055-the-tenant-surface-sells-seats-and-nothing-else.md) (2026-09-25): `Sales::refuseWhileSubscribed` and `acceptQuote` are gone, the tenant surface sells seats only, and the refusal is `SEAT_ALREADY_ACTIVE`. The held order and its `ORDER_HELD` row still hold.
 **Amended on 2026-09-17** — a checkout is refused `409 SUBSCRIPTION_ALREADY_ACTIVE`,
 before the order and its gaplessly numbered invoice, while the tenant's own
 subscription to the product is live; so are `placeOrder` and `acceptQuote`.

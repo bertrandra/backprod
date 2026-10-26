@@ -1,6 +1,6 @@
 # ADR-023 — The sales chain, and transmission as its own history
 
-**Status:** accepted
+**Status:** accepted; partly superseded — fulfilment no longer starts the subscription, which waits for the payment ([ADR-024](ADR-024-payment-gated-activation.md)), and the tenant's quote operations (list, show, create, accept, reject) are withdrawn by [ADR-055](ADR-055-the-tenant-surface-sells-seats-and-nothing-else.md) (2026-09-25); quotes already raised stay in their table, readable by staff.
 **Decides:** §20's left half and §25.1's transmission records, completing M6
 **Relates to:** Architecture V2 §20, §25.1, §12, non-negotiables #17 and #20
 

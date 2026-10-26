@@ -5,6 +5,7 @@
 stopped *selling* the other kind and left the column, the value object and four
 optional arguments that defaulted to it. They are gone, and the subscriber is a
 required person everywhere.
+**Amended by:** [ADR-056](ADR-056-a-grant-says-whether-it-covers-people.md) (2026-09-25) — `POST /subscription`, the door this decision missed, is removed.
 **Amends:** §13.1's two subscriber kinds as a *sales* matter; `Sales::order`,
 `Checkout::open`, the `seat` field on `openCheckoutSession`, and the five
 tenant quote operations, which are withdrawn.

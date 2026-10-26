@@ -276,8 +276,8 @@ function Subscriptions({ status }: { status: string }) {
               <span className="ml-auto">
                 <Amount
                   money={{
-                    minor_units: subscription.price_minor_units ?? 0,
-                    currency: subscription.currency ?? 'EUR',
+                    minor_units: subscription.price_minor_units,
+                    currency: subscription.currency,
                   }}
                 />
               </span>
@@ -354,8 +354,8 @@ function Invoices({ status }: { status: string }) {
               <span className="ml-auto font-medium">
                 <Amount
                   money={{
-                    minor_units: invoice.gross_minor_units ?? 0,
-                    currency: invoice.currency ?? 'EUR',
+                    minor_units: invoice.gross_minor_units,
+                    currency: invoice.currency,
                   }}
                 />
               </span>
@@ -365,15 +365,15 @@ function Invoices({ status }: { status: string }) {
               {t("net")}{' '}
               <Amount
                 money={{
-                  minor_units: invoice.net_minor_units ?? 0,
-                  currency: invoice.currency ?? 'EUR',
+                  minor_units: invoice.net_minor_units,
+                  currency: invoice.currency,
                 }}
               />{' '}
               {t("· VAT")}{' '}
               <Amount
                 money={{
-                  minor_units: invoice.vat_minor_units ?? 0,
-                  currency: invoice.currency ?? 'EUR',
+                  minor_units: invoice.vat_minor_units,
+                  currency: invoice.currency,
                 }}
               />
               {invoice.issued_at !== null &&
@@ -440,8 +440,8 @@ function Payments({ status }: { status: string }) {
               <span className="ml-auto font-medium">
                 <Amount
                   money={{
-                    minor_units: payment.amount_minor_units ?? 0,
-                    currency: payment.currency ?? 'EUR',
+                    minor_units: payment.amount_minor_units,
+                    currency: payment.currency,
                   }}
                 />
               </span>

@@ -6,6 +6,8 @@ verified first" of ADR-041, and honours the sentence of `docs/tenant-roots.md`
 its own root and its people arrive by themselves) and ADR-038 (this platform
 issues its own sessions).*
 
+*Partly superseded by [ADR-063](ADR-063-asking-for-the-proof-is-the-operators-choice-and-it-is-off.md) (28 September 2026): §2 and §5 — the confirmation deadline for every self-service sign-up is now the operator's setting (`sign_up.confirm_email`), off by default. The `DOMAIN` wait still holds.*
+
 *A first draft of this ADR (same day) made every membership wait for the
 address, so a stranger could no longer buy in the same breath as signing up.
 The operator's answer was the requirement this version is built on: **a person

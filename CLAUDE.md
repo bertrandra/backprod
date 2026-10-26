@@ -118,7 +118,7 @@ POST   /api/v1/conversations/{id}/read
 POST   /api/v1/conversations/{id}/participants
 DELETE /api/v1/conversations/{id}/participants/{userId}
 POST   /api/v1/conversations/{id}/close
-DELETE /api/v1/messages/{id}
+DELETE /api/v1/conversations/{id}/messages/{messageId}
 
 GET    /api/v1/staff/conversations
 GET    /api/v1/staff/conversations/{id}
@@ -137,8 +137,13 @@ GET  /api/v1/tax/transactions
 GET  /api/v1/tax/reports
 GET  /api/v1/tax/reports/{period}
 POST /api/v1/tax/reports/{period}/close
-GET  /api/v1/tax/export
 ```
+
+The platform's own return answers on `/api/v1/admin/vat-reports` (and
+`/{periodId}`, `/{periodId}/close`), behind `admin.tax.read` / `admin.tax.manage`.
+There is no `GET /tax/export` yet: §25.3 names one, and until it is written the
+fiscal data leaves as the paginated `/tax/transactions` and the frozen
+declarations. Write it against the contract first, like any other endpoint.
 
 All API endpoints must define authentication, authorization, product scope, tenant scope, request/response schemas and errors.
 
@@ -389,8 +394,8 @@ product reporting usage, which takes a `user_id` for exactly this reason. That i
 §13.1's own rule — every gate asks about the same person — arriving where it had
 not yet been applied.
 
-**Buying covers people; membership does not** (ADR-053, 2026-09-25). Either
-kind entitles the same set: the person who took it out, plus those they have
+**Buying covers people; membership does not** (ADR-053, 2026-09-25). A
+subscription entitles this set: the person who took it out, plus those they have
 added within the `users` quota their offer sells. Joining an organisation
 gets somebody a role, never an entitlement.
 
@@ -516,11 +521,12 @@ decision, not something cron does.
 
 A subscription **always names a tenant and a product**, even when the
 subscriber is a person — the tenant is the isolation context, the subscriber
-is the contracting party. A `USER` subscriber must be a member of that tenant.
+is the contracting party. The subscriber must be a member of that tenant.
 
-One active subscription per scope is a **partial unique index**, one per
-subscriber kind — never an application check, which two simultaneous
-subscriptions race straight through.
+One live subscription per person per scope is a **partial unique index**
+(`subscriptions_one_active_seat_per_person`, over `ACTIVE` and `PAST_DUE`) —
+never an application check, which two simultaneous subscriptions race straight
+through.
 
 Terms are carried by the offer version and **snapshotted into the
 subscription** when it is taken out, as values. Repricing or re-terming an
@@ -556,28 +562,23 @@ Nothing outstanding raises **no document at all**. Numbering is gapless, so a
 **Every subscription** is addressed to people, so capability resolution asks
 who is asking and excludes any subscription that is not theirs. Resolve
 capabilities without the person and one colleague's seat entitles the whole
-tenant, which is the opposite of what a seat is — and, since 2026-09-25, an
-organisation's subscription entitles every member of it, which is the
-opposite of what a number of users is.
+tenant, which is the opposite of what a seat is.
 
-The **tenant-wide** answer is unchanged and stays deliberate: naming nobody
-asks what the organisation bought, which contains its own subscriptions and
-no seat. That is the answer usage is measured against and the one the
-console shows, and neither is about any one person.
+There is no tenant-wide entitlement answer any more (ADR-066): an
+organisation buys nothing, so a question naming nobody answers nothing, and
+every reader names somebody (above). Usage is still *measured* tenant-wide,
+because that is what the feature counts.
 
 **Every gate must ask about the same person.** The quota check takes the
 caller too. Asking the tenant-wide question there while the capability chain
 asked a personal one is the worst of both: the capability check lets a seat
 holder through and the quota check then tells them they need the entitlement
 they are holding. Where a seat and the tenant both grant a feature, the most
-generous wins — the same rule that settles a negotiated override. The seat
-does not raise the *tenant-wide* answer, because that question names nobody,
-and usage stays measured tenant-wide because that is what the feature counts.
+generous wins — the same rule that settles a negotiated override.
 
-A seat is taken out and given up by its holder, and both name the scope with
-a flag, never an id: the only two subscribers are the tenant and the caller,
-and both come from the context, so there is no id to supply and nothing to
-check one against.
+A seat is taken out and given up by its holder, and neither request names a
+subscriber: the only one there can be is the caller, who comes from the
+context, so there is no id to supply and nothing to check one against.
 
 **Renewal may not roll past a cancellation already due**, or the subscription
 is quietly extended beyond the date the customer was given. A deferral

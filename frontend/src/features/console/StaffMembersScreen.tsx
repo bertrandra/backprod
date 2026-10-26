@@ -73,7 +73,7 @@ export function StaffMembersScreen() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title={t("Staff")}
-        description={t("Who may act across tenants, and under which role. A platform role never grants membership of anybody&rsquo;s tenant — it grants the console, and every crossing it allows is recorded in the access log.")}
+        description={t("Who may act across tenants, and under which role. A platform role never grants membership of anybody&rsquo;s tenant — it grants the console.")}
       />
 
       {grant.error !== null && <ErrorSurface error={grant.error} />}

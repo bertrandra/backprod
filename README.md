@@ -143,6 +143,7 @@ Quote → Order → Subscription → Invoice → Payment → e-invoice
 | Route | Permission |
 |---|---|
 | `GET /api/v1/health` | public |
+| `GET /api/v1/health/ready` | public (verdict only; `HEALTH_QUEUE_STALE_AFTER` judges the queue) |
 | `GET /api/v1/products` | authenticated only |
 | `GET /api/v1/products/{id}` | authenticated only |
 | `GET /api/v1/products/{id}/catalog` | authenticated only |

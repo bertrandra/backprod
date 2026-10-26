@@ -266,7 +266,7 @@ function Subscriptions({ tenantId, productId }: { tenantId: string; productId: s
               {subscription.offer_code} v{subscription.offer_version}
             </span>
             <span className="ml-auto">
-              <Amount money={{ minor_units: subscription.price_minor_units ?? 0, currency: subscription.currency ?? 'EUR' }} />
+              <Amount money={{ minor_units: subscription.price_minor_units, currency: subscription.currency }} />
             </span>
           </div>
           {/* Periodicity and commitment, side by side and never added together (#23). */}
@@ -312,7 +312,7 @@ function Invoices({ tenantId, productId }: { tenantId: string; productId: string
             <code className="text-xs">{invoice.number ?? t("no number yet")}</code>
             <span className="rounded bg-well px-1.5 py-0.5 text-xs">{invoice.status}</span>
             <span className="ml-auto">
-              <Amount money={{ minor_units: invoice.gross_minor_units ?? 0, currency: invoice.currency ?? 'EUR' }} />
+              <Amount money={{ minor_units: invoice.gross_minor_units, currency: invoice.currency }} />
             </span>
           </div>
           <p className="mt-1 text-xs text-muted">

@@ -1,6 +1,7 @@
 # ADR-056 — A grant says whether it covers people, and a seat is billed by whoever sold it
 
 **Status:** accepted, 2026-09-25.
+**Amended by:** [ADR-059](ADR-059-the-free-period-has-its-own-door-and-is-taken-once.md) (2026-09-27) — §4: a free period has its own door, `POST /subscription/freemium`, which starts a subscription with no invoice and is taken once.
 **Amends:** [ADR-053](ADR-053-buying-covers-people-membership-does-not.md)
 (coverage excluded grants unconditionally),
 [ADR-055](ADR-055-the-tenant-surface-sells-seats-and-nothing-else.md) (which

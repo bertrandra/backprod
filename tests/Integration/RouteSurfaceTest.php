@@ -40,6 +40,7 @@ final class RouteSurfaceTest extends ApiTestCase
      */
     private const PUBLIC_PATHS = [
         'GET /api/v1/health',
+        'GET /api/v1/health/ready',
         // U12. Each authenticates the *request* rather than the caller, which is
         // what this list requires of anything on it: `token` verifies a password,
         // and `refresh` and `sign-out` verify a rotating `HttpOnly` cookie. They

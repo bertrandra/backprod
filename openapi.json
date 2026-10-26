@@ -4240,6 +4240,7 @@
         }
       },
       "AdminSubscription": {
+        "required": ["id", "tenant_id", "tenant_name", "status", "started_at", "current_period_end", "cancel_at_period_end", "term_ends_at", "commitment_ends_at", "offer_code", "offer_version", "price_minor_units", "currency", "product_code", "owner_user_id", "holder_name", "holder_email"],
         "type": "object",
         "properties": {
           "id": {
@@ -4322,6 +4323,7 @@
         }
       },
       "AdminInvoice": {
+        "required": ["id", "number", "tenant_id", "tenant_name", "status", "currency", "net_minor_units", "vat_minor_units", "gross_minor_units", "issued_at", "due_at", "paid_at", "product_code", "supplier_name", "customer_name", "customer_email", "issuer_tenant_id"],
         "type": "object",
         "properties": {
           "id": {
@@ -4480,6 +4482,7 @@
         }
       },
       "AdminPayment": {
+        "required": ["id", "tenant_id", "tenant_name", "product_code", "invoice_id", "invoice_number", "customer_name", "customer_email", "subscription_id", "status", "amount_minor_units", "currency", "provider", "provider_payment_id", "method", "failure_code", "failure_reason", "succeeded_at", "failed_at", "created_at"],
         "type": "object",
         "description": "One attempt to collect one invoice, seen from the platform. The money is integer minor units with its currency beside it, here as everywhere \u2014 nothing on this row is added to anything else.",
         "properties": {
@@ -9843,6 +9846,48 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "healthReady",
+        "summary": "Readiness probe",
+        "description": "Whether this deployment can do its work (2026-10-26): the database answers, and — when the operator has set `HEALTH_QUEUE_STALE_AFTER` — the cron-polled queue has run within that many seconds. Unauthenticated, so the answer is the verdict and nothing else: which check failed is `/admin/queue`'s to say, to somebody allowed to read it. `/health` stays the liveness probe and never reads the database.",
+        "responses": {
+          "200": {
+            "description": "Ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": { "type": "string", "const": "ready" }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "description": "Not ready: the database did not answer, or the queue has not run within the threshold. Retry after the `Retry-After` header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": { "type": "string", "const": "unavailable" }
+                  }
+                }
+              }
+            }
           }
         },
         "security": []

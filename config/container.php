@@ -87,6 +87,7 @@ use App\Entitlement\Domain\ReportedUsage;
 use App\Entitlement\Domain\UsageMeter;
 use App\Finance\Domain\FinancialPeriods;
 use App\Finance\Infrastructure\PostgresFinancialPeriods;
+use App\Health\Controller\ReadinessController;
 use App\Job\Domain\JobRepository;
 use App\Job\Domain\Retention;
 use App\Job\Domain\Schedule;
@@ -404,7 +405,7 @@ return static function (array $overrides = []): ContainerInterface {
         // the registry for the same reason: every screen depends on that one
         // to ask what a product is, and none of them may rewrite its page.
         ProductShowcase::class => autowire(PostgresProductShowcase::class),
-        // Its pictures, in a table of their own: ssets is tenant-scoped
+        // Its pictures, in a table of their own: `assets` is tenant-scoped
         // by construction and a shop window belongs to no tenant.
         ProductAssets::class => autowire(PostgresProductAssets::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
@@ -793,6 +794,7 @@ return static function (array $overrides = []): ContainerInterface {
                 // rotating refresh cookie — which is what a public route must do.
                 publicPaths: [
                     '/api/v1/health',
+                    '/api/v1/health/ready',
                     '/api/v1/auth/token',
                     '/api/v1/auth/refresh',
                     '/api/v1/auth/sign-out',
@@ -863,6 +865,10 @@ return static function (array $overrides = []): ContainerInterface {
         // is no sensible default: guessing from a request's Host header would
         // let anybody who can reach the API decide where a confirmation link
         // points.
+        // Unset or 0: the queue is not judged (ReadinessController says why).
+        ReadinessController::class => autowire(ReadinessController::class)
+            ->constructorParameter('queueStaleAfter', (int) $env('HEALTH_QUEUE_STALE_AFTER', '0')),
+
         Sessions::class => autowire(Sessions::class)
             ->constructorParameter('appUrl', $env('APP_URL'))
             ->constructorParameter('rotation', get(RefreshRotation::class))

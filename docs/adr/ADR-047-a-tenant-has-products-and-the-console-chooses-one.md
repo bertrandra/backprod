@@ -1,6 +1,6 @@
 # ADR-047 — A tenant has products, and the console chooses one
 
-**Status:** accepted
+**Status:** accepted; partly superseded by [ADR-069](ADR-069-the-console-reads-without-a-reason-and-records-nothing.md) (2026-10-05) — assigning a product is no longer "on the trail": `staff_access_log` is dropped.
 **Amends:** [ADR-041](ADR-041-the-storefront-sells-to-strangers.md) (there is
 now a public list of products, and it lists advertisements);
 [ADR-042](ADR-042-the-console-administers-products.md) (the console no longer
