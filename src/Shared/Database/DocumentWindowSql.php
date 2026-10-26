@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Billing\Infrastructure;
+namespace App\Shared\Database;
 
 /**
  * The window a list is narrowed to — one rule, written once (2026-09-28).

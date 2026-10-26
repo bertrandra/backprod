@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Payment\Domain;
 
-use App\Billing\Domain\Money;
 use App\Shared\Exceptions\UnauthenticatedException;
+use App\Shared\Money\Money;
 
 /**
  * Port for the payment service provider (§24, non-negotiable #17).

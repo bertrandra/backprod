@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Domain;
 
+use App\Shared\Money\Money;
+
 /**
  * Money and tax rates as a human reads them.
  *

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Payment\Domain;
 
-use App\Billing\Domain\Money;
+use App\Shared\Money\Money;
 use DateTimeImmutable;
 
 /**

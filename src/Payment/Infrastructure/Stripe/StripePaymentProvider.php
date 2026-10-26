@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Payment\Infrastructure\Stripe;
 
-use App\Billing\Domain\Money;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentProvider;
 use App\Payment\Domain\PaymentStatus;
@@ -13,6 +12,7 @@ use App\Payment\Domain\ProviderPayment;
 use App\Payment\Domain\ProviderRefund;
 use App\Shared\Exceptions\NotConfiguredException;
 use App\Shared\Exceptions\UnprocessableEntityException;
+use App\Shared\Money\Money;
 use Closure;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Sales\Domain;
 
 use App\Billing\Domain\InvoiceLine;
-use App\Billing\Domain\Money;
 use App\Commerce\Domain\Subscriber;
+use App\Shared\Money\Money;
 use DateTimeImmutable;
 
 /**

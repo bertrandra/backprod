@@ -7,10 +7,10 @@ namespace App\Sales\Service;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRepository;
-use App\Billing\Domain\Money;
 use App\Billing\Service\WhoSellsAndWhoBuys;
 use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\Subscription;
+use App\Shared\Money\Money;
 use App\Tax\Service\Taxation;
 use DateTimeImmutable;
 

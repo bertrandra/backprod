@@ -40,10 +40,13 @@ deptrac:
         - type: classLike
           value: '^App\\Shared\\Http\\.*'
 
+    # Money joined the kernel on 2026-10-26: five modules priced with
+    # `Billing\Domain\Money`, which made Billing a dependency of everything
+    # that names an amount.
     - name: SharedKernel
       collectors:
         - type: classLike
-          value: '^App\\Shared\\(Exceptions|Logging|Validation)\\.*'
+          value: '^App\\Shared\\(Exceptions|Logging|Money|Validation)\\.*'
 
     # Persistence helpers. Its own layer so the domain cannot reach it: an
     # unassigned namespace is governed by no rule at all, which is how a

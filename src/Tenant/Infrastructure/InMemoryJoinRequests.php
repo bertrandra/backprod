@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tenant\Infrastructure;
 
-use App\Auth\Domain\JoinDecision;
+use App\Tenant\Domain\JoinDecision;
 use App\Tenant\Domain\JoinRequests;
 use App\Tenant\Domain\TenantMember;
 

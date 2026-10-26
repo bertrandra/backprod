@@ -13,10 +13,10 @@ use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
-use App\Billing\Domain\Money;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Money\Money;
 use App\Tax\Service\Taxation;
 use DateTimeImmutable;
 

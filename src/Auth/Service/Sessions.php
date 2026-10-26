@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Auth\Service;
 
 use App\Auth\Domain\AccountRegistrar;
-use App\Auth\Domain\JoinDecision;
 use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\RefreshTokenRepository;
@@ -20,6 +19,7 @@ use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\TooManyRequestsException;
 use App\Shared\Exceptions\UnauthenticatedException;
+use App\Tenant\Domain\JoinDecision;
 use App\Tenant\Domain\JoinRequests;
 use App\Throttle\Domain\RateLimitDecision;
 use App\Throttle\Domain\RateLimiter;

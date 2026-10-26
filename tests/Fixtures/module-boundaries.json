@@ -1,0 +1,437 @@
+{
+    "dependencies": {
+        "Admin": [
+            "Audit",
+            "Finance",
+            "Job",
+            "Privacy",
+            "Tax"
+        ],
+        "Auth": [
+            "Notification",
+            "Product",
+            "Tenant",
+            "Throttle",
+            "Webhook"
+        ],
+        "Billing": [
+            "Commerce",
+            "Payment",
+            "Product",
+            "Storage",
+            "Tax",
+            "User"
+        ],
+        "Checkout": [
+            "Billing",
+            "Payment",
+            "Sales"
+        ],
+        "Commerce": [
+            "Audit",
+            "Auth",
+            "Billing",
+            "Entitlement",
+            "Product",
+            "Staff",
+            "Tenant"
+        ],
+        "Demo": [
+            "Billing",
+            "Commerce",
+            "Entitlement",
+            "Payment",
+            "Product",
+            "Project",
+            "Sales",
+            "Tax"
+        ],
+        "EInvoice": [
+            "Billing"
+        ],
+        "Identity": [
+            "Commerce",
+            "Navigation",
+            "Product",
+            "Tenant",
+            "User"
+        ],
+        "Job": [
+            "Commerce",
+            "Finance",
+            "Notification",
+            "Payment",
+            "Product",
+            "Sales",
+            "Throttle"
+        ],
+        "Messaging": [
+            "Staff",
+            "Tenant"
+        ],
+        "Navigation": [
+            "Staff"
+        ],
+        "Notification": [
+            "Job",
+            "User"
+        ],
+        "Payment": [
+            "Billing",
+            "Commerce"
+        ],
+        "Privacy": [
+            "Audit",
+            "Webhook"
+        ],
+        "Product": [
+            "Commerce",
+            "Entitlement",
+            "Identity",
+            "Storage",
+            "Tenant"
+        ],
+        "Project": [
+            "Commerce",
+            "Entitlement",
+            "Job",
+            "Product",
+            "Storage"
+        ],
+        "Sales": [
+            "Billing",
+            "Commerce",
+            "Notification",
+            "Product",
+            "Tax",
+            "Tenant"
+        ],
+        "Shared": [
+            "Auth",
+            "Entitlement",
+            "Product",
+            "Staff",
+            "Tenant",
+            "Throttle",
+            "User"
+        ],
+        "Staff": [
+            "Auth",
+            "Billing",
+            "Commerce",
+            "Demo",
+            "Identity",
+            "Job",
+            "Messaging",
+            "Navigation",
+            "Notification",
+            "Payment",
+            "Product",
+            "Project",
+            "Sales",
+            "Tax",
+            "Tenant",
+            "Theme",
+            "Webhook"
+        ],
+        "Storage": [
+            "Project"
+        ],
+        "Tax": [
+            "Billing",
+            "Notification",
+            "Product"
+        ],
+        "Tenant": [
+            "Commerce",
+            "Storage",
+            "User",
+            "Webhook"
+        ],
+        "Theme": [
+            "Commerce",
+            "Product",
+            "Staff",
+            "Tenant"
+        ],
+        "User": [
+            "Auth"
+        ],
+        "Webhook": [
+            "Job"
+        ]
+    },
+    "writers": {
+        "assets": [
+            "Storage"
+        ],
+        "audit_log": [
+            "Audit",
+            "Privacy"
+        ],
+        "auth_refresh_tokens": [
+            "Auth"
+        ],
+        "billing_profiles": [
+            "Billing",
+            "Demo"
+        ],
+        "conversation_participants": [
+            "Messaging"
+        ],
+        "conversations": [
+            "Messaging"
+        ],
+        "credit_note_lines": [
+            "Billing"
+        ],
+        "credit_notes": [
+            "Billing"
+        ],
+        "customer_tax_profiles": [
+            "Demo",
+            "Tax"
+        ],
+        "einvoice_events": [
+            "EInvoice"
+        ],
+        "einvoice_transmissions": [
+            "EInvoice"
+        ],
+        "email_verifications": [
+            "Auth"
+        ],
+        "entitlements": [
+            "Commerce",
+            "Staff"
+        ],
+        "erasure_requests": [
+            "Privacy"
+        ],
+        "feature_translations": [
+            "Commerce",
+            "Demo"
+        ],
+        "features": [
+            "Commerce",
+            "Demo"
+        ],
+        "financial_events": [
+            "Billing",
+            "Payment",
+            "Sales"
+        ],
+        "invoice_documents": [
+            "Billing"
+        ],
+        "invoice_lines": [
+            "Billing"
+        ],
+        "invoices": [
+            "Billing"
+        ],
+        "job_runs": [
+            "Job"
+        ],
+        "jobs": [
+            "Job"
+        ],
+        "local_credentials": [
+            "Auth",
+            "Demo"
+        ],
+        "messages": [
+            "Messaging",
+            "Privacy"
+        ],
+        "notification_consents": [
+            "Notification"
+        ],
+        "notification_deliveries": [
+            "Notification"
+        ],
+        "notification_preferences": [
+            "Notification"
+        ],
+        "notifications": [
+            "Notification"
+        ],
+        "offer_revenue_periods": [
+            "Finance"
+        ],
+        "offer_translations": [
+            "Commerce",
+            "Demo"
+        ],
+        "offer_version_features": [
+            "Commerce",
+            "Demo"
+        ],
+        "offer_versions": [
+            "Commerce",
+            "Demo"
+        ],
+        "offers": [
+            "Commerce",
+            "Demo"
+        ],
+        "orders": [
+            "Sales"
+        ],
+        "palettes": [
+            "Theme"
+        ],
+        "password_resets": [
+            "Auth"
+        ],
+        "payment_events": [
+            "Payment"
+        ],
+        "payments": [
+            "Payment",
+            "Sales"
+        ],
+        "plans": [
+            "Commerce",
+            "Demo"
+        ],
+        "platform_settings": [
+            "Auth",
+            "Commerce",
+            "Demo",
+            "Navigation",
+            "Notification",
+            "Project",
+            "Tenant"
+        ],
+        "platform_staff": [
+            "Demo",
+            "Staff"
+        ],
+        "product_access_log": [
+            "Product"
+        ],
+        "product_assets": [
+            "Product"
+        ],
+        "product_configuration": [
+            "Demo",
+            "Product"
+        ],
+        "product_credentials": [
+            "Product"
+        ],
+        "product_features": [
+            "Product"
+        ],
+        "product_showcase": [
+            "Demo",
+            "Product"
+        ],
+        "product_showcase_band_translations": [
+            "Demo",
+            "Product"
+        ],
+        "product_showcase_bands": [
+            "Demo",
+            "Product"
+        ],
+        "product_showcase_translations": [
+            "Demo",
+            "Product"
+        ],
+        "product_usage": [
+            "Product"
+        ],
+        "products": [
+            "Demo",
+            "Product",
+            "Webhook"
+        ],
+        "project_versions": [
+            "Project"
+        ],
+        "projects": [
+            "Project"
+        ],
+        "quotes": [
+            "Sales"
+        ],
+        "rate_limit_counters": [
+            "Throttle"
+        ],
+        "refunds": [
+            "Payment"
+        ],
+        "renewal_periods": [
+            "Finance"
+        ],
+        "revenue_periods": [
+            "Finance"
+        ],
+        "subscription_events": [
+            "Commerce"
+        ],
+        "subscription_members": [
+            "Commerce"
+        ],
+        "subscriptions": [
+            "Commerce"
+        ],
+        "tax_identifications": [
+            "Tax"
+        ],
+        "tax_records": [
+            "Billing"
+        ],
+        "tenant_join_domains": [
+            "Tenant"
+        ],
+        "tenant_member_roles": [
+            "Auth",
+            "Demo",
+            "Staff",
+            "Tenant"
+        ],
+        "tenant_members": [
+            "Auth",
+            "Demo",
+            "Staff",
+            "Tenant"
+        ],
+        "tenant_palettes": [
+            "Demo",
+            "Theme"
+        ],
+        "tenant_products": [
+            "Demo",
+            "Staff"
+        ],
+        "tenants": [
+            "Demo",
+            "Staff",
+            "Tenant"
+        ],
+        "users": [
+            "Auth",
+            "Demo",
+            "Privacy",
+            "User"
+        ],
+        "vat_declarations": [
+            "Tax"
+        ],
+        "vat_reporting_periods": [
+            "Tax"
+        ],
+        "vat_transactions": [
+            "Tax"
+        ],
+        "webhook_cursors": [
+            "Webhook"
+        ],
+        "webhook_deliveries": [
+            "Webhook"
+        ]
+    }
+}

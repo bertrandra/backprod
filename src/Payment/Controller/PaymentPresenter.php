@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Payment\Controller;
 
 use App\Billing\Controller\InvoicePresenter;
-use App\Billing\Domain\Money;
 use App\Payment\Domain\Collected;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
 use App\Payment\Domain\Refund;
+use App\Shared\Money\Money;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;

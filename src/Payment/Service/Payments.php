@@ -8,7 +8,6 @@ use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
-use App\Billing\Domain\Money;
 use App\Billing\Service\CreditNotes;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentRepository;
@@ -16,6 +15,7 @@ use App\Payment\Domain\PaymentStatus;
 use App\Payment\Domain\Refund;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Money\Money;
 
 /**
  * Starting payments, reading them, and asking for money back.

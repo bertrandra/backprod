@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Billing\Domain\InvoiceLine;
-use App\Billing\Domain\Money;
 use App\Sales\Domain\Quote;
 use App\Sales\Domain\QuoteStatus;
+use App\Shared\Money\Money;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;

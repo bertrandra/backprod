@@ -7,12 +7,12 @@ namespace App\Sales\Service;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRepository;
-use App\Billing\Domain\Money;
 use App\Billing\Service\WhoSellsAndWhoBuys;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\Subscription;
 use App\Shared\Exceptions\ConflictException;
+use App\Shared\Money\Money;
 use App\Tax\Service\Taxation;
 use DateTimeImmutable;
 

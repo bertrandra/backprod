@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\Payment\Infrastructure;
 
-use App\Billing\Domain\Money;
-use App\Billing\Infrastructure\DocumentPersonSql;
-use App\Billing\Infrastructure\DocumentWindowSql;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
@@ -16,8 +13,11 @@ use App\Payment\Domain\ProviderPayment;
 use App\Payment\Domain\ProviderRefund;
 use App\Payment\Domain\Refund;
 use App\Payment\Domain\WebhookOutcome;
+use App\Shared\Database\DocumentPersonSql;
+use App\Shared\Database\DocumentWindowSql;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Money\Money;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\ParameterType;

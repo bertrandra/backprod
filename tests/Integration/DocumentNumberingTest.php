@@ -6,10 +6,10 @@ namespace App\Tests\Integration;
 
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
-use App\Billing\Domain\Money;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Infrastructure\PostgresOfferLineDetails;
+use App\Shared\Money\Money;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 
