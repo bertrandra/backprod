@@ -49,8 +49,8 @@ final class InvoicePresenter
             'period_start' => self::nullableMoment($invoice->periodStart),
             'period_end' => self::nullableMoment($invoice->periodEnd),
             'payment_terms' => $invoice->paymentTerms,
-            'supplier' => $invoice->supplier,
-            'customer' => $invoice->customer,
+            'supplier' => (object) $invoice->supplier,
+            'customer' => (object) $invoice->customer,
             'lines' => self::lines($invoice->lines),
             'taxes' => array_map(self::tax(...), $invoice->taxes),
         ];

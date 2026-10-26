@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration;
 
+use App\Tests\Support\ContractResponses;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Stream;
 use PHPUnit\Framework\TestCase;
@@ -111,7 +112,26 @@ abstract class ApiTestCase extends TestCase
             $request = $request->withHeader($name, $value);
         }
 
-        return $this->app()->handle($request);
+        $response = $this->app()->handle($request);
+
+        // Every response a test sees is also checked against what
+        // openapi.json says it returns (2026-10-26): a presenter that drifts
+        // from the contract fails here, rather than in the generated client a
+        // customer's browser runs. `CONTRACT_REPORT=<file>` lists every
+        // difference instead of stopping at the first, to survey a change.
+        $violations = ContractResponses::violations($method, $path, $response);
+
+        if ($violations !== []) {
+            $report = getenv('CONTRACT_REPORT');
+
+            if (is_string($report) && $report !== '') {
+                file_put_contents($report, implode("\n", $violations) . "\n", FILE_APPEND);
+            } else {
+                self::fail("The response does not match openapi.json:\n  " . implode("\n  ", $violations));
+            }
+        }
+
+        return $response;
     }
 
     /**

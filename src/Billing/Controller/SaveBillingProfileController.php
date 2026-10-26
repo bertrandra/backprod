@@ -48,7 +48,7 @@ final class SaveBillingProfileController implements RouteHandler
             $body->optionalNullableString('billing_email'),
         ));
 
-        return new JsonResponse(InvoicePresenter::profile($profile), 200);
+        return new JsonResponse(['profile' => InvoicePresenter::profile($profile)], 200);
     }
 
     /**

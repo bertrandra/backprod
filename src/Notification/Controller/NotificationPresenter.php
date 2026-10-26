@@ -30,7 +30,7 @@ final class NotificationPresenter
             'id' => $notification->id,
             'type' => $notification->type,
             'category' => $notification->category,
-            'payload' => $notification->payload,
+            'payload' => (object) $notification->payload,
             'legal_effect' => $notification->legalEffect,
             'created_at' => $notification->createdAt->format(DATE_ATOM),
             'read_at' => $notification->readAt?->format(DATE_ATOM),

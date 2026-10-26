@@ -135,14 +135,6 @@ final class Notifications
         return $this->notifications->deliveriesFor($notification->id);
     }
 
-    /**
-     * @return array<string, bool>
-     */
-    public function preferences(string $userId, string $productId): array
-    {
-        return $this->notifications->preferencesFor($userId, $productId);
-    }
-
     public function setPreference(
         string $userId,
         string $productId,
@@ -206,6 +198,33 @@ final class Notifications
         }
 
         return $consent;
+    }
+
+    /**
+     * Every category on every channel, as the gate decides it today, keyed
+     * `CATEGORY.CHANNEL` (2026-10-26).
+     *
+     * The defaults filled in, because an absent row means enabled — except
+     * marketing — and a screen should not have to know that. The read and the
+     * save both answer with this, so the settings screen holds one shape: the
+     * read sent a list of rows and the save a map keyed `CATEGORY:CHANNEL` of
+     * only what had been stored, and the screen, reading the contract's map,
+     * showed every switch off.
+     *
+     * @return array<string, bool>
+     */
+    public function matrix(string $userId, string $productId): array
+    {
+        $gate = $this->gateFor($userId, $productId);
+        $matrix = [];
+
+        foreach (Category::all() as $category) {
+            foreach (Channel::all() as $channel) {
+                $matrix[$category . '.' . $channel] = $gate->allows($category, $channel);
+            }
+        }
+
+        return $matrix;
     }
 
     /**

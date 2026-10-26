@@ -4439,6 +4439,13 @@ export interface components {
             caption?: string;
             /** @description HEADLINE and PROOF: what the picture shows, for somebody who cannot see it. A band field rather than a column on the picture, so it travels through the same translation mechanism as every other sentence on the page. */
             alt?: string;
+            /** @description DEMO: the address of a page to embed, `https` only, with `{width}` and `{height}` replaced by the pixels the band rendered at. An **address, not a sentence**: English only, refused in a translation. Declared here on 2026-10-26; the server accepted and returned it from 2026-09-30. */
+            embed_url?: string;
+            /**
+             * @description DEMO: the shape of the embedded page. A **code, not a sentence**, like `icon`.
+             * @enum {string}
+             */
+            ratio?: "16:9" | "4:3" | "3:2" | "1:1";
             /** @description QUESTION: what somebody asks before buying. */
             question?: string;
             /** @description QUESTION: the answer, in two lines. */
@@ -4778,8 +4785,8 @@ export interface components {
             effect: "IMMEDIATE" | "AT_PERIOD_END" | "AT_COMMITMENT_END" | "AT_TERM" | "REFUSED";
             /** Format: date-time */
             effective_at: string | null;
-            /** @description Months of the commitment still owed. Counted from the end of the period already paid for, not from today. */
-            chargeable_months: number;
+            /** @description Months of the commitment still owed. Counted from the end of the period already paid for, not from today. Null when no commitment is counted — a refusal, or an offer without one. */
+            chargeable_months: number | null;
             reasons: string[];
         };
         /** @description What moving to another offer does, and why (spec §3, §7). The same shape as `CancellationDecision` and for the same reason: "can I change plan?" answered yes-or-no tells the person asking neither *when* it takes effect nor *what it costs today*. One calculation answers two questions — `previewOfferChange` renders it and `changeOffer` acts on it — so a catalogue can never quote a figure the server did not agree to. */
@@ -5096,8 +5103,11 @@ export interface components {
              * @example eu.b2b.unverified
              */
             rule_id: string;
-            /** @enum {string} */
-            regime: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUT_OF_SCOPE";
+            /**
+             * @description The closed set of §25.3, as `VatRegime` declares it. `OSS` is a distance sale taxed in the customer's country; `ZERO_RATED` charges 0% inside the scope of VAT.
+             * @enum {string}
+             */
+            regime: "STANDARD" | "REVERSE_CHARGE" | "OSS" | "EXEMPT" | "ZERO_RATED" | "OUT_OF_SCOPE";
             country_of_taxation: string;
             rate_basis_points: number;
             taxable_base: number;
@@ -5160,9 +5170,18 @@ export interface components {
             total_base: number;
             total_vat: number;
             transaction_count: number;
+            /** @description One row per regime, rate and currency, as summed at closure. */
             breakdown: {
-                [key: string]: unknown;
-            };
+                regime: string;
+                /** @description Basis points: 2000 is 20%. */
+                rate: number;
+                currency: string;
+                /** @description Taxable base, in minor units. */
+                base: number;
+                /** @description VAT, in minor units. */
+                vat: number;
+                count: number;
+            }[];
             /** Format: date-time */
             created_at: string;
         };
@@ -5479,8 +5498,25 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /** @description A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself. */
-        StaffTenant: components["schemas"]["Tenant"] & {
+        /**
+         * @description A tenant as the platform sees it: who it is, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself.
+         *
+         *     Its own fields, not `Tenant` plus two (2026-10-26): it was declared as `allOf` `Tenant`, which promised `join_policy` and `join_domains` that no staff route has ever sent, and nothing noticed until the integration tests began checking responses against this contract. How people join an organisation is its administrator's setting, read on `/tenant`.
+         */
+        StaffTenant: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            /** @description Whether the platform has lent this tenant the catalogue. See `Tenant.may_author_offers`. */
+            may_author_offers: boolean;
+            /** @description The code of the product this organisation opens on. See `Tenant.default_product`. */
+            default_product: string | null;
+            /**
+             * Format: uuid
+             * @description The organisation's logo, or null. See `Tenant.logo_asset_id`.
+             */
+            logo_asset_id: string | null;
             /** @description In code order. A retired product a tenant still holds is listed with `active: false`. */
             products: components["schemas"]["PlatformProduct"][];
             /** @description Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/. */
@@ -7711,7 +7747,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        profile: components["schemas"]["BillingProfile"];
+                        /** @description Null until somebody has saved one. */
+                        profile: components["schemas"]["BillingProfile"] | null;
                     };
                 };
             };
@@ -9024,7 +9061,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Consent"];
+                    "application/json": {
+                        consent: components["schemas"]["Consent"];
+                    };
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -9064,7 +9103,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Consent"];
+                    "application/json": {
+                        consent: components["schemas"]["Consent"];
+                    };
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -9095,6 +9136,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Every category on every channel, keyed `CATEGORY.CHANNEL` (`BILLING.EMAIL`), true when a notice of that category would be sent on that channel today. Security is always true. */
                         preferences: {
                             [key: string]: boolean;
                         };
@@ -9139,6 +9181,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Every category on every channel, keyed `CATEGORY.CHANNEL` (`BILLING.EMAIL`), true when a notice of that category would be sent on that channel today. Security is always true. */
                         preferences: {
                             [key: string]: boolean;
                         };
@@ -9278,7 +9321,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Notification"];
+                    "application/json": {
+                        notification: components["schemas"]["Notification"];
+                    };
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -10426,13 +10471,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The new version. */
+            /** @description The new version, without its document: it is the project as it stands, which the caller already holds, and a large project would otherwise travel back for nothing. `GET .../versions/{versionId}` reads it whole. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectVersion"];
+                    "application/json": components["schemas"]["ProjectVersionSummary"];
                 };
             };
             401: components["responses"]["Unauthenticated"];

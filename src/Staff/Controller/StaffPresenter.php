@@ -186,8 +186,9 @@ final class StaffPresenter
             'is_default' => $account->isDefault,
             // Which product the organisation opens on (2026-09-26). Read here
             // too, so the staff shape does not diverge from the one a tenant
-            // reads about itself — `StaffTenant` is `Tenant` plus two fields.
+            // reads about itself (`StaffTenant` names its own fields since 2026-10-26).
             'default_product' => $tenant->defaultProductCode,
+            'logo_asset_id' => $tenant->logoAssetId,
             // Which products the platform has given this tenant (ADR-047):
             // the platform's answer, so it is on the staff shape and not on
             // the `Tenant` a tenant reads about itself.

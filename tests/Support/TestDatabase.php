@@ -49,6 +49,27 @@ final class TestDatabase
     }
 
     /**
+     * Whether a missing database is a failure rather than a skip (2026-10-26).
+     *
+     * Skipping keeps a laptop without PostgreSQL able to run the unit tests.
+     * In CI it meant a workflow that lost its `DATABASE_DSN` ran two thirds
+     * of the suite as skipped and reported green. CI sets `CI`; anybody else
+     * can ask for the same with `REQUIRE_DATABASE=1`.
+     */
+    public static function required(): bool
+    {
+        foreach (['CI', 'REQUIRE_DATABASE'] as $name) {
+            $value = $_ENV[$name] ?? getenv($name);
+
+            if (is_string($value) && $value !== '' && $value !== '0' && strtolower($value) !== 'false') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * One connection per DSN for the whole process (2026-09-20). Opening one
      * is a `postgres.exe` spawned on Windows — a third of a second — and
      * every test opened two: its own, and the application's through the

@@ -333,7 +333,7 @@ export function useCreateProjectVersion(projectId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (label: string | null): Promise<ProjectVersion> => {
+    mutationFn: async (label: string | null): Promise<ProjectVersionSummary> => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.POST(

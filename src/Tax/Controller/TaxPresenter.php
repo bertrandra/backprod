@@ -33,7 +33,7 @@ final class TaxPresenter
             'customer_kind' => $profile->customerKind,
             'country_code' => $profile->countryCode,
             'taxable_person' => $profile->taxablePerson,
-            'location_evidence' => $profile->locationEvidence,
+            'location_evidence' => (object) $profile->locationEvidence,
             'vat_number' => $identification?->vatNumber,
             'vat_number_status' => $identification?->status,
             'vat_number_verified_at' => $identification?->verifiedAt?->format(DATE_ATOM),

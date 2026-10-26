@@ -130,7 +130,7 @@ export function CancellationOutcome({
                 .replace(/_/g, ' ') })}
       </p>
 
-      {decision.chargeable_months > 0 && (
+      {decision.chargeable_months !== null && decision.chargeable_months > 0 && (
         // Counted from the end of the period already paid for, not from today —
         // which is why this is the server's number and not a subtraction here.
         <p data-testid="chargeable-months">

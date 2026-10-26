@@ -92,7 +92,9 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         $response = $this->saveProfile();
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertSame('Acme SARL', $this->decode($response)['legal_name'] ?? null);
+        $saved = $this->decode($response)['profile'] ?? null;
+        self::assertIsArray($saved);
+        self::assertSame('Acme SARL', $saved['legal_name'] ?? null);
 
         $stored = $this->decode(
             $this->request('GET', '/api/v1/billing/profile', $this->headers()),

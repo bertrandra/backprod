@@ -128,10 +128,11 @@ final class AdminPresenter
             'id' => $entry->id,
             'occurred_at' => $entry->occurredAt->format(DATE_ATOM),
             'action' => $entry->action,
-            'subject' => [
-                'type' => $entry->subjectType,
-                'id' => $entry->subjectId,
-            ],
+            // Flat, as the contract and the console's audit screen read them.
+            // Nested under `subject` until 2026-10-26, so the screen's subject
+            // column was empty on every row.
+            'subject_type' => $entry->subjectType,
+            'subject_id' => $entry->subjectId,
             'actor' => [
                 'user_id' => $entry->userId,
                 'forgotten' => $entry->actorWasForgotten(),
@@ -142,7 +143,7 @@ final class AdminPresenter
             'product_id' => $entry->productId,
             'project_id' => $entry->projectId,
             'request_id' => $entry->requestId,
-            'detail' => $entry->detail,
+            'detail' => (object) $entry->detail,
         ];
     }
 }

@@ -30,6 +30,10 @@ abstract class DatabaseTestCase extends TestCase
         $dsn = TestDatabase::dsn();
 
         if ($dsn === null) {
+            if (TestDatabase::required()) {
+                self::fail('DATABASE_DSN is not set, and this run requires the database (CI or REQUIRE_DATABASE).');
+            }
+
             self::markTestSkipped('DATABASE_DSN is not set; skipping database tests.');
         }
 
