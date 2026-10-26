@@ -397,25 +397,32 @@ final class NotificationChainTest extends DatabaseApiTestCase
         $preferences = $body['preferences'] ?? null;
         self::assertIsArray($preferences);
 
-        $byKey = [];
-
-        foreach ($preferences as $preference) {
-            self::assertIsArray($preference);
-
-            $category = $preference['category'] ?? null;
-            $channel = $preference['channel'] ?? null;
-            self::assertIsString($category);
-            self::assertIsString($channel);
-
-            $byKey[$category . ':' . $channel] = $preference;
-        }
-
         // A client rendering a settings screen should not have to know that
         // an absent row means enabled, nor that marketing is the exception.
-        self::assertTrue(self::flag($byKey, 'BILLING:EMAIL', 'enabled'));
-        self::assertFalse(self::flag($byKey, 'MARKETING:EMAIL', 'enabled'));
-        self::assertFalse(self::flag($byKey, 'SECURITY:EMAIL', 'mutable'));
-        self::assertTrue(self::flag($byKey, 'BILLING:SMS', 'requires_consent'));
+        self::assertTrue($preferences['BILLING.EMAIL'] ?? null);
+        self::assertFalse($preferences['MARKETING.EMAIL'] ?? null);
+        self::assertTrue($preferences['SECURITY.EMAIL'] ?? null);
+    }
+
+    /**
+     * The save answers with the same matrix as the read, which the screen
+     * writes into its cache in place of what it read (2026-10-26). It used to
+     * answer with only the stored rows, keyed `CATEGORY:CHANNEL`.
+     */
+    public function testASavedPreferenceComesBackInTheSameMatrix(): void
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/notifications/preferences',
+            $this->headers(),
+            $this->json(['category' => Category::BILLING, 'channel' => Channel::EMAIL, 'enabled' => false]),
+        );
+
+        $preferences = $this->decode($response)['preferences'] ?? null;
+        self::assertIsArray($preferences);
+        self::assertFalse($preferences['BILLING.EMAIL'] ?? null);
+        self::assertTrue($preferences['BILLING.SCREEN'] ?? null);
+        self::assertSame(count(Category::all()) * count(Channel::all()), count($preferences));
     }
 
     // --- helpers ------------------------------------------------------------
@@ -634,22 +641,6 @@ final class NotificationChainTest extends DatabaseApiTestCase
         $readAt = $notification['read_at'] ?? null;
 
         return is_string($readAt) ? $readAt : null;
-    }
-
-    /**
-     * One boolean out of the preference matrix.
-     *
-     * @param array<string, mixed> $matrix
-     */
-    private static function flag(array $matrix, string $key, string $field): bool
-    {
-        $row = $matrix[$key] ?? null;
-        self::assertIsArray($row);
-
-        $value = $row[$field] ?? null;
-        self::assertIsBool($value);
-
-        return $value;
     }
 
     /**

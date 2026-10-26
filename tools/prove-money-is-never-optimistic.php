@@ -67,6 +67,10 @@ $guarded = [
     // The gate found this file itself, which is the whole point of it
     // comparing the list against what the directory contains.
     'frontend/src/queries/staff.ts',
+    // The console's directory of every customer's invoices and payments. It
+    // carries money under `AdminInvoice`, which the scan below did not
+    // recognise until 2026-10-26.
+    'frontend/src/queries/admin.ts',
 ];
 
 $missing = [];
@@ -134,6 +138,72 @@ printf(
     count($guarded),
 );
 
+// --- Optimism anywhere else ---------------------------------------------------
+//
+// The list above names the modules known to carry money, and the scan below
+// finds the ones that say `minor_units`. Neither sees a module that carries
+// money under another name (`queries/admin.ts` reads invoices through
+// `AdminInvoice`), nor a `useMutation` written in a screen rather than in
+// `queries/` (2026-10-26). So the rule is also stated the other way round:
+// optimism is allowed where it is named, and nowhere else in the frontend.
+
+$optimismAllowed = [
+    // Posting a chat message: the case optimism is for (U3).
+    'frontend/src/queries/conversations.ts',
+];
+
+$elsewhere = [];
+$sources = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($root . '/frontend/src', FilesystemIterator::SKIP_DOTS),
+);
+
+foreach ($sources as $file) {
+    if (!$file instanceof SplFileInfo || !preg_match('/\.tsx?$/', $file->getFilename())) {
+        continue;
+    }
+
+    $relative = str_replace($root . '/', '', $file->getPathname());
+
+    if (
+        in_array($relative, $optimismAllowed, true)
+        || str_contains($relative, '/api/generated/')
+        || preg_match('/\.test\.tsx?$/', $relative) === 1
+    ) {
+        continue;
+    }
+
+    $source = file_get_contents($file->getPathname());
+
+    if ($source === false) {
+        continue;
+    }
+
+    foreach (explode("\n", $source) as $number => $line) {
+        $trimmed = ltrim($line);
+
+        if (str_starts_with($trimmed, '*') || str_starts_with($trimmed, '//')) {
+            continue;
+        }
+
+        if (preg_match('/\bonMutate\b/', $line) === 1) {
+            $elsewhere[] = sprintf('%s:%d', $relative, $number + 1);
+        }
+    }
+}
+
+if ($elsewhere !== []) {
+    fwrite(STDERR, "FAIL: a mutation is optimistic outside the modules allowed to be.\n\n");
+
+    foreach ($elsewhere as $where) {
+        fwrite(STDERR, sprintf("  %s\n", $where));
+    }
+
+    fwrite(STDERR, "\nIf nothing binding is created, add the module to \$optimismAllowed with the\n");
+    fwrite(STDERR, "reason; otherwise wait for the server's answer.\n");
+
+    exit(1);
+}
+
 // --- Anything that looks like a money module and is not guarded ---------------
 //
 // The list above is only as good as its completeness, and a new `queries/*.ts`
@@ -158,7 +228,7 @@ foreach ($queries === false ? [] : $queries as $path) {
 
     // Money is integer minor units in this contract, so a module that mentions
     // it is a module that touches money.
-    if (preg_match('/minor_units|Schemas\[.Money.\]/', $source) === 1) {
+    if (preg_match('/minor_units|Schemas\[.Money.\]|Invoice|CreditNote|Vat[A-Z]/', $source) === 1) {
         $unguarded[] = $relative;
     }
 }

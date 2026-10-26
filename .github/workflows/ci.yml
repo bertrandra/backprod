@@ -312,6 +312,13 @@ jobs:
       - name: Vitest
         run: npm run test
 
+      # Every catalogue (fr, es, de, it) has every key, and no key nothing
+      # reads. It was in `npm run gates` and in no step until 2026-10-26, so a
+      # screen shipped untranslated with CI green; gate:ci now checks the
+      # frontend chain too.
+      - name: Every catalogue is complete
+        run: npm run gate:i18n
+
       # One build, and it is the production one — no test values baked in.
       #
       # U11 needed a second, `--mode e2e` build here: the application has a gate

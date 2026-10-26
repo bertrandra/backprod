@@ -26,7 +26,7 @@ final class JobPresenter
             'id' => $job->id,
             'type' => $job->type,
             'status' => $job->status,
-            'payload' => $job->payload,
+            'payload' => (object) $job->payload,
             'result' => $job->result,
             'attempts' => $job->attempts,
             'max_attempts' => $job->maxAttempts,

@@ -774,6 +774,8 @@
           "after": { "type": "string", "maxLength": 2000, "description": "USE_CASE: what they do now." },
           "caption": { "type": "string", "maxLength": 2000, "description": "PROOF: what the picture shows." },
           "alt": { "type": "string", "maxLength": 2000, "description": "HEADLINE and PROOF: what the picture shows, for somebody who cannot see it. A band field rather than a column on the picture, so it travels through the same translation mechanism as every other sentence on the page." },
+          "embed_url": { "type": "string", "maxLength": 1000, "description": "DEMO: the address of a page to embed, `https` only, with `{width}` and `{height}` replaced by the pixels the band rendered at. An **address, not a sentence**: English only, refused in a translation. Declared here on 2026-10-26; the server accepted and returned it from 2026-09-30." },
+          "ratio": { "type": "string", "enum": ["16:9", "4:3", "3:2", "1:1"], "description": "DEMO: the shape of the embedded page. A **code, not a sentence**, like `icon`." },
           "question": { "type": "string", "maxLength": 2000, "description": "QUESTION: what somebody asks before buying." },
           "answer": { "type": "string", "maxLength": 2000, "description": "QUESTION: the answer, in two lines." }
         }
@@ -1580,8 +1582,8 @@
             "format": "date-time"
           },
           "chargeable_months": {
-            "type": "integer",
-            "description": "Months of the commitment still owed. Counted from the end of the period already paid for, not from today."
+            "type": ["integer", "null"],
+            "description": "Months of the commitment still owed. Counted from the end of the period already paid for, not from today. Null when no commitment is counted — a refusal, or an offer without one."
           },
           "reasons": {
             "type": "array",
@@ -2579,10 +2581,13 @@
           },
           "regime": {
             "type": "string",
+            "description": "The closed set of §25.3, as `VatRegime` declares it. `OSS` is a distance sale taxed in the customer's country; `ZERO_RATED` charges 0% inside the scope of VAT.",
             "enum": [
               "STANDARD",
               "REVERSE_CHARGE",
+              "OSS",
               "EXEMPT",
+              "ZERO_RATED",
               "OUT_OF_SCOPE"
             ]
           },
@@ -2794,8 +2799,20 @@
             "type": "integer"
           },
           "breakdown": {
-            "type": "object",
-            "additionalProperties": true
+            "type": "array",
+            "description": "One row per regime, rate and currency, as summed at closure.",
+            "items": {
+              "type": "object",
+              "required": ["regime", "rate", "currency", "base", "vat", "count"],
+              "properties": {
+                "regime": { "type": "string" },
+                "rate": { "type": "integer", "description": "Basis points: 2000 is 20%." },
+                "currency": { "type": "string" },
+                "base": { "type": "integer", "description": "Taxable base, in minor units." },
+                "vat": { "type": "integer", "description": "VAT, in minor units." },
+                "count": { "type": "integer", "minimum": 0 }
+              }
+            }
           },
           "created_at": {
             "type": "string",
@@ -3680,32 +3697,60 @@
         }
       },
       "StaffTenant": {
-        "description": "A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Tenant"
+        "description": "A tenant as the platform sees it: who it is, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself.\n\nIts own fields, not `Tenant` plus two (2026-10-26): it was declared as `allOf` `Tenant`, which promised `join_policy` and `join_domains` that no staff route has ever sent, and nothing noticed until the integration tests began checking responses against this contract. How people join an organisation is its administrator's setting, read on `/tenant`.",
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "may_author_offers",
+          "default_product",
+          "logo_asset_id",
+          "products",
+          "is_default"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
           },
-          {
-            "type": "object",
-            "required": [
-              "products",
-              "is_default"
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "may_author_offers": {
+            "type": "boolean",
+            "description": "Whether the platform has lent this tenant the catalogue. See `Tenant.may_author_offers`."
+          },
+          "default_product": {
+            "type": [
+              "string",
+              "null"
             ],
-            "properties": {
-              "products": {
-                "type": "array",
-                "description": "In code order. A retired product a tenant still holds is listed with `active: false`.",
-                "items": {
-                  "$ref": "#/components/schemas/PlatformProduct"
-                }
-              },
-              "is_default": {
-                "type": "boolean",
-                "description": "Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/."
-              }
+            "description": "The code of the product this organisation opens on. See `Tenant.default_product`."
+          },
+          "logo_asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The organisation's logo, or null. See `Tenant.logo_asset_id`."
+          },
+          "products": {
+            "type": "array",
+            "description": "In code order. A retired product a tenant still holds is listed with `active: false`.",
+            "items": {
+              "$ref": "#/components/schemas/PlatformProduct"
             }
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/."
           }
-        ]
+        }
       },
       "Member": {
         "type": "object",
@@ -8409,7 +8454,11 @@
                   ],
                   "properties": {
                     "profile": {
-                      "$ref": "#/components/schemas/BillingProfile"
+                      "description": "Null until somebody has saved one.",
+                      "oneOf": [
+                        { "$ref": "#/components/schemas/BillingProfile" },
+                        { "type": "null" }
+                      ]
                     }
                   }
                 }
@@ -10864,7 +10913,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Consent"
+                  "type": "object",
+                  "required": ["consent"],
+                  "properties": {
+                    "consent": { "$ref": "#/components/schemas/Consent" }
+                  }
                 }
               }
             }
@@ -10925,7 +10978,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Consent"
+                  "type": "object",
+                  "required": ["consent"],
+                  "properties": {
+                    "consent": { "$ref": "#/components/schemas/Consent" }
+                  }
                 }
               }
             }
@@ -10977,6 +11034,7 @@
                   "properties": {
                     "preferences": {
                       "type": "object",
+                      "description": "Every category on every channel, keyed `CATEGORY.CHANNEL` (`BILLING.EMAIL`), true when a notice of that category would be sent on that channel today. Security is always true.",
                       "additionalProperties": {
                         "type": "boolean"
                       }
@@ -11067,6 +11125,7 @@
                   "properties": {
                     "preferences": {
                       "type": "object",
+                      "description": "Every category on every channel, keyed `CATEGORY.CHANNEL` (`BILLING.EMAIL`), true when a notice of that category would be sent on that channel today. Security is always true.",
                       "additionalProperties": {
                         "type": "boolean"
                       }
@@ -11297,7 +11356,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Notification"
+                  "type": "object",
+                  "required": ["notification"],
+                  "properties": {
+                    "notification": { "$ref": "#/components/schemas/Notification" }
+                  }
                 }
               }
             }
@@ -13312,11 +13375,11 @@
         },
         "responses": {
           "201": {
-            "description": "The new version.",
+            "description": "The new version, without its document: it is the project as it stands, which the caller already holds, and a large project would otherwise travel back for nothing. `GET .../versions/{versionId}` reads it whole.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectVersion"
+                  "$ref": "#/components/schemas/ProjectVersionSummary"
                 }
               }
             }

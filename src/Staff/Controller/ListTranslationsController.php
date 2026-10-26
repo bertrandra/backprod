@@ -105,7 +105,7 @@ final class ListTranslationsController implements RouteHandler
                     // missing, and the screen counts those — so filling the
                     // gaps with empty strings here would make every sentence
                     // look translated into five languages.
-                    'translations' => $text->translations,
+                    'translations' => (object) $text->translations,
                 ],
                 $texts,
             ),

@@ -126,6 +126,33 @@ if ($extraInCi !== []) {
     );
 }
 
+// The frontend has its own chain, `npm run gates`, and the same gap: gate:i18n
+// was in it and in no workflow step until 2026-10-26, so a missing translation
+// passed CI. Every `npm run` in that chain must be a step of the workflow too.
+$packagePath = $root . '/frontend/package.json';
+
+if (is_file($packagePath)) {
+    /** @var array{scripts?: array<string, string>} $package */
+    $package = json_decode((string) file_get_contents($packagePath), true, 512, JSON_THROW_ON_ERROR);
+    $frontendChain = $package['scripts']['gates'] ?? null;
+
+    if (!is_string($frontendChain)) {
+        $failures[] = 'frontend/package.json has no `gates` script.';
+    } else {
+        preg_match_all('/npm run ([\w:-]+)/', $frontendChain, $steps);
+        preg_match_all('/^\s*run:\s*npm run ([\w:-]+)/m', $workflow, $ran);
+        $missingFrontend = array_values(array_diff($steps[1], $ran[1]));
+
+        if ($missingFrontend !== []) {
+            $failures[] = sprintf(
+                "These steps of the frontend's `npm run gates` chain have no step in\n"
+                . ".github/workflows/ci.yml:\n  %s",
+                implode("\n  ", $missingFrontend),
+            );
+        }
+    }
+}
+
 if ($failures !== []) {
     fwrite(STDERR, "FAIL: the gate chain and CI disagree.\n\n");
     fwrite(STDERR, implode("\n\n", $failures) . "\n");

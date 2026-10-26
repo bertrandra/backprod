@@ -200,7 +200,11 @@ foreach ($sources as $path) {
     // from a cache key like ['session', 'permissions'].
     $scalarPatterns = [
         "/permission:\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
-        "/\\bcan\\([^,)]*,\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
+        // The first argument may itself be a call — `can(staffAccess(me), '…')`
+        // on every console screen — so one level of parentheses is allowed in
+        // it. `[^,)]*` stopped at that call's `)`, and none of those codes was
+        // checked until 2026-10-26.
+        "/\\bcan\\((?:[^,()]|\\([^()]*\\))*,\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
         "/permission=\\{?'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
     ];
 
@@ -453,8 +457,8 @@ foreach ($sources as $path) {
     // `GIS_CAPABILITY` than with a bare string, and a gate that only understood
     // literals would quietly stop checking the moment somebody named one.
     $capabilityPatterns = [
-        "/isEntitled\([^,)]*,\s*'([a-z][a-z_.]*)'/",
-        "/canAndEntitled\([^,)]*,[^,)]*,\s*'([a-z][a-z_.]*)'/",
+        "/isEntitled\((?:[^,()]|\([^()]*\))*,\s*'([a-z][a-z_.]*)'/",
+        "/canAndEntitled\((?:[^,()]|\([^()]*\))*,(?:[^,()]|\([^()]*\))*,\s*'([a-z][a-z_.]*)'/",
         "/[A-Z][A-Z_]*CAPABILITY\s*=\s*'([a-z][a-z_.]*)'/",
     ];
 

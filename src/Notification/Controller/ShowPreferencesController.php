@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Notification\Controller;
 
-use App\Notification\Domain\Category;
-use App\Notification\Domain\Channel;
 use App\Notification\Service\Notifications;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -18,7 +16,8 @@ use Psr\Http\Message\ServerRequestInterface;
  * Returns the full matrix with defaults filled in, not just the rows somebody
  * has touched. A client rendering a settings screen should not have to know
  * that an absent row means enabled — and that marketing is the one exception.
- * `mutable` says which switches are real: security cannot be turned off.
+ * The map the contract declares, keyed `CATEGORY.CHANNEL` (2026-10-26; it was
+ * a list of rows the screen could not read).
  */
 final class ShowPreferencesController implements RouteHandler
 {
@@ -30,21 +29,8 @@ final class ShowPreferencesController implements RouteHandler
     {
         $context = NotificationRoute::readable($request);
 
-        $gate = $this->notifications->gateFor($context->userId, $context->productId);
-        $preferences = [];
-
-        foreach (Category::all() as $category) {
-            foreach (Channel::all() as $channel) {
-                $preferences[] = [
-                    'category' => $category,
-                    'channel' => $channel,
-                    'enabled' => $gate->allows($category, $channel),
-                    'mutable' => Category::isMutable($category),
-                    'requires_consent' => Channel::requiresConsent($channel),
-                ];
-            }
-        }
-
-        return new JsonResponse(['preferences' => $preferences], 200);
+        return new JsonResponse([
+            'preferences' => (object) $this->notifications->matrix($context->userId, $context->productId),
+        ], 200);
     }
 }

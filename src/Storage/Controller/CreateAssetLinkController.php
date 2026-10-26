@@ -47,7 +47,13 @@ final class CreateAssetLinkController implements RouteHandler
 
         $link = $this->links->mint($asset, $this->lifetimeIn($request));
 
-        return new JsonResponse($link, 201);
+        // The contract says a date-time, as every other moment this API
+        // sends; the signature keeps its Unix second, which is what the URL
+        // carries (2026-10-26 — it went out as an integer until then).
+        return new JsonResponse([
+            'url' => $link['url'],
+            'expires_at' => gmdate(DATE_RFC3339, $link['expires_at']),
+        ], 201);
     }
 
     /**

@@ -38,7 +38,9 @@ final class SavePreferenceController implements RouteHandler
         );
 
         return new JsonResponse([
-            'preferences' => $this->notifications->preferences($context->userId, $context->productId),
+            // The whole matrix, as the read answers it: the screen writes this
+            // into its cache in place of what it read.
+            'preferences' => (object) $this->notifications->matrix($context->userId, $context->productId),
         ], 200);
     }
 }

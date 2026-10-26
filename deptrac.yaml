@@ -19,11 +19,6 @@ deptrac:
         - type: classLike
           value: '^App\\[A-Za-z0-9]+\\Domain\\.*'
 
-    - name: Repository
-      collectors:
-        - type: classLike
-          value: '^App\\[A-Za-z0-9]+\\Repository\\.*'
-
     - name: Infrastructure
       collectors:
         - type: classLike
@@ -103,7 +98,6 @@ deptrac:
     # Application services orchestrate use cases.
     Application:
       - Domain
-      - Repository
       - SharedKernel
 
     # Domain holds business invariants and depends on nothing technical.
@@ -111,15 +105,10 @@ deptrac:
     Domain:
       - SharedKernel
 
-    # Repositories map the domain onto storage.
-    Repository:
-      - Domain
-      - Infrastructure
-      - SharedKernel
-      - SharedDatabase
-      - Sql
-
-    # Infrastructure adapts external providers; may speak HTTP and SQL.
+    # Infrastructure adapts external providers and maps the domain onto
+    # storage (the Postgres repositories live here); may speak HTTP and SQL.
+    # A separate Repository layer matched `App\<Module>\Repository\*`, a
+    # namespace no class has ever used, and was removed on 2026-10-26.
     Infrastructure:
       - Domain
       - SharedKernel

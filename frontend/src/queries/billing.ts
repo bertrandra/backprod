@@ -316,7 +316,7 @@ export function useBillingProfile() {
 
   return useQuery({
     queryKey: keys.billing.profile,
-    queryFn: async (): Promise<BillingProfile> => {
+    queryFn: async (): Promise<BillingProfile | null> => {
       const { data, error, response } = await client.GET(
         '/api/v1/billing/profile',
         ambientParams(sessionSnapshot),
