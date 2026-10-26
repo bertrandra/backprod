@@ -10,8 +10,8 @@ use Doctrine\DBAL\ArrayParameterType;
 /**
  * The reach clause, written once (2026-09-30).
  *
- * The same rule as {@see \App\Billing\Infrastructure\DocumentPersonSql} and
- * {@see \App\Billing\Infrastructure\DocumentWindowSql}: a page and its total
+ * The same rule as {@see \App\Shared\Database\DocumentPersonSql} and
+ * {@see \App\Shared\Database\DocumentWindowSql}: a page and its total
  * must not be able to disagree, and the only way to guarantee that is for
  * both to compose the same string.
  *

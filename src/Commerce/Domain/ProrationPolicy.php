@@ -61,7 +61,7 @@ use DateTimeImmutable;
  *
  * Two currencies are refused for the same kind of reason: a credit in one and
  * a charge in another cannot be netted, and the only honest exchange rate is
- * one nobody has supplied ({@see \App\Billing\Domain\Money}).
+ * one nobody has supplied ({@see \App\Shared\Money\Money}).
  */
 final class ProrationPolicy
 {

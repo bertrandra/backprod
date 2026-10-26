@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Infrastructure;
 
 use App\Billing\Domain\DocumentPeople;
+use App\Shared\Database\DocumentPersonSql;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use Doctrine\DBAL\ArrayParameterType;

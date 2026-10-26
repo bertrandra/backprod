@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Domain;
 
+use App\Shared\Money\Money;
+
 /**
  * The VAT applied at one rate on one invoice.
  *

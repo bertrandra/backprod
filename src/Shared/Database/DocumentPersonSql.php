@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Billing\Infrastructure;
+namespace App\Shared\Database;
 
 /**
  * Whom a billing document concerns — one rule, written once (2026-09-27).

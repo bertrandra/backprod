@@ -6,7 +6,6 @@ namespace App\Sales\Service;
 
 use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\InvoiceLine;
-use App\Billing\Domain\Money;
 use App\Billing\Service\WhoSellsAndWhoBuys;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
@@ -17,6 +16,7 @@ use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Money\Money;
 use App\Tax\Service\Taxation;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Auth\Domain;
+namespace App\Tenant\Domain;
 
 use App\Shared\Exceptions\ForbiddenException;
 

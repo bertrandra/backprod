@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Billing\Domain\Money;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
 use App\Payment\Infrastructure\Stripe\StripePaymentProvider;
 use App\Shared\Exceptions\NotConfiguredException;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Shared\Exceptions\UnprocessableEntityException;
+use App\Shared\Money\Money;
 use App\Tests\Support\RecordingStripeHttpClient;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;

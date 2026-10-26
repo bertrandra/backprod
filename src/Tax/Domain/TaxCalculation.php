@@ -46,7 +46,7 @@ final class TaxCalculation
      * from floats, which cannot represent a rate exactly and would put
      * one-cent differences into a legal document.
      *
-     * Rounds half up on the absolute value — the rule {@see \App\Billing\Domain\Money::taxedAt}
+     * Rounds half up on the absolute value — the rule {@see \App\Shared\Money\Money::taxedAt}
      * applies — so a negative base rounds as the mirror of its positive
      * (2026-10-26). The two agreed on what this platform bills, which is
      * positive, and disagreed by a cent on anything negative that reached here.

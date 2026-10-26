@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Auth\Infrastructure;
 
 use App\Auth\Domain\AccountRegistrar;
-use App\Auth\Domain\JoinDecision;
 use App\Auth\Domain\RegisteredAccount;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Validation\Locale;
+use App\Tenant\Domain\JoinDecision;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use SensitiveParameter;

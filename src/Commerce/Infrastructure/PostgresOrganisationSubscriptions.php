@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Commerce\Infrastructure;
 
-use App\Billing\Domain\Money;
-use App\Billing\Infrastructure\DocumentWindowSql;
 use App\Commerce\Domain\HeldSubscription;
 use App\Commerce\Domain\OrganisationSubscriptions;
 use App\Commerce\Domain\Places;
+use App\Shared\Database\DocumentWindowSql;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Money\Money;
 use Doctrine\DBAL\Connection;
 
 /**

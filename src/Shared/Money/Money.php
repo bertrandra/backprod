@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Billing\Domain;
+namespace App\Shared\Money;
 
 use App\Shared\Exceptions\ConflictException;
 

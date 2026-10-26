@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Sales\Controller;
 
 use App\Billing\Controller\InvoicePresenter;
-use App\Billing\Domain\Money;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\Quote;
+use App\Shared\Money\Money;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;

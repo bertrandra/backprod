@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\Domain;
 
+use App\Tenant\Domain\JoinDecision;
 use SensitiveParameter;
 
 /**

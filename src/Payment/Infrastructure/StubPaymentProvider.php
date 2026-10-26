@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Payment\Infrastructure;
 
-use App\Billing\Domain\Money;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentProvider;
 use App\Payment\Domain\PaymentStatus;
@@ -12,6 +11,7 @@ use App\Payment\Domain\ProviderEvent;
 use App\Payment\Domain\ProviderPayment;
 use App\Payment\Domain\ProviderRefund;
 use App\Shared\Exceptions\UnauthenticatedException;
+use App\Shared\Money\Money;
 use DateTimeImmutable;
 use DateTimeZone;
 

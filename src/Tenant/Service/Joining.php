@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tenant\Service;
 
-use App\Auth\Domain\JoinDecision;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Tenant\Domain\JoinDecision;
 use App\Tenant\Domain\JoinRequests;
 use App\Tenant\Domain\TenantMember;
 
