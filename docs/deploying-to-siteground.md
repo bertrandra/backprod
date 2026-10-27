@@ -23,14 +23,14 @@ its own PostgreSQL. It writes `.env`, runs the migrations, and seeds the
 demonstration world ([docs/demo-world.html](demo-world.html): five products,
 three organisations, one person per role) — it asks for no product and no
 account of your own. Then it makes itself inert: a completion marker refuses a
-second run even if you forget to delete the file. **The seeded accounts'
-password is in this repository**, so the success page offers the one thing the
-page still does afterwards, changing a password; change the platform
-administrator's, confirm you can sign in with it, and delete the file — a page
-that can rewrite `.env` has no business staying reachable once it has nothing
-left to do. The sections below are what it automates; read them if you would
-rather do it by hand, or need to understand what it did. **Upgrading a site
-already installed is §9, and never `setup.php`.**
+second run. **The seeded accounts'
+password is in this repository**, so the success page offers changing a
+password; change the platform administrator's and confirm you can sign in with
+it. After that the page writes no `.env` and seeds nothing again: it **stays**,
+because it is where the next version moves the database forward (§9). The
+sections below are what it automates; read them if you would rather do it by
+hand, or need to understand what it did. **Upgrading a site already installed
+is §9, and never a reinstall.**
 
 ---
 
@@ -462,8 +462,8 @@ In this order, each step only once the one before it succeeded:
 3. **Replaces only what the build owns in `public_html/`** — `index.php`,
    `index.html`, `.htaccess`, `assets/` — and moves the ones it replaces into
    `backprod-app.previous-<time>/public_html-replaced/`. Anything else in the
-   document root is left alone. **`setup.php` is never installed**, and one
-   still there is moved aside with the rest.
+   document root is left alone. `setup.php` is the bundle's too: after
+   installation it is the version page.
 4. **Runs `bin/preflight.php --strict`** on the result, and prints the exact
    commands that undo the swap.
 
@@ -494,11 +494,35 @@ one by hand is replaced like the rest — it is in `public_html-replaced/`; carr
 it into the bundle's copy before upgrading, or rebuild with the flag that
 writes it.
 
-**Without SSH**, the same steps by hand: back up, apply the migrations from
-your machine as in §3 (`composer run migrate`, from a checkout of the bundle's
-commit), then in the File Manager rename `backprod-app/` aside, upload the new
-one, move `.env` and `var/` into it from the old, and replace the four
-entries in `public_html/` — without `setup.php`.
+### Without SSH: upload, then approve on `/setup.php` (2026-10-27)
+
+The database is never reinstalled. The code goes in, and the schema follows it
+on a button:
+
+1. **Back up** (Site Tools → Security → Backups).
+2. **Upload the code** in the File Manager: rename `backprod-app/` aside,
+   upload the new one, move `.env` and `var/` into it from the old, and
+   replace the five entries in `public_html/` (`index.php`, `index.html`,
+   `.htaccess`, `assets/`, `setup.php`).
+3. **Open `https://example.com/setup.php`.** It shows the code's build
+   (`backprod-app/BUILD`) and the newest migration it carries, the database's
+   newest applied migration, and the list waiting between them, with each
+   one's description.
+4. **Approve**: type a platform administrator's email and password and press
+   *Apply*. The migrations run in one transaction — all, or none and the
+   database as it was. Only the list that was shown runs: if the code changed
+   between the page and the click, it refuses and asks for a reload.
+5. **Flush the cache**, sign in, look.
+
+**Forward only.** No migration is undone, from this page or anywhere else. A
+database *ahead* of the code — migrations applied that the uploaded code does
+not have, typically an older bundle uploaded by mistake — is reported with no
+button: the remedy is uploading the code that matches it.
+
+Between steps 2 and 4 the new code runs on the old schema, which is the order
+the SSH path avoids; keep that window to the minute it takes, or apply the
+migrations first from your machine as in §3 (`composer run migrate`, from a
+checkout of the bundle's commit).
 
 ---
 

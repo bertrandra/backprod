@@ -18,21 +18,35 @@ declare(strict_types=1);
  * **Deactivated after setup, and not only by you deleting it.** The moment
  * every step below succeeds, this writes `backprod-app/var/.setup-complete` and
  * refuses to do anything mutating again — full setup or a stray resubmission —
- * for as long as that marker exists. Deleting this file afterwards is still the
- * right thing to do, exactly as you planned: `public_html/` is reachable by
- * anybody, and a setup page that can rewrite `.env` has no business staying
- * there once it has nothing left to do. The marker is what makes "forgot to
- * delete it" a non-event instead of a second admin account waiting for whoever
+ * for as long as that marker exists. That is why the file can stay (it used to
+ * say delete it): past the marker nothing here writes `.env` or creates an
+ * account, and what remains is gated on a platform administrator's password
+ * or the database credentials. The marker is what makes the page reachable
+ * by anybody a non-event instead of a second admin account waiting for whoever
  * finds the URL — the same reasoning as everywhere else in this platform that
  * an invariant belongs where nothing can route around it, not in a step a
  * person might skip.
  *
- * One exception survives the marker: changing an account's password, gated on
- * the same database credentials Site Tools gave you — because the seeded
- * accounts' password is public knowledge and this platform has no
- * password-reset flow yet (ADR-038) to change it any other way. Change at
- * least the platform administrator's, confirm you can sign in with the new
- * one, and only then delete this file.
+ * Two things survive the marker.
+ *
+ * **Moving the database forward** (2026-10-27). Once installed, this page is
+ * where a deployment is upgraded: upload the new code, open this page, and
+ * it shows the code's version beside the database's and lists the migrations
+ * waiting between them. One button applies them, for a platform
+ * administrator who types their email and password, and only the ones that
+ * were shown — if the code changed between the page and the click, it
+ * refuses and asks for a reload. **Forward only**: no migration is ever
+ * undone here, and a database *ahead* of the code is reported, with no
+ * button, because the remedy is deploying the code that matches it.
+ *
+ * **Changing an account's password**, gated on the same database
+ * credentials Site Tools gave you — because the seeded accounts' password is
+ * public knowledge and this platform has no password-reset flow yet
+ * (ADR-038) to change it any other way. Change at least the platform
+ * administrator's and confirm you can sign in with the new one.
+ *
+ * Neither writes `.env` and neither seeds anything, so the page stays on the
+ * server after setup: it is how the next version goes in.
  *
  * No JavaScript: the document root's own Content-Security-Policy sets
  * `script-src 'self'`, and a second file just to satisfy that is not worth it
@@ -180,20 +194,20 @@ const STYLE_BLOCK = '<style>'
 $alreadySetUp = is_file(MARKER_PATH);
 $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
 
-if ($alreadySetUp && $action !== 'reset-password') {
-    $body = STYLE_BLOCK . '<p class="ok">This deployment is already set up.</p>'
+if ($alreadySetUp && !in_array($action, ['reset-password', 'upgrade-database'], true)) {
+    $body = STYLE_BLOCK . '<p class="ok">This deployment is set up.</p>'
         . '<p>Setup ran on ' . htmlspecialchars((string) file_get_contents(MARKER_PATH)) . ' and will not run again '
-        . 'while <code>backprod-app/var/.setup-complete</code> exists.</p>'
-        . '<p><strong>Delete this file now</strong> — <code>public_html/' . htmlspecialchars(basename(__FILE__)) . '</code> — '
-        . 'it has nothing left to do and no reason to keep serving.</p>'
-        . '<p class="hint">The one thing this page still does is change one account\'s password — nothing else — '
-        . 'and only for whoever can also type the real database credentials. The seeded accounts all start with '
-        . 'the password in this platform\'s source; if you have not changed the platform administrator\'s yet, '
-        . 'do it here.</p>';
+        . 'while <code>backprod-app/var/.setup-complete</code> exists. This page is now where a new version of the '
+        . 'code moves the database forward.</p>'
+        . versionsPanel();
 
-    $body .= resetPasswordForm();
+    $body .= '<h2>Change a password</h2>'
+        . '<p class="hint">Only for whoever can also type the real database credentials. The seeded accounts all '
+        . 'start with the password in this platform\'s source; if you have not changed the platform '
+        . 'administrator\'s yet, do it here.</p>'
+        . resetPasswordForm();
 
-    render('Already set up', $body);
+    render('Backprod — versions', $body);
     exit;
 }
 
@@ -207,8 +221,225 @@ if ($action === 'reset-password') {
     exit;
 }
 
+if ($action === 'upgrade-database') {
+    handleUpgradeDatabase();
+    exit;
+}
+
 handleSetup();
 exit;
+
+// --- Versions: the code's, the database's, and the button between them -------
+//
+// 2026-10-27. A deployment is upgraded by uploading the code and approving its
+// migrations here, never by reinstalling: the database keeps every customer,
+// invoice and project, and only moves forward.
+
+/** What this build says it is: `backprod-app/BUILD`, written by bin/build-dist.sh. */
+function buildStamp(): string
+{
+    $stamp = @file_get_contents(BACKPROD_APP . '/BUILD');
+
+    return is_string($stamp) && trim($stamp) !== ''
+        ? trim(strtok($stamp, "\n") ?: '')
+        : 'not recorded (a build from before 2026-10-27)';
+}
+
+/** `App\Migrations\Version20261027090000` → `2026-10-27 09:00`, for reading. */
+function versionLabel(string $version): string
+{
+    if (preg_match('/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/', $version, $m) !== 1) {
+        return $version === '0' ? 'empty — nothing applied yet' : $version;
+    }
+
+    return sprintf('%s-%s-%s %s:%s', $m[1], $m[2], $m[3], $m[4], $m[5]);
+}
+
+/** The connection `.env` names, or a plain refusal. Never the DSN in a message. */
+function connectFromEnv(): Connection
+{
+    $env = Dotenv::createArrayBacked(BACKPROD_APP)->safeLoad();
+    $dsn = $env['DATABASE_DSN'] ?? '';
+
+    if (!is_string($dsn) || $dsn === '') {
+        fail(500, 'backprod-app/.env sets no DATABASE_DSN.');
+    }
+
+    try {
+        $connection = ConnectionFactory::fromDsn($dsn);
+        $connection->executeQuery('SELECT 1');
+    } catch (\Throwable) {
+        fail(502, 'The database named in backprod-app/.env does not answer.');
+    }
+
+    return $connection;
+}
+
+/**
+ * Where the code and the database stand, read through Doctrine's own status.
+ *
+ * `ahead` is the case with no button: migrations the database has applied
+ * that this code does not have. Going down would mean undoing them, and this
+ * platform does not go down — the remedy is deploying the matching code.
+ *
+ * @return array{factory: DependencyFactory, plan: \Doctrine\Migrations\Metadata\MigrationPlanList, latest: string, current: string, pending: list<array{version: string, description: string}>, ahead: list<string>}
+ */
+function migrationStatus(Connection $connection): array
+{
+    $factory = DependencyFactory::fromConnection(new ConfigurationArray(migrationsConfig()), new ExistingConnection($connection));
+    $factory->getMetadataStorage()->ensureInitialized();
+
+    $aliases = $factory->getVersionAliasResolver();
+    $latest = $aliases->resolveVersionAlias('latest');
+    $plan = $factory->getMigrationPlanCalculator()->getPlanUntilVersion($latest);
+
+    $pending = [];
+
+    foreach ($plan->getItems() as $item) {
+        $pending[] = ['version' => (string) $item->getVersion(), 'description' => $item->getMigration()->getDescription()];
+    }
+
+    $ahead = [];
+
+    foreach ($factory->getMigrationStatusCalculator()->getExecutedUnavailableMigrations()->getItems() as $item) {
+        $ahead[] = (string) $item->getVersion();
+    }
+
+    return [
+        'factory' => $factory,
+        'plan' => $plan,
+        'latest' => (string) $latest,
+        'current' => (string) $aliases->resolveVersionAlias('current'),
+        'pending' => $pending,
+        'ahead' => $ahead,
+    ];
+}
+
+function versionsPanel(): string
+{
+    try {
+        $status = migrationStatus(connectFromEnv());
+    } catch (\Throwable $e) {
+        return '<h2>Versions</h2><p class="error">The migration status could not be read: '
+            . htmlspecialchars($e->getMessage()) . '</p>';
+    }
+
+    $html = '<h2>Versions</h2><table class="versions">'
+        . '<tr><th>Code</th><td>build <code>' . htmlspecialchars(buildStamp()) . '</code><br>schema up to <code>'
+        . htmlspecialchars(versionLabel($status['latest'])) . '</code></td></tr>'
+        . '<tr><th>Database</th><td>schema at <code>' . htmlspecialchars(versionLabel($status['current'])) . '</code></td></tr>'
+        . '</table>';
+
+    if ($status['ahead'] !== []) {
+        return $html . '<p class="error"><strong>The database is ahead of this code.</strong> It has applied '
+            . count($status['ahead']) . ' migration(s) this code does not know, the latest '
+            . '<code>' . htmlspecialchars(versionLabel((string) end($status['ahead']))) . '</code>. Nothing is undone '
+            . 'here: deploy the code that matches the database (or a newer one).</p>';
+    }
+
+    if ($status['pending'] === []) {
+        return $html . '<p class="ok">The database is up to date with the code. Nothing to apply.</p>';
+    }
+
+    $list = '';
+
+    foreach ($status['pending'] as $migration) {
+        $list .= '<li><code>' . htmlspecialchars(versionLabel($migration['version'])) . '</code> — '
+            . htmlspecialchars($migration['description']) . '</li>';
+    }
+
+    $count = count($status['pending']);
+
+    return $html . '<p><strong>' . $count . ' migration' . ($count > 1 ? 's' : '') . ' waiting</strong>, in the order '
+        . 'they will run:</p><ol>' . $list . '</ol>'
+        . '<p class="hint">They run together in one transaction: all of them, or none if one fails. They only move '
+        . 'forward — there is no button to go back — so take a backup first (Site Tools → Security → Backups).</p>'
+        . '<form method="post">'
+        . '<input type="hidden" name="action" value="upgrade-database">'
+        . '<input type="hidden" name="target" value="' . htmlspecialchars($status['latest']) . '">'
+        . '<fieldset><legend>Approve, as a platform administrator</legend>'
+        . inputRow('Email', 'admin_email', 'email', 'backprod@example.org')
+        . inputRow('Password', 'admin_password', 'password')
+        . '</fieldset>'
+        . '<button type="submit">Apply ' . $count . ' migration' . ($count > 1 ? 's' : '') . '</button>'
+        . '</form>';
+}
+
+function handleUpgradeDatabase(): void
+{
+    if (!is_file(MARKER_PATH)) {
+        fail(409, 'This deployment is not set up yet. Set it up first; this button moves an installed database forward.');
+    }
+
+    $email = field($_POST, 'admin_email');
+    $password = is_string($_POST['admin_password'] ?? null) ? $_POST['admin_password'] : '';
+    $target = field($_POST, 'target');
+    $connection = connectFromEnv();
+
+    // A platform administrator, proved by their own password. Not the
+    // database credentials: approving a change to the schema is an act of
+    // the platform's operator, and the one who should be able to say who did.
+    $hash = $connection->fetchOne(
+        <<<'SQL'
+        SELECT lc.password_hash
+          FROM local_credentials lc
+          JOIN platform_staff ps ON ps.user_id = lc.user_id
+          JOIN platform_roles r ON r.id = ps.platform_role_id
+         WHERE lower(lc.email) = lower(:email) AND r.code = 'PLATFORM_ADMIN'
+         LIMIT 1
+        SQL,
+        ['email' => $email],
+    );
+
+    if (!is_string($hash) || $password === '' || !password_verify($password, $hash)) {
+        sleep(1);
+        fail(403, 'Only a platform administrator may apply migrations, and that email and password are not one.');
+    }
+
+    $status = migrationStatus($connection);
+
+    if ($status['ahead'] !== []) {
+        fail(409, 'The database is ahead of this code. Nothing is undone here: deploy the code that matches it.');
+    }
+
+    // Approve what was shown, and nothing else: code uploaded between the
+    // page and the click would otherwise apply migrations nobody looked at.
+    if (!hash_equals($status['latest'], $target)) {
+        fail(409, 'The code changed since this page was shown. Reload it, read the list again, and approve that.');
+    }
+
+    if ($status['pending'] === []) {
+        render('Nothing to apply', STYLE_BLOCK . '<p class="ok">The database was already up to date.</p>'
+            . '<p><a href="' . htmlspecialchars(basename(__FILE__)) . '">Back to the versions</a></p>');
+
+        return;
+    }
+
+    try {
+        $status['factory']->getMigrator()->migrate(
+            $status['plan'],
+            (new MigratorConfiguration())->setDryRun(false)->setAllOrNothing(true),
+        );
+    } catch (\Throwable $e) {
+        // A migration failure names a table or a constraint, never a
+        // credential, and whoever pressed the button needs to know which.
+        fail(500, 'The migrations failed and were rolled back, so the database is as it was: ' . $e->getMessage());
+    }
+
+    $list = '';
+
+    foreach ($status['pending'] as $migration) {
+        $list .= '<li><code>' . htmlspecialchars(versionLabel($migration['version'])) . '</code> — '
+            . htmlspecialchars($migration['description']) . '</li>';
+    }
+
+    render('Database upgraded', STYLE_BLOCK
+        . '<p class="ok">Applied ' . count($status['pending']) . ' migration(s). The database is at <code>'
+        . htmlspecialchars(versionLabel($status['latest'])) . '</code>, the same as the code.</p>'
+        . '<ol>' . $list . '</ol>'
+        . '<p>Flush the cache (Site Tools → Speed → Caching), then sign in and look.</p>'
+        . '<p><a href="' . htmlspecialchars(basename(__FILE__)) . '">Back to the versions</a></p>');
+}
 
 // --- The reset-password escape hatch --------------------------------------------
 
@@ -268,7 +499,7 @@ function handleResetPassword(): void
         fail(404, 'No account with that email address has a password to reset.');
     }
 
-    render('Password reset', STYLE_BLOCK . '<p class="ok">Password updated. Sign in with the new one, then delete this file.</p>');
+    render('Password reset', STYLE_BLOCK . '<p class="ok">Password updated. Sign in with the new one.</p>');
 }
 
 // --- The setup form and its handler ---------------------------------------------
@@ -598,8 +829,8 @@ function handleSetup(): void
               . 'When you register a product on another host, add its origin to <code>CORS_ALLOWED_ORIGINS</code> '
               . 'beside it, or the browser will not send that cookie on its calls. '
               . '<code>php backprod-app/bin/preflight.php</code> prints both lines with the right values.</p>')
-        . '<p><strong>Then delete <code>public_html/' . htmlspecialchars(basename(__FILE__)) . '</code>.</strong> '
+        . '<p><strong>Keep <code>public_html/' . htmlspecialchars(basename(__FILE__)) . '</code>.</strong> '
         . 'It cannot run full setup again — <code>backprod-app/var/.setup-complete</code> refuses that on its '
-        . 'own — but it is still reachable by anybody who guesses the URL, and it has nothing left to do but '
-        . 'change passwords.</p>');
+        . 'own — and it is where the next version goes in: upload the new code, open this page, and approve '
+        . 'the migrations it lists, as a platform administrator.</p>');
 }

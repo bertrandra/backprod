@@ -19,10 +19,10 @@ use Dotenv\Dotenv;
  *     php ~/backprod-new/backprod-app/bin/upgrade.php ~/www/example.com --dry-run
  *     php ~/backprod-new/backprod-app/bin/upgrade.php ~/www/example.com
  *
- * `setup.php` is not the way: it installs, and once `var/.setup-complete`
- * exists it refuses to run at all — which is the point of it, because it
- * writes `.env`. An upgrade is a different act with different invariants,
- * and they are the ones this script exists to hold:
+ * Without SSH, `setup.php` does the database half: once installed it shows
+ * the code's version beside the database's and applies the waiting
+ * migrations on a platform administrator's approval. This script does the
+ * same migration and the file swap besides, and holds these invariants:
  *
  * - **`.env` and `var/` are the deployment's, never the bundle's.** The
  *   bundle carries neither a `.env` nor anything under `var/` but two empty
@@ -33,8 +33,9 @@ use Dotenv\Dotenv;
  *   code already running keeps working on the newer schema, while new code
  *   on an old schema is what breaks. So the schema goes forward before any
  *   file changes, in one transaction, and a failure there changes nothing.
- * - **`setup.php` never comes back.** It is left out of the new document
- *   root, and one still sitting in the live one is moved aside.
+ * - **`setup.php` is the bundle's.** It is replaced like the other public
+ *   files, because after installation it is the page that moves the database
+ *   forward — and it writes nothing once the marker exists.
  * - **Nothing is deleted.** The previous application and the public files it
  *   replaced go to `backprod-app.previous-<time>/`, and the script ends by
  *   printing the commands that put them back. Delete that directory once the
@@ -49,7 +50,7 @@ use Dotenv\Dotenv;
  * and the scripts it names, which no longer exist.
  */
 
-const PUBLIC_OWNED = ['index.php', 'index.html', '.htaccess', 'assets'];
+const PUBLIC_OWNED = ['index.php', 'index.html', '.htaccess', 'assets', 'setup.php'];
 
 $newApp = dirname(__DIR__);
 $newRoot = dirname($newApp);
@@ -235,10 +236,6 @@ try {
 
         $move($newPublic . '/' . $name, $livePublic . '/' . $name);
     }
-
-    if (file_exists($livePublic . '/setup.php')) {
-        $move($livePublic . '/setup.php', $previousPublic . '/setup.php');
-    }
 } catch (\Throwable $e) {
     // Undone in reverse, so the site is back as it was. The database stays
     // migrated, which the code that was running tolerates by construction.
@@ -283,7 +280,7 @@ say('Next: flush the cache in Site Tools → Speed → Caching, then sign in and
 say();
 say('To go back to the previous version (the database stays migrated):');
 say("  mv {$a}/var {$p}/var && mv {$a} {$a}.failed && mv {$p} {$a}");
-say("  rm -rf {$pub}/assets && cp -a {$a}/public_html-replaced/. {$pub}/ && rm {$pub}/setup.php 2>/dev/null");
+say("  rm -rf {$pub}/assets && cp -a {$a}/public_html-replaced/. {$pub}/");
 say();
 say("Once the new version has been seen working: rm -rf {$p}");
 
