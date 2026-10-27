@@ -245,6 +245,10 @@ cp "$ROOT/deploy/siteground/env.production.example" "$APP/.env.example"
 cp "$ROOT/deploy/siteground/docroot-index.php" "$DOCROOT/index.php"
 cp "$ROOT/deploy/siteground/setup.php" "$DOCROOT/setup.php"
 
+# What this code is, where setup.php can read it: the version page shows it
+# beside the database's, so an upload that did not land is visible as one.
+printf '%s %s\n' "$VERSION" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" > "$APP/BUILD"
+
 sed -e "s#@@SCRIPT_SRC@@#${SCRIPT_SRC}#" \
     -e "s#@@FRAME_SRC@@#${FRAME_SRC}#" \
     -e "s#@@CONNECT_SRC@@#${CONNECT_SRC}#" \
@@ -275,11 +279,13 @@ Visiting /setup.php does the rest from a browser — writes .env, migrates, and
 seeds the demonstration world (docs/demo-world.html: five products, one
 person per role) — then locks itself: a completion marker refuses to do any
 of that again. Change the platform administrator's password on its success
-page, confirm you can sign in, then delete the file (ADR-038, ADR-039).
+page and confirm you can sign in (ADR-038, ADR-039).
 
-Upgrading a site that is already installed is not setup.php: unpack this
-bundle beside the site and run backprod-app/bin/upgrade.php against it — it
-migrates the database and keeps .env and var/ (DEPLOY.md, section 9).
+Upgrading a site that is already installed never reinstalls: upload the new
+code keeping .env and var/, open /setup.php, compare the code's version with
+the database's, and approve the waiting migrations with a platform
+administrator's password. Forward only. With SSH, backprod-app/bin/upgrade.php
+does the file swap too (DEPLOY.md, section 9).
 INFO
 
 # Checksums, so a half-finished FTP transfer is a failed check rather than a

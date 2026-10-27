@@ -206,6 +206,10 @@ fi
 
 check "setup.php is in the document root" [ -f "$DOCROOT/setup.php" ]
 
+# setup.php shows this beside the database's version, so an upload that did
+# not land reads as the old build rather than as nothing.
+check "the build is stamped for the version page" [ -s "$APP/BUILD" ]
+
 check "the application is outside the document root" \
     bash -c "[ ! -d '$DOCROOT/../public_html/backprod-app' ] && [ -d '$APP' ]"
 
