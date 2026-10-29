@@ -207,6 +207,7 @@ use App\Tax\Domain\TaxRepository;
 use App\Tax\Domain\VatNumberValidator;
 use App\Tax\Infrastructure\PostgresTaxRepository;
 use App\Tax\Infrastructure\StubVatNumberValidator;
+use App\Tax\Infrastructure\UnavailableVatNumberValidator;
 use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\JoinRequests;
 use App\Tenant\Domain\TenantMemberRepository;
@@ -756,10 +757,19 @@ return static function (array $overrides = []): ContainerInterface {
         // Bound separately from the tenant repositories above, and reading
         // separate tables. Neither axis can resolve into the other.
         // Fiscalité (§25.3). The validator is a port like every other
-        // provider: the stub answers deterministically so the fail-closed
-        // path can be exercised, and a real VIES adapter replaces this line.
+        // provider, and **named, or nothing** (2026-10-29): the stub was wired
+        // here unconditionally, so production "verified" any number not
+        // ending in 0 or 9 and reverse-charged on it. `VAT_NUMBER_VALIDATOR=stub`
+        // chooses the stub, for tests and the demonstration; anything else —
+        // unset included — gets the validator that verifies nothing, so every
+        // number answers UNAVAILABLE and no sale is reverse-charged. A real
+        // VIES adapter is a third name here.
         TaxRepository::class => autowire(PostgresTaxRepository::class),
-        VatNumberValidator::class => autowire(StubVatNumberValidator::class),
+        VatNumberValidator::class => factory(
+            static fn (): VatNumberValidator => $env('VAT_NUMBER_VALIDATOR') === StubVatNumberValidator::NAME
+                ? new StubVatNumberValidator()
+                : new UnavailableVatNumberValidator(),
+        ),
 
         StaffRepository::class => autowire(PostgresStaffRepository::class),
         StaffRoster::class => autowire(PostgresStaffRoster::class),

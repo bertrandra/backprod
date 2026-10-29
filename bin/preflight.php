@@ -163,6 +163,14 @@ $capabilities = [
         . 'Mailer DSN (smtp://user:pass@host:port) and MAIL_FROM.',
     ),
     new Capability(
+        'Verifying VAT numbers',
+        configured('VAT_NUMBER_VALIDATOR'),
+        'VAT_NUMBER_VALIDATOR is empty, so no VAT number is ever verified: every one answers '
+        . 'UNAVAILABLE and no sale is reverse-charged on it (fail closed, §25.3). `stub` verifies '
+        . 'any number not ending in 0 or 9 and belongs to a demonstration, never to a host that '
+        . 'invoices real customers; no real VIES adapter exists yet.',
+    ),
+    new Capability(
         'Transmitting e-invoices',
         configured('STUB_EINVOICE_SIGNING_SECRET'),
         'No approved platform is configured, so nothing can be transmitted. Note that the '

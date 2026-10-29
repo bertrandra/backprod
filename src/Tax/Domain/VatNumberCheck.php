@@ -19,12 +19,18 @@ final class VatNumberCheck
 
     /**
      * @param array<string, mixed> $evidence what the provider said, kept as proof
+     * @param string|null          $source   the name of the adapter that answered —
+     *                                       `stub`, `none`, a real service's —
+     *                                       stored beside the verdict, so evidence
+     *                                       from a stub can never pass for evidence
+     *                                       from VIES (2026-10-29)
      */
     public function __construct(
         public readonly string $outcome,
         public readonly ?string $registeredName,
         public readonly ?string $registeredAddress,
         public readonly array $evidence,
+        public readonly ?string $source = null,
     ) {
     }
 

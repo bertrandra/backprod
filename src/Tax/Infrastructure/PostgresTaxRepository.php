@@ -156,7 +156,10 @@ final class PostgresTaxRepository implements TaxRepository
                 'id' => $identificationId,
                 'status' => $status,
                 'dated' => $dated ? 'true' : 'false',
-                'source' => $check->outcome === VatNumberCheck::UNAVAILABLE ? null : 'VIES',
+                // Whoever actually answered (2026-10-29). This wrote `VIES`
+                // whatever had answered, so a stub's verdict was stored as
+                // the audit evidence of a real one.
+                'source' => $check->outcome === VatNumberCheck::UNAVAILABLE ? null : $check->source,
                 'result' => json_encode([
                     'outcome' => $check->outcome,
                     'registered_name' => $check->registeredName,

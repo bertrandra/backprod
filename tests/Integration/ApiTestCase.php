@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration;
 
+use App\Tax\Domain\VatNumberValidator;
+use App\Tax\Infrastructure\StubVatNumberValidator;
 use App\Tests\Support\ContractResponses;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Stream;
@@ -211,7 +213,12 @@ abstract class ApiTestCase extends TestCase
             throw new RuntimeException('config/container.php must return a callable.');
         }
 
-        $container = $factory($this->overrides);
+        // The stub verifier, unless the test says otherwise (2026-10-29).
+        // Production gets the one that verifies nothing unless a deployment
+        // names one; the fiscal tests need numbers that verify, and the stub's
+        // mechanical rules — ending in 0 unreachable, in 9 invalid — are what
+        // they are written against.
+        $container = $factory($this->overrides + [VatNumberValidator::class => new StubVatNumberValidator()]);
 
         if (!$container instanceof ContainerInterface) {
             throw new RuntimeException('Container factory must return a PSR-11 container.');
