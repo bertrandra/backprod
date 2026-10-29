@@ -3902,7 +3902,7 @@ export interface paths {
         put?: never;
         /**
          * Empty every business table and seed the demonstration world afresh
-         * @description The widest destructive act on this platform. Behind `staff.demo.reset`, which PLATFORM_ADMIN alone holds; refused with `NOT_A_DEMO_DEPLOYMENT` while a product that is not the demonstration's exists, whatever the caller says — those are somebody's real products with legal documents under them. Reference data (permissions, roles, VAT rates) is untouched. Everybody is signed out by it, the caller included: their token names a `users` row that no longer exists. The answer says who to sign in as. No body.
+         * @description The widest destructive act on this platform. Behind `staff.demo.reset`, which PLATFORM_ADMIN alone holds; refused with `NOT_A_DEMO_DEPLOYMENT` while a product that is not the demonstration's exists, and with `DEMO_RESET_WOULD_DESTROY_DOCUMENTS` while an organisation that is not the demonstration's is named by an issued invoice, a credit note, a VAT fact or a closed VAT period — whatever the caller says, because those are legal documents somebody must keep. The wipe and the rebuild are one transaction: a rebuild that fails leaves the previous world in place. Reference data (permissions, roles, VAT rates) is untouched. Everybody is signed out by it, the caller included: their token names a `users` row that no longer exists. The answer says who to sign in as, and which accounts got the public password — every one but the caller's own, which keeps the password it had. No body.
          */
         post: operations["resetDemoWorld"];
         delete?: never;
@@ -6137,8 +6137,10 @@ export interface components {
                 /** @description Slugs of the organisations a tenant-role holder is a member of; empty for platform staff. */
                 tenants: string[];
             }[];
-            /** @description The one password every seeded person signs in with. */
+            /** @description The password every seeded person signs in with, except those `with_public_password` leaves out. */
             password: string;
+            /** @description The accounts that now sign in with `password`, which is in this platform's source. Everybody the world made, except the administrator who asked for the reset when their address is one the world makes again: they keep the password they had. */
+            with_public_password: string[];
             /** @description The legal numbers of the invoices the seeded subscriptions raised. */
             invoices: string[];
         };
@@ -15711,7 +15713,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description `NOT_A_DEMO_DEPLOYMENT` — the platform hosts products that are not the demonstration's; `details.products` names them. */
+            /** @description `NOT_A_DEMO_DEPLOYMENT` — the platform hosts products that are not the demonstration's; `details.products` names them. `DEMO_RESET_WOULD_DESTROY_DOCUMENTS` — organisations that are not the demonstration's hold legal documents; `details.tenants` names their slugs. */
             409: {
                 headers: {
                     [name: string]: unknown;

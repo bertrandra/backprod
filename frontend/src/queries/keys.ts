@@ -137,6 +137,8 @@ export const keys = {
     schedule: ['subscription', 'schedule'] as const,
     scheduleFor: (seat: boolean) => ['subscription', 'schedule', seat ? 'seat' : 'tenant'] as const,
     entitlements: ['subscription', 'entitlements'] as const,
+    // The prefix, for a change that does not know which of the two it touched.
+    peopleAll: ['subscription', 'people'] as const,
     people: (seat: boolean) => ['subscription', 'people', seat ? 'seat' : 'tenant'] as const,
     // What changing to one offer would cost (spec §7). Keyed on the offer,
     // because a catalogue asks the question once per row — and the prefix is

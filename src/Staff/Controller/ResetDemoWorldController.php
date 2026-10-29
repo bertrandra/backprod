@@ -22,7 +22,8 @@ use RuntimeException;
  * `staff.demo.reset` is a permission of its own, held by PLATFORM_ADMIN
  * alone, rather than a side of `staff.products.manage` — creating a product
  * and destroying every one are not the same trust. The seeder refuses while
- * a product that is not the demonstration's exists, whatever the caller
+ * a product that is not the demonstration's exists, or while an organisation
+ * that is not the demonstration's holds a legal document, whatever the caller
  * says. And the answer names who to sign in as, because the caller has just
  * deleted themselves: their token names a `users` row that is gone, and the
  * next request they make is refused. The page knows to sign them out.
@@ -38,9 +39,13 @@ final class ResetDemoWorldController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        StaffRoute::permitted($request, StaffPermission::DEMO_RESET);
+        $staff = StaffRoute::permitted($request, StaffPermission::DEMO_RESET);
 
-        $world = $this->seeder->reset();
+        // The caller keeps their own password (2026-10-29): the reset puts
+        // the public one on everybody else, and handing it to the platform
+        // administrator who pressed the button would undo the one change the
+        // installer told them to make.
+        $world = $this->seeder->reset($staff->userId());
 
         if (!$world->holds()) {
             // The seeder verifies what it made. A world that does not hold is
@@ -87,6 +92,9 @@ final class ResetDemoWorldController implements RouteHandler
             // Not a secret: it is in this platform's source, and the whole
             // point of the answer is that somebody can sign back in.
             'password' => DemoWorld::PASSWORD,
+            // Who it applies to, said rather than implied: everybody but the
+            // caller, when the caller is somebody the world makes again.
+            'with_public_password' => $world->withPublicPassword(),
             'invoices' => array_values(array_filter(
                 array_map(static fn ($invoice): ?string => $invoice->number, $world->invoices),
                 is_string(...),

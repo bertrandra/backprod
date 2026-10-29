@@ -20,6 +20,43 @@ interface DemoFixtures
      */
     public function foreignProducts(): array;
 
+    /**
+     * Organisations that are not the demonstration's and that a legal
+     * document names — an issued invoice, a credit note, a VAT fact or a
+     * closed reporting period, as customer or as issuer. A reset must not
+     * wipe them: a product code is the demonstration's by name only, and
+     * somebody who bought on it has documents the law requires be kept.
+     *
+     * @return list<string> their slugs
+     */
+    public function foreignDocuments(): array;
+
+    /**
+     * A person's stored credential, read before a reset so the caller's own
+     * password survives it — or null when they have none.
+     *
+     * @return array{email: string, hash: string}|null
+     */
+    public function credentialOf(string $userId): ?array;
+
+    /**
+     * Puts a stored hash back on the credential with that address, if the
+     * rebuilt world has one. Returns the address as stored, or null when
+     * nobody in the world has it.
+     */
+    public function restoreCredential(string $email, string $passwordHash): ?string;
+
+    /**
+     * Runs the work in one database transaction: all of it, or none.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    public function atomically(callable $work): mixed;
+
     /** Whether any of the demonstration's product codes already exists. */
     public function isSeeded(): bool;
 

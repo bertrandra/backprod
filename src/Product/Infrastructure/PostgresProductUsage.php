@@ -9,7 +9,6 @@ use App\Product\Domain\ProductUsageLedger;
 use App\Shared\Database\Uuid;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 /**
  * The ledger of what products reported (ADR-051 §4), and the meter's view
@@ -31,30 +30,70 @@ final class PostgresProductUsage implements ProductUsageLedger, ReportedUsage
         ?DateTimeImmutable $periodStart,
         ?DateTimeImmutable $periodEnd,
     ): bool {
-        try {
+        // ON CONFLICT rather than catching the violation: this runs inside
+        // `exclusively()`'s transaction, and a statement that fails aborts
+        // the transaction it is in.
+        $written = $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO product_usage (tenant_id, product_id, credential_id, feature, quantity, period_start, period_end, idempotency_key)
+                VALUES (:tenant, :product, :credential, :feature, :quantity, :periodStart, :periodEnd, :key)
+                ON CONFLICT ON CONSTRAINT product_usage_once DO NOTHING
+                SQL,
+            [
+                'tenant' => $tenantId,
+                'product' => $productId,
+                'credential' => $credentialId,
+                'feature' => $feature,
+                'quantity' => $quantity,
+                'periodStart' => $periodStart?->format('Y-m-d'),
+                'periodEnd' => $periodEnd?->format('Y-m-d'),
+                'key' => $idempotencyKey,
+            ],
+        );
+
+        // Nothing written: the same fact, again — a retry after a timeout.
+        // The first row stands and this one is not a second count.
+        return $written > 0;
+    }
+
+    /**
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    public function exclusively(string $tenantId, string $productId, string $feature, callable $work): mixed
+    {
+        return $this->connection->transactional(function () use ($tenantId, $productId, $feature, $work) {
+            // Per (tenant, product, feature), released with the transaction.
+            // Two reports with different keys used to both read the level
+            // below the limit and both write, crossing it together.
             $this->connection->executeStatement(
-                <<<'SQL'
-                    INSERT INTO product_usage (tenant_id, product_id, credential_id, feature, quantity, period_start, period_end, idempotency_key)
-                    VALUES (:tenant, :product, :credential, :feature, :quantity, :periodStart, :periodEnd, :key)
-                    SQL,
-                [
-                    'tenant' => $tenantId,
-                    'product' => $productId,
-                    'credential' => $credentialId,
-                    'feature' => $feature,
-                    'quantity' => $quantity,
-                    'periodStart' => $periodStart?->format('Y-m-d'),
-                    'periodEnd' => $periodEnd?->format('Y-m-d'),
-                    'key' => $idempotencyKey,
-                ],
+                "SELECT pg_advisory_xact_lock(hashtext('product_usage:' || CAST(:tenant AS text) || ':' || CAST(:product AS text) || ':' || CAST(:feature AS text)))",
+                ['tenant' => $tenantId, 'product' => $productId, 'feature' => $feature],
             );
-        } catch (UniqueConstraintViolationException) {
-            // The same fact, again: a retry after a timeout. The first row
-            // stands and this one is not a second count.
+
+            return $work();
+        });
+    }
+
+    public function isRecorded(string $tenantId, string $productId, string $feature, string $idempotencyKey): bool
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return false;
         }
 
-        return true;
+        return (bool) $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT EXISTS (
+                    SELECT 1 FROM product_usage
+                     WHERE tenant_id = :tenant AND product_id = :product
+                       AND feature = :feature AND idempotency_key = :key
+                )
+                SQL,
+            ['tenant' => $tenantId, 'product' => $productId, 'feature' => $feature, 'key' => $idempotencyKey],
+        );
     }
 
     public function measures(string $featureCode): bool

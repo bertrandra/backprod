@@ -125,37 +125,61 @@ final class ProductGate
             }
         }
 
-        if ($entitlement === null) {
-            throw ForbiddenException::quotaExceeded($feature, 0, 0);
-        }
-
-        $used = $this->meter->usage($feature, $tenantId, $productId) ?? 0;
-
-        if (!$entitlement->isUnlimited()) {
-            $limit = $entitlement->limit ?? 0;
-
-            if ($quantity > 0 && $used + $quantity > $limit) {
-                throw ForbiddenException::quotaExceeded($feature, $limit, $used);
-            }
-        }
-
-        $recorded = $this->ledger->record(
+        // One transaction, under one lock per (tenant, product, feature):
+        // the level read here is the level the insert lands on. Without it,
+        // two reports with different keys both read room for one more and
+        // both wrote, and the quota was crossed by the gate that guards it.
+        $recorded = $this->ledger->exclusively($tenantId, $productId, $feature, function () use (
+            $key,
             $tenantId,
             $productId,
-            $key->id,
+            $entitlement,
             $feature,
             $quantity,
             $idempotencyKey,
             $periodStart,
             $periodEnd,
-        );
+        ): bool {
+            // A retry first, before the quota is asked anything. The fact
+            // was counted when it was first reported; asking again whether it
+            // fits counted it twice, and refused `QUOTA_EXCEEDED` the very
+            // report that filled the quota.
+            if ($this->ledger->isRecorded($tenantId, $productId, $feature, $idempotencyKey)) {
+                return false;
+            }
+
+            if ($entitlement === null) {
+                throw ForbiddenException::quotaExceeded($feature, 0, 0);
+            }
+
+            $used = $this->meter->usage($feature, $tenantId, $productId) ?? 0;
+
+            if (!$entitlement->isUnlimited()) {
+                $limit = $entitlement->limit ?? 0;
+
+                if ($quantity > 0 && $used + $quantity > $limit) {
+                    throw ForbiddenException::quotaExceeded($feature, $limit, $used);
+                }
+            }
+
+            return $this->ledger->record(
+                $tenantId,
+                $productId,
+                $key->id,
+                $feature,
+                $quantity,
+                $idempotencyKey,
+                $periodStart,
+                $periodEnd,
+            );
+        });
 
         return [
             'recorded' => $recorded,
             'feature' => $feature,
             'used' => $this->meter->usage($feature, $tenantId, $productId),
-            'limit' => $entitlement->isUnlimited() ? null : $entitlement->limit,
-            'unlimited' => $entitlement->isUnlimited(),
+            'limit' => $entitlement === null ? 0 : ($entitlement->isUnlimited() ? null : $entitlement->limit),
+            'unlimited' => $entitlement !== null && $entitlement->isUnlimited(),
         ];
     }
 }

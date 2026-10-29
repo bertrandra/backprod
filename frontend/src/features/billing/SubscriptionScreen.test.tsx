@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { recordingClient, renderAtRoute, renderWith, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
@@ -850,6 +850,43 @@ describe('the people a subscription covers (2026-09-19)', () => {
     expect(screen.getByLabelText('A member of the organisation')).toBeTruthy();
     // By address, never: an invited address is never an administrator.
     expect(screen.queryByTestId('invite-person')).toBeNull();
+  });
+
+  it('shows nothing when there is no live subscription to manage — the one absence', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor({
+        'GET /api/v1/subscription/people': {
+          status: 404,
+          error: { error: { code: 'NO_SUBSCRIPTION', message: 'No live subscription.', details: {}, request_id: 'r' } },
+        },
+      }),
+    );
+    renderWith(<SubscriptionScreen />, client);
+
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/v1/subscription/people')).toBe(true));
+    // Let the answer arrive and the screen settle on it.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.queryByTestId('subscription-people')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('says so when the list fails, rather than vanishing as though nobody were covered', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(
+        stubsFor({
+          'GET /api/v1/subscription/people': {
+            status: 500,
+            error: { error: { code: 'INTERNAL_ERROR', message: 'Something went wrong.', details: {}, request_id: 'r' } },
+          },
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy());
+    expect(screen.queryByTestId('subscription-people')).toBeNull();
   });
 });
 

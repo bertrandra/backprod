@@ -173,6 +173,85 @@ final class MessagingTest extends DatabaseApiTestCase
         self::assertSame('MEMBER_NOT_FOUND', $this->errorOf($response)['code'] ?? null);
     }
 
+    public function testSomebodyStillWaitingToJoinTheTenantCannotBeAddedToAThread(): void
+    {
+        $pat = $this->user('sub-pat', 'pat@acme.test');
+        $this->connection->executeStatement(
+            "INSERT INTO tenant_members (tenant_id, user_id, product_id, status) VALUES (:tenant, :user, :product, 'PENDING')",
+            ['tenant' => $this->tenantA, 'user' => $pat, 'product' => $this->productA],
+        );
+        $conversation = $this->startThread('mia-token', 'Roof survey');
+
+        $response = $this->post(
+            '/api/v1/conversations/' . $conversation . '/participants',
+            ['user_id' => $pat],
+            'mia-token',
+        );
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertSame('MEMBER_NOT_FOUND', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM conversation_participants'));
+    }
+
+    /**
+     * Removed from a thread is out of it. The row stays — the messages keep
+     * their author — but every door answers as it would to somebody never
+     * in it: not found.
+     */
+    public function testSomebodyRemovedFromAThreadCanNoLongerReachIt(): void
+    {
+        $conversation = $this->startThread('mia-token', 'Roof survey', ConversationKind::INTERNAL, [$this->max]);
+        $this->post('/api/v1/conversations/' . $conversation . '/messages', ['body' => 'Before'], 'max-token');
+
+        $removed = $this->request(
+            'DELETE',
+            '/api/v1/conversations/' . $conversation . '/participants/' . $this->max,
+            $this->headers('mia-token'),
+        );
+        self::assertSame(204, $removed->getStatusCode());
+
+        $path = '/api/v1/conversations/' . $conversation;
+        $refusals = [
+            $this->get($path, 'max-token'),
+            $this->get($path . '/messages', 'max-token'),
+            $this->post($path . '/messages', ['body' => 'After'], 'max-token'),
+            $this->post($path . '/read', ['seq' => 1], 'max-token'),
+            $this->post($path . '/participants', ['user_id' => $this->max], 'max-token'),
+            $this->request('DELETE', $path . '/participants/' . $this->mia, $this->headers('max-token')),
+            $this->post($path . '/close', [], 'max-token'),
+        ];
+
+        foreach ($refusals as $response) {
+            self::assertSame(404, $response->getStatusCode());
+            self::assertSame('CONVERSATION_NOT_FOUND', $this->errorOf($response)['code'] ?? null);
+        }
+
+        $list = $this->decode($this->get('/api/v1/conversations', 'max-token'));
+        self::assertSame([], $list['conversations'] ?? null);
+        self::assertSame(0, $list['total'] ?? null);
+
+        // Nothing was written by any of it, and Mia's thread is untouched.
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM messages'));
+        self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM conversations WHERE status = 'OPEN'"));
+        self::assertSame(2, $this->rowsMatching('SELECT count(*) FROM conversation_participants'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM conversation_participants WHERE left_at IS NULL'));
+
+        // Removing them twice finds nobody to remove.
+        $again = $this->request(
+            'DELETE',
+            $path . '/participants/' . $this->max,
+            $this->headers('mia-token'),
+        );
+        self::assertSame(404, $again->getStatusCode());
+        self::assertSame('PARTICIPANT_NOT_FOUND', $this->errorOf($again)['code'] ?? null);
+
+        // Added back, they are back in.
+        $readded = $this->post($path . '/participants', ['user_id' => $this->max], 'mia-token');
+        self::assertLessThan(300, $readded->getStatusCode());
+        self::assertSame(200, $this->get($path, 'max-token')->getStatusCode());
+        self::assertSame(1, $this->decode($this->get('/api/v1/conversations', 'max-token'))['total'] ?? null);
+    }
+
     public function testStaffCannotJoinAnInternalThread(): void
     {
         $conversation = $this->startThread('mia-token', 'Internal only');

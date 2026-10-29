@@ -115,6 +115,73 @@ final class PostgresDemoFixtures implements DemoFixtures
         return array_values(array_filter($codes, is_string(...)));
     }
 
+    public function foreignDocuments(): array
+    {
+        // Issued invoices only: a draft has no number and is no document
+        // yet. Everything else here exists only once it is legal — a credit
+        // note, a VAT fact, a closed period. The platform's own series
+        // (issuer NULL) is judged by its customer, which is a tenant.
+        $slugs = $this->connection->fetchFirstColumn(
+            <<<'SQL'
+                SELECT t.slug
+                  FROM tenants t
+                 WHERE NOT (t.slug = ANY(CAST(:slugs AS text[])))
+                   AND (
+                        EXISTS (SELECT 1 FROM invoices i
+                                 WHERE i.number IS NOT NULL
+                                   AND (i.tenant_id = t.id OR i.issuer_tenant_id = t.id))
+                     OR EXISTS (SELECT 1 FROM credit_notes c
+                                 WHERE c.tenant_id = t.id OR c.issuer_tenant_id = t.id)
+                     OR EXISTS (SELECT 1 FROM vat_transactions v
+                                 WHERE v.tenant_id = t.id OR v.issuer_tenant_id = t.id)
+                     OR EXISTS (SELECT 1 FROM vat_reporting_periods p
+                                 WHERE p.issuer_tenant_id = t.id AND p.status = 'CLOSED')
+                   )
+                 ORDER BY t.slug
+                SQL,
+            ['slugs' => self::textArray(array_keys(DemoWorld::TENANTS))],
+        );
+
+        return array_values(array_filter($slugs, is_string(...)));
+    }
+
+    public function credentialOf(string $userId): ?array
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT email, password_hash FROM local_credentials WHERE user_id = :id',
+            ['id' => $userId],
+        );
+
+        $email = $row === false ? null : ($row['email'] ?? null);
+        $hash = $row === false ? null : ($row['password_hash'] ?? null);
+
+        if (!is_string($email) || !is_string($hash)) {
+            return null;
+        }
+
+        return ['email' => $email, 'hash' => $hash];
+    }
+
+    public function restoreCredential(string $email, string $passwordHash): ?string
+    {
+        $stored = $this->connection->fetchOne(
+            <<<'SQL'
+                UPDATE local_credentials
+                   SET password_hash = :hash, updated_at = now()
+                 WHERE lower(email) = lower(:email)
+                RETURNING email
+                SQL,
+            ['email' => $email, 'hash' => $passwordHash],
+        );
+
+        return is_string($stored) ? $stored : null;
+    }
+
+    public function atomically(callable $work): mixed
+    {
+        return $this->connection->transactional(static fn () => $work());
+    }
+
     public function isSeeded(): bool
     {
         return 0 < $this->count(
@@ -431,6 +498,10 @@ final class PostgresDemoFixtures implements DemoFixtures
             // Somebody is actually on it, and the row says what it is. Without
             // this the catalogue would advertise a plan nobody in the world
             // has ever taken, which demonstrates the card and not the path.
+            //
+            // `clock_timestamp()` and not `now()`: a reset seeds inside one
+            // transaction (2026-10-29), where `now()` is the moment it began,
+            // while the period was dated by the clock a few seconds later.
             'somebody is trying it, and their five days are running' => count(DemoWorld::FREEMIUM) === $this->count(
                 <<<'SQL'
                 SELECT count(*) FROM subscriptions
@@ -438,8 +509,8 @@ final class PostgresDemoFixtures implements DemoFixtures
                   AND status = 'ACTIVE'
                   AND renewal = 'ENDS_AT_TERM'
                   AND term_months IS NULL
-                  AND current_period_end > now() + CAST(:short AS interval)
-                  AND current_period_end <= now() + CAST(:exact AS interval)
+                  AND current_period_end > clock_timestamp() + CAST(:short AS interval)
+                  AND current_period_end <= clock_timestamp() + CAST(:exact AS interval)
                 SQL,
                 [
                     'short' => sprintf('%d days', DemoWorld::FREEMIUM_DAYS - 1),
