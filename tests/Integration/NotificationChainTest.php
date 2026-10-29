@@ -448,7 +448,7 @@ final class NotificationChainTest extends DatabaseApiTestCase
         self::assertSame(0, $this->unreadCount());
 
         $read = $this->decode($this->request('POST', '/api/v1/notifications/read-all', $this->headers()));
-        self::assertSame(0, $read['marked_read'] ?? null);
+        self::assertSame(0, $read['marked'] ?? null);
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM notifications WHERE read_at IS NOT NULL'));
     }
 
