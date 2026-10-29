@@ -164,11 +164,14 @@ $capabilities = [
     ),
     new Capability(
         'Verifying VAT numbers',
-        configured('VAT_NUMBER_VALIDATOR'),
-        'VAT_NUMBER_VALIDATOR is empty, so no VAT number is ever verified: every one answers '
-        . 'UNAVAILABLE and no sale is reverse-charged on it (fail closed, §25.3). `stub` verifies '
-        . 'any number not ending in 0 or 9 and belongs to a demonstration, never to a host that '
-        . 'invoices real customers; no real VIES adapter exists yet.',
+        // Only a name the container knows: anything else is wired as no
+        // service at all, and saying "configured" for a typo would hide it.
+        in_array(env('VAT_NUMBER_VALIDATOR'), ['vies', 'stub'], true),
+        'VAT_NUMBER_VALIDATOR names no verification service, so no VAT number is ever verified: '
+        . 'every one answers UNAVAILABLE and no sale is reverse-charged on it (fail closed, §25.3). '
+        . 'Set it to `vies` to ask the European Commission\'s VIES service (outbound HTTPS to '
+        . 'ec.europa.eu). `stub` verifies any number not ending in 0 or 9 and belongs to a '
+        . 'demonstration, never to a host that invoices real customers.',
     ),
     new Capability(
         'Transmitting e-invoices',

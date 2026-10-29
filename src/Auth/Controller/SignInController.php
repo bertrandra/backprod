@@ -6,6 +6,7 @@ namespace App\Auth\Controller;
 
 use App\Auth\Service\Sessions;
 use App\Product\Service\ProductResolver;
+use App\Shared\Context\ClientAddress;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -26,10 +27,14 @@ final class SignInController implements RouteHandler
      * @param string $cookieDomain where the refresh cookie belongs — empty is
      *                             host-only, which is the default
      *                             ({@see RefreshCookie::domainFrom()})
+     * @param list<string> $trustedProxies the proxies whose `X-Forwarded-For`
+     *                                     is believed — the rate limiter's
+     *                                     list, so both count the same client
      */
     public function __construct(
         private readonly Sessions $sessions,
         private readonly string $cookieDomain = '',
+        private readonly array $trustedProxies = [],
     ) {
     }
 
@@ -45,6 +50,9 @@ final class SignInController implements RouteHandler
         $session = $this->sessions->signIn(
             $body->requiredString('email'),
             $body->requiredSecret('password'),
+            // Who is asking, so a stranger's failures lock out the stranger
+            // and not the owner of the address (2026-10-29).
+            ClientAddress::of($request, $this->trustedProxies),
             $request->getHeaderLine(ProductResolver::HEADER),
         );
 

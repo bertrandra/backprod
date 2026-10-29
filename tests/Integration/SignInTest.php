@@ -16,11 +16,15 @@ use App\Auth\Service\Sessions;
 use App\Privacy\Domain\ErasureRepository;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Tests\Support\TestDatabase;
+use App\Throttle\Domain\RateLimiter;
 use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Uri;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+
+use function DI\autowire;
+use function DI\get;
 
 /**
  * Signing in, against the real database and the real pipeline (U12).
@@ -89,12 +93,16 @@ final class SignInTest extends DatabaseApiTestCase
         );
     }
 
-    private function signIn(string $email = 'ada@acme.test', string $password = self::PASSWORD): ResponseInterface
+    /**
+     * @param string|null $from the client's address; this test's own when null
+     */
+    private function signIn(string $email = 'ada@acme.test', string $password = self::PASSWORD, ?string $from = null): ResponseInterface
     {
         return $this->request(
             'POST',
             '/api/v1/auth/token',
             body: json_encode(['email' => $email, 'password' => $password], JSON_THROW_ON_ERROR),
+            serverParams: $from === null ? [] : ['REMOTE_ADDR' => $from],
         );
     }
 
@@ -283,10 +291,10 @@ final class SignInTest extends DatabaseApiTestCase
     }
 
     /**
-     * One address may be tried so many times in a window, whoever is trying
-     * and from wherever (2026-10-26): the per-IP bucket alone let guessing at
-     * one account from many addresses through. Past the bound even the right
-     * password is refused — the answer must not depend on whether it was.
+     * One address may be tried so many times in a window from one client
+     * (2026-10-26, per client since 2026-10-29). Past the bound even the
+     * right password is refused from that client — the answer must not
+     * depend on whether it was.
      */
     public function testOneAddressIsTriedOnlySoManyTimesInAWindow(): void
     {
@@ -320,6 +328,55 @@ final class SignInTest extends DatabaseApiTestCase
         }
 
         self::assertSame(429, $this->signIn()->getStatusCode());
+    }
+
+    /**
+     * A stranger's failures lock out the stranger (2026-10-29). Counted per
+     * address alone, twenty wrong passwords from anybody kept the owner out
+     * of their own account for fifteen minutes.
+     */
+    public function testAStrangersFailuresDoNotLockTheOwnerOut(): void
+    {
+        for ($i = 0; $i < Sessions::SIGN_IN_LIMIT; ++$i) {
+            self::assertSame(401, $this->signIn('ada@acme.test', 'wrong password', '203.0.113.7')->getStatusCode());
+        }
+
+        // The stranger is refused, with the refusal the bound has always given…
+        $stranger = $this->signIn(from: '203.0.113.7');
+
+        self::assertSame(429, $stranger->getStatusCode());
+        self::assertSame('RATE_LIMITED', $this->errorOf($stranger)['code'] ?? null);
+
+        // …and the owner, from where they are, signs in.
+        self::assertSame(200, $this->signIn(from: '198.51.100.20')->getStatusCode());
+    }
+
+    /**
+     * Guessing spread over many clients, each under the per-client bound,
+     * still meets the address's ceiling. Lowered here, because two hundred
+     * hashes at the platform's cost would make this the slowest test in the
+     * suite; production keeps {@see Sessions::SIGN_IN_CEILING}.
+     */
+    public function testGuessingFromManyClientsMeetsTheAddressCeiling(): void
+    {
+        $this->override([
+            Sessions::class => autowire(Sessions::class)
+                ->constructorParameter('rotation', get(RefreshRotation::class))
+                ->constructorParameter('attempts', get(RateLimiter::class))
+                ->constructorParameter('signInCeiling', 3),
+        ]);
+
+        foreach (['192.0.2.1', '192.0.2.2', '192.0.2.3'] as $client) {
+            self::assertSame(401, $this->signIn('ada@acme.test', 'wrong password', $client)->getStatusCode());
+        }
+
+        $refused = $this->signIn(from: '192.0.2.4');
+
+        self::assertSame(429, $refused->getStatusCode());
+        self::assertSame('RATE_LIMITED', $this->errorOf($refused)['code'] ?? null);
+
+        // The ceiling is the address's, not the client's.
+        self::assertSame(401, $this->signIn('nobody@acme.test', 'wrong password', '192.0.2.4')->getStatusCode());
     }
 
     /**

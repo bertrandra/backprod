@@ -8,6 +8,7 @@ use App\Tax\Domain\VatNumberCheck;
 use App\Tax\Domain\VatNumberValidator;
 use App\Tax\Infrastructure\StubVatNumberValidator;
 use App\Tax\Infrastructure\UnavailableVatNumberValidator;
+use App\Tax\Infrastructure\ViesVatNumberValidator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -63,6 +64,17 @@ final class VatNumberValidatorWiringTest extends TestCase
         self::assertInstanceOf(StubVatNumberValidator::class, $validator);
         // And it says so in the evidence, never `VIES`.
         self::assertSame(StubVatNumberValidator::NAME, $validator->check('FR12345678901')->source);
+    }
+
+    /**
+     * The real service, by its name. Not asked anything here: this test
+     * never reaches the network ({@see ViesVatNumberValidatorTest}).
+     */
+    public function testVerifyingAgainstViesIsChosenByName(): void
+    {
+        $_ENV['VAT_NUMBER_VALIDATOR'] = 'vies';
+
+        self::assertInstanceOf(ViesVatNumberValidator::class, self::validator());
     }
 
     private static function validator(): VatNumberValidator
