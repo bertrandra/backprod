@@ -268,6 +268,72 @@ final class MemberEndpointsTest extends DatabaseTestCase
         self::assertSame(1, $members->countMembersWithRole($globex, $product, 'TENANT_ADMIN'));
     }
 
+    /**
+     * Somebody waiting — on an administrator, or on their own address — is
+     * not a member yet: not found, so not made an administrator, and never
+     * counted as one, which would let the last real administrator step down
+     * on the strength of a sign-up nobody accepted.
+     */
+    public function testAMembershipStillWaitingIsNeitherFoundNorCounted(): void
+    {
+        $product = $this->seedProduct('atlas');
+        $acme = $this->seedTenant('acme');
+        $admin = $this->seedUser('sub-admin', 'admin@example.test');
+        $waiting = $this->seedUser('sub-waiting', 'waiting@example.test');
+
+        $this->seedMember($acme, $admin, $product, ['TENANT_ADMIN']);
+        $this->seedMember($acme, $waiting, $product, ['TENANT_ADMIN']);
+        $this->setStatus($waiting, 'PENDING');
+
+        $members = new PostgresTenantMemberRepository($this->connection);
+
+        self::assertNull($members->findMember($acme, $product, $waiting));
+        self::assertSame(1, $members->countMembersWithRole($acme, $product, 'TENANT_ADMIN'));
+
+        $this->setStatus($waiting, 'UNCONFIRMED');
+
+        self::assertNull($members->findMember($acme, $product, $waiting));
+        self::assertSame(1, $members->countMembersWithRole($acme, $product, 'TENANT_ADMIN'));
+    }
+
+    /**
+     * An administrator adding somebody who was waiting is the approval, as
+     * an invitation is: the membership turns live, on every product, with the
+     * roles named — not the sign-up's default merged with them.
+     */
+    public function testAddingSomebodyWaitingAdmitsThemWithTheRolesNamed(): void
+    {
+        $atlas = $this->seedProduct('atlas');
+        $beacon = $this->seedProduct('beacon');
+        $acme = $this->seedTenant('acme');
+        TestDatabase::assignProduct($this->connection, $acme, $beacon);
+        $waiting = $this->seedUser('sub-waiting', 'waiting@example.test');
+
+        $this->seedMember($acme, $waiting, $atlas, ['USER']);
+        $this->setStatus($waiting, 'PENDING');
+
+        $members = new PostgresTenantMemberRepository($this->connection);
+        $members->addMember($acme, $atlas, $waiting, ['TENANT_ADMIN']);
+
+        self::assertSame(['TENANT_ADMIN'], $members->findMember($acme, $atlas, $waiting)?->roles);
+        self::assertSame(['TENANT_ADMIN'], $members->findMember($acme, $beacon, $waiting)?->roles);
+        self::assertSame(2, $this->countRoleRowsFor($waiting));
+
+        $live = $this->connection->fetchOne(
+            "SELECT count(*) FROM tenant_members WHERE user_id = :user AND status = 'ACTIVE'",
+            ['user' => $waiting],
+        );
+        self::assertSame(2, is_numeric($live) ? (int) $live : -1);
+    }
+
+    private function setStatus(string $userId, string $status): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE tenant_members SET status = :status WHERE user_id = :user',
+            ['status' => $status, 'user' => $userId],
+        );
+    }
+
     private function countRoleRowsFor(string $userId): int
     {
         $count = $this->connection->fetchOne(
