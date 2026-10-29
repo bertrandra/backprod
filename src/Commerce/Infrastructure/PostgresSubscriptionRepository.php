@@ -99,7 +99,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
      * {@see Subscription::keepsRenewingInArrears()}; a NULL
      * `commitment_ends_at` (no commitment) compares false.
      */
-    private const COMMITTED_ARREARS = "(status = 'PAST_DUE' AND commitment_ends_at > current_period_end)";
+    // `coalesce(…, false)`: with no commitment the comparison is NULL, and the
+    // sweep negates this — `NOT NULL` is NULL, which kept every uncommitted
+    // row in arrears out of the sweep as surely as a committed one.
+    private const COMMITTED_ARREARS = "(status = 'PAST_DUE' AND coalesce(commitment_ends_at > current_period_end, false))";
 
     public function __construct(private readonly Connection $connection)
     {
@@ -108,7 +111,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     /** {@see self::COMMITTED_ARREARS} over a subscriptions table aliased `s`. */
     private static function committedArrears(): string
     {
-        return "(s.status = 'PAST_DUE' AND s.commitment_ends_at > s.current_period_end)";
+        return "(s.status = 'PAST_DUE' AND coalesce(s.commitment_ends_at > s.current_period_end, false))";
     }
 
     public function history(string $tenantId, string $productId): array
