@@ -165,7 +165,7 @@ function DemoWorldReset({ world, onSignOut }: { world: DemoWorld; onSignOut: () 
       <h2 className="text-xl font-semibold">{t("The demonstration world is back")}</h2>
 
       <p className="text-sm text-muted">
-        {tx("{products} — with invoices {invoices}. Your account was among the rows emptied, so sign in again as one of these; every one of them has the password {password}.", {
+        {tx("{products} — with invoices {invoices}. Your account was among the rows emptied, so sign in again as one of these; each has the password {password} unless it says otherwise.", {
           products: world.products.map((product) => product.name).join(', '),
           invoices: world.invoices.map((number) => <code key={number} className="mx-0.5">{number}</code>),
           password: <code>{world.password}</code>,
@@ -179,6 +179,7 @@ function DemoWorldReset({ world, onSignOut }: { world: DemoWorld; onSignOut: () 
             <span className="text-muted">
               {person.role}
               {person.scope === 'tenant' ? ` · ${person.tenants.join(', ')}` : t(" · the console")}
+              {world.with_public_password.includes(person.email) ? null : t(" · kept its own password")}
             </span>
           </li>
         ))}
