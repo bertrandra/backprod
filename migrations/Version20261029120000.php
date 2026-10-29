@@ -28,7 +28,7 @@ use Doctrine\Migrations\AbstractMigration;
  * **Forward only.** Dropping the index would let one invoice be collected
  * twice again.
  */
-final class Version20261029100000 extends AbstractMigration
+final class Version20261029120000 extends AbstractMigration
 {
     public function getDescription(): string
     {

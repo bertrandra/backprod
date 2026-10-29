@@ -32,7 +32,7 @@ use Doctrine\Migrations\AbstractMigration;
  * already written, and the column is the only record of which document a
  * failed refund carried.
  */
-final class Version20261029090000 extends AbstractMigration
+final class Version20261029110000 extends AbstractMigration
 {
     public function getDescription(): string
     {
