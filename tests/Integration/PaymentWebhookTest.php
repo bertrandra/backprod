@@ -12,6 +12,7 @@ use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Database\ConnectionFactory;
 use App\Shared\Database\Row;
 use App\Shared\Exceptions\ConflictException;
 use App\Tax\Service\VatReporting;
@@ -19,7 +20,9 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\RecordingPaymentProvider;
 use App\Tests\Support\TestDatabase;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -892,6 +895,325 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
         self::assertSame($this->tenant, Row::nullableString($reversal, 'issuer_tenant_id'));
     }
 
+    // --- One live attempt per invoice (2026-10-29) ----------------------------
+
+    /**
+     * Every start minted a new attempt beside whatever was still live, so two
+     * tabs could authorize one invoice twice. The live one is abandoned at the
+     * provider first, and only then replaced — refusing outright would leave
+     * an invoice whose page was closed unpayable for ever.
+     */
+    public function testANewAttemptAbandonsTheOneStillLive(): void
+    {
+        $provider = $this->recordingProvider();
+        $first = $this->startedReference();
+
+        self::assertSame(201, $this->startPayment()->getStatusCode());
+
+        // The provider was asked to abandon the first before the second began.
+        self::assertSame(['authorize', 'cancel', 'authorize'], $provider->asked);
+
+        self::assertSame('CANCELLED', $this->statusOfPayment($first));
+        self::assertSame('SUPERSEDED', $this->connection->fetchOne(
+            'SELECT failure_code FROM payments WHERE provider_payment_id = :reference',
+            ['reference' => $first],
+        ));
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM payments WHERE status IN ('PENDING', 'AUTHORIZED')",
+        ));
+
+        // A success for the abandoned attempt is stale, never a second
+        // collection of the same invoice.
+        $late = $this->deliver(['id' => 'evt_old', 'type' => 'payment.succeeded', 'payment_id' => $first]);
+        self::assertSame('IGNORED_STALE', $this->decode($late)['outcome'] ?? null);
+        self::assertSame('ISSUED', $this->statusOfInvoice());
+    }
+
+    public function testAnAttemptTheProviderWillNotAbandonRefusesASecond(): void
+    {
+        $provider = $this->recordingProvider(cancellable: false);
+        $first = $this->startedReference();
+
+        $response = $this->startPayment();
+
+        // Money in flight: a second attempt beside it is one invoice paid twice.
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('PAYMENT_STILL_IN_FLIGHT', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(['authorize', 'cancel'], $provider->asked);
+        self::assertSame('PENDING', $this->statusOfPayment($first));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM payments'));
+    }
+
+    public function testTheDatabaseHoldsOneLiveAttemptPerInvoice(): void
+    {
+        $this->startedReference();
+
+        // Around the service, as two simultaneous starts would race past it.
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO payments (tenant_id, product_id, invoice_id, provider, provider_payment_id,
+                                      status, amount_minor_units, currency)
+                VALUES (:tenant, :product, :invoice, 'stub', 'stub_pi_raced', 'PENDING', 3480, 'EUR')
+                SQL,
+            ['tenant' => $this->tenant, 'product' => $this->product, 'invoice' => $this->invoice],
+        );
+    }
+
+    // --- An invoice with the administration is still payable (2026-10-29) -----
+
+    public function testAPaymentSettlesAnInvoiceThatIsBeingTransmitted(): void
+    {
+        foreach (['READY_FOR_EINVOICE', 'SUBMITTED'] as $status) {
+            TestDatabase::forge(
+                $this->connection,
+                ['invoices'],
+                'UPDATE invoices SET status = :status WHERE id = :id',
+                ['status' => $status, 'id' => $this->invoice],
+            );
+        }
+
+        // Accepted rather than refused as "not issued"...
+        $reference = $this->startedReference();
+
+        // ...and settled when the money arrives, rather than left owed.
+        self::assertSame(200, $this->deliver([
+            'id' => 'evt_ok',
+            'type' => 'payment.succeeded',
+            'payment_id' => $reference,
+        ])->getStatusCode());
+
+        self::assertSame('PAID', $this->statusOfInvoice());
+    }
+
+    // --- A refund the provider fails (2026-10-29) -----------------------------
+
+    /**
+     * Nothing modelled a failed refund: it stayed PENDING for ever, counted
+     * against what could still be refunded, and its credit note stayed
+     * declared on money that never moved.
+     */
+    public function testARefundTheProviderFailsStopsCountingAndLeavesItsDocumentForADecision(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1_160])->getStatusCode());
+
+        $note = $this->newestCreditNote();
+        $refundReference = $this->connection->fetchOne('SELECT provider_refund_id FROM refunds');
+        self::assertIsString($refundReference);
+
+        $response = $this->deliver([
+            'id' => 'evt_refund_failed',
+            'type' => 'refund.failed',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => $refundReference,
+            'failure_code' => 'expired_or_canceled_card',
+        ]);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('FAILED', $this->connection->fetchOne('SELECT status FROM refunds'));
+
+        // The payment never moved for it, and does not now.
+        self::assertSame('SUCCEEDED', $this->statusOfPayment($this->paymentReference()));
+
+        // The credit note is a legal document: it stays, named by the refund,
+        // and the ledger says a person has to decide what answers it.
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+        self::assertSame(Row::string($note, 'id'), $this->connection->fetchOne('SELECT credit_note_id FROM refunds'));
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM financial_events WHERE type = 'REFUND_FAILED'"
+            . " AND detail ->> 'decision_required' = 'true'"
+            . " AND detail ->> 'credit_note_id' = " . $this->connection->quote(Row::string($note, 'id')),
+        ));
+
+        $refunds = $this->decode($this->request(
+            'GET',
+            '/api/v1/billing/payments/' . $this->paymentId(),
+            $this->headers(),
+        ))['refunds'] ?? null;
+        self::assertIsArray($refunds);
+        $shown = $refunds[0] ?? null;
+        self::assertIsArray($shown);
+        self::assertTrue($shown['needs_decision'] ?? null);
+
+        // It no longer bounds what may go back — only the document still
+        // standing does: 30.00 more passes the payment's ceiling and is
+        // refused by the invoice's.
+        $response = $this->refund(['amount_minor_units' => 3_000]);
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('CREDIT_EXCEEDS_INVOICE', $this->errorOf($response)['code'] ?? null);
+    }
+
+    public function testAFailureDeliveredTwiceOrForNoRefundMovesNothing(): void
+    {
+        $this->collect();
+
+        $response = $this->deliver([
+            'id' => 'evt_refund_failed_nowhere',
+            'type' => 'refund.failed',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => 'stub_re_never_asked',
+        ]);
+
+        // Recorded, and said to have done nothing — never "applied".
+        self::assertSame(202, $response->getStatusCode());
+        self::assertSame('IGNORED_NOT_APPLICABLE', $this->decode($response)['outcome'] ?? null);
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT count(*) FROM financial_events WHERE type = 'REFUND_FAILED'",
+        ));
+    }
+
+    /**
+     * `settleRefund` recomputed the payment's status even when no refund row
+     * matched — a delivery arriving before the refund row had committed moved
+     * the payment on a refund this platform had not recorded.
+     */
+    public function testASettlementForNoRecordedRefundMovesNothing(): void
+    {
+        $this->collect();
+
+        $response = $this->deliver([
+            'id' => 'evt_refunded_nowhere',
+            'type' => 'refund.succeeded',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => 'stub_re_never_asked',
+        ]);
+
+        self::assertSame(202, $response->getStatusCode());
+        self::assertSame('IGNORED_NOT_APPLICABLE', $this->decode($response)['outcome'] ?? null);
+        self::assertSame('SUCCEEDED', $this->statusOfPayment($this->paymentReference()));
+    }
+
+    public function testARefundTheProviderRefusesAtOnceWritesNoDocument(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        $this->recordingProvider(refundStatus: 'FAILED');
+
+        $response = $this->refund(['amount_minor_units' => 1_160]);
+
+        self::assertSame(202, $response->getStatusCode());
+        self::assertSame('FAILED', $this->decode($response)['status'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+        self::assertSame(580, $this->rowsMatching('SELECT coalesce(sum(vat_amount), 0) FROM vat_transactions'));
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT count(*) FROM financial_events WHERE type = 'PAYMENT_REFUNDED'",
+        ));
+    }
+
+    public function testARefundTheProviderSettlesAtOnceMovesThePaymentNow(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        $this->recordingProvider(refundStatus: 'SUCCEEDED');
+
+        $response = $this->refund(['amount_minor_units' => 1_160]);
+
+        self::assertSame('SUCCEEDED', $this->decode($response)['status'] ?? null);
+        self::assertSame('PARTIALLY_REFUNDED', $this->statusOfPayment($this->paymentReference()));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+    }
+
+    // --- The refund's ceilings hold until it is written (2026-10-29) ---------
+
+    /**
+     * The ceilings were read with nothing held, the provider was asked, and
+     * the credit note's own check could then refuse after the money had
+     * left. The invoice is locked first now, so a refund that has to wait
+     * waits *before* the provider is asked — proved by holding the lock from
+     * another connection and watching the provider stay unasked.
+     */
+    public function testARefundTakesTheInvoiceBeforeItAsksTheProvider(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        $provider = $this->recordingProvider();
+
+        $dsn = TestDatabase::dsn();
+        self::assertNotNull($dsn);
+        $other = ConnectionFactory::fromDsn($dsn);
+        $other->beginTransaction();
+        $other->fetchOne('SELECT id FROM invoices WHERE id = :id FOR UPDATE', ['id' => $this->invoice]);
+        $this->connection->executeStatement("SET lock_timeout = '300ms'");
+
+        try {
+            self::assertSame(500, $this->refund(['amount_minor_units' => 1_160])->getStatusCode());
+        } finally {
+            $this->connection->executeStatement('RESET lock_timeout');
+            $other->rollBack();
+            $other->close();
+        }
+
+        self::assertSame([], $provider->asked, 'The provider was asked before the invoice was held.');
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM refunds'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+    }
+
+    // --- What an omitted amount means, and two identical refunds -------------
+
+    public function testAnOmittedAmountRefundsWhatIsLeftNotTheWholePayment(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1_000])->getStatusCode());
+
+        $response = $this->refund();
+
+        // "Absent refunds everything still refundable": 34.80 less 10.00.
+        self::assertSame(202, $response->getStatusCode());
+        self::assertSame(['minor_units' => 2_480, 'currency' => 'EUR'], $this->decode($response)['amount'] ?? null);
+        self::assertSame('CREDITED', $this->statusOfInvoice());
+
+        // And with nothing left, there is nothing to refund.
+        $response = $this->refund();
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('PAYMENT_NOT_REFUNDABLE', $this->errorOf($response)['code'] ?? null);
+    }
+
+    public function testTwoIdenticalPartialRefundsAreTwoRefunds(): void
+    {
+        $this->collect();
+
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1_000])->getStatusCode());
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1_000])->getStatusCode());
+
+        self::assertSame(2, $this->rowsMatching('SELECT count(DISTINCT provider_refund_id) FROM refunds'));
+    }
+
+    // --- The slice that closes an invoice is what is left (2026-10-29) --------
+
+    /**
+     * Three refunds of 11.60 on a 29.00 + 5.80 invoice. Each slice rounds
+     * its own base, so three of them recomputed independently credit 29.01
+     * of base and 5.79 of VAT, and the fully-credited invoice left a cent of
+     * VAT declared. The last slice is now what is left.
+     */
+    public function testPartialCreditsThatCloseTheInvoiceLeaveNothingDeclared(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+
+        foreach ([1, 2, 3] as $slice) {
+            self::assertSame(202, $this->refund(['amount_minor_units' => 1_160])->getStatusCode(), 'slice ' . $slice);
+        }
+
+        self::assertSame('CREDITED', $this->statusOfInvoice());
+        self::assertSame(2_900, $this->rowsMatching('SELECT coalesce(sum(net_minor_units), 0) FROM credit_notes'));
+        self::assertSame(580, $this->rowsMatching('SELECT coalesce(sum(vat_minor_units), 0) FROM credit_notes'));
+
+        // The last document is the remainder, and still exact against the
+        // money that moved.
+        $last = $this->newestCreditNote();
+        self::assertSame(966, Row::integer($last, 'net_minor_units'));
+        self::assertSame(194, Row::integer($last, 'vat_minor_units'));
+        self::assertSame(1_160, Row::integer($last, 'gross_minor_units'));
+
+        self::assertSame(0, $this->rowsMatching('SELECT coalesce(sum(vat_amount), 0) FROM vat_transactions'));
+        self::assertSame(0, $this->rowsMatching('SELECT coalesce(sum(taxable_base), 0) FROM vat_transactions'));
+    }
+
     // --- Permissions ---------------------------------------------------------
 
     public function testStartingAPaymentRequiresThePermission(): void
@@ -1148,6 +1470,34 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
             $this->headers(),
             $this->json(['reason' => 'Correcting']),
         );
+    }
+
+    /**
+     * The stub, recording what it is asked, in place of the plain one.
+     */
+    private function recordingProvider(bool $cancellable = true, string $refundStatus = 'PENDING'): RecordingPaymentProvider
+    {
+        $provider = new RecordingPaymentProvider(new StubPaymentProvider(self::SECRET), $cancellable, $refundStatus);
+
+        $this->override([PaymentProviders::class => new PaymentProviders([$provider])]);
+
+        return $provider;
+    }
+
+    private function paymentReference(): string
+    {
+        $reference = $this->connection->fetchOne('SELECT provider_payment_id FROM payments');
+        self::assertIsString($reference);
+
+        return $reference;
+    }
+
+    private function paymentId(): string
+    {
+        $id = $this->connection->fetchOne('SELECT id FROM payments');
+        self::assertIsString($id);
+
+        return $id;
     }
 
     private function sign(string $body): string

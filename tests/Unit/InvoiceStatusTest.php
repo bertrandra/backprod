@@ -35,6 +35,12 @@ final class InvoiceStatusTest extends TestCase
             // Money moved and then had to be given back: a paid invoice is
             // corrected by a credit note, never by cancelling it.
             [InvoiceStatus::PAID, InvoiceStatus::CREDITED],
+            // Transmitting a document does not settle it (2026-10-29): money
+            // collected while it is with the administration still pays it.
+            [InvoiceStatus::READY_FOR_EINVOICE, InvoiceStatus::PAID],
+            [InvoiceStatus::SUBMITTED, InvoiceStatus::PAID],
+            [InvoiceStatus::ACCEPTED, InvoiceStatus::PAID],
+            [InvoiceStatus::REJECTED, InvoiceStatus::PAID],
         ];
     }
 
@@ -81,6 +87,28 @@ final class InvoiceStatusTest extends TestCase
 
         $this->expectException(ConflictException::class);
         InvoiceStatus::assertPermits($from, $to);
+    }
+
+    public function testEveryUnpaidIssuedStateIsPayableAndNothingElse(): void
+    {
+        foreach ([
+            InvoiceStatus::ISSUED,
+            InvoiceStatus::READY_FOR_EINVOICE,
+            InvoiceStatus::SUBMITTED,
+            InvoiceStatus::ACCEPTED,
+            InvoiceStatus::REJECTED,
+        ] as $status) {
+            self::assertTrue(InvoiceStatus::isPayable($status), $status . ' should be payable');
+        }
+
+        foreach ([
+            InvoiceStatus::DRAFT,
+            InvoiceStatus::PAID,
+            InvoiceStatus::CANCELLED,
+            InvoiceStatus::CREDITED,
+        ] as $status) {
+            self::assertFalse(InvoiceStatus::isPayable($status), $status . ' should not be payable');
+        }
     }
 
     public function testAnUnknownStateGrantsNothing(): void

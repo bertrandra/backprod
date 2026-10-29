@@ -45,6 +45,14 @@ final class InvoiceStatus
      * forcing one path would make the platform unusable for the invoices
      * §25.1 does not cover.
      *
+     * **Every unpaid issued state leads to PAID** (2026-10-29). Transmitting
+     * a document to the administration does not settle it, and a customer
+     * pays whenever they pay: a card payment landing while the invoice was
+     * READY_FOR_EINVOICE, SUBMITTED or REJECTED found no move to PAID, the
+     * settlement returned silently, and the invoice stayed owed with the
+     * money collected. A verdict that arrives after the payment finds the
+     * invoice PAID and moves nothing; the transmission keeps its own record.
+     *
      * REJECTED leads back to READY_FOR_EINVOICE because that is what §25.1's
      * remedy is: correct the document and transmit it again. The attempts
      * themselves are kept as separate transmission rows, so the history is
@@ -55,10 +63,10 @@ final class InvoiceStatus
     private const ALLOWED = [
         self::DRAFT => [self::ISSUED, self::CANCELLED],
         self::ISSUED => [self::READY_FOR_EINVOICE, self::PAID, self::CANCELLED, self::CREDITED],
-        self::READY_FOR_EINVOICE => [self::SUBMITTED, self::CANCELLED, self::CREDITED],
-        self::SUBMITTED => [self::ACCEPTED, self::REJECTED],
+        self::READY_FOR_EINVOICE => [self::SUBMITTED, self::PAID, self::CANCELLED, self::CREDITED],
+        self::SUBMITTED => [self::ACCEPTED, self::REJECTED, self::PAID],
         self::ACCEPTED => [self::PAID, self::CANCELLED, self::CREDITED],
-        self::REJECTED => [self::READY_FOR_EINVOICE, self::CANCELLED, self::CREDITED],
+        self::REJECTED => [self::READY_FOR_EINVOICE, self::PAID, self::CANCELLED, self::CREDITED],
         self::PAID => [self::CREDITED],
         self::CANCELLED => [],
         self::CREDITED => [],
@@ -78,6 +86,17 @@ final class InvoiceStatus
     public static function permits(string $from, string $to): bool
     {
         return in_array($to, self::ALLOWED[$from] ?? [], true);
+    }
+
+    /**
+     * Whether a payment can still be collected against an invoice in this
+     * state: every state from which it can become PAID — issued, and not
+     * yet settled, cancelled or credited (2026-10-29). One answer, from the
+     * same table, so `Payments::start` and the settlement cannot disagree.
+     */
+    public static function isPayable(string $status): bool
+    {
+        return self::permits($status, self::PAID);
     }
 
     public static function assertPermits(string $from, string $to): void

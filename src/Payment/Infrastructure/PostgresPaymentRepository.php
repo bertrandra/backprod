@@ -10,13 +10,13 @@ use App\Payment\Domain\PaymentSettlement;
 use App\Payment\Domain\PaymentStatus;
 use App\Payment\Domain\ProviderEvent;
 use App\Payment\Domain\ProviderPayment;
-use App\Payment\Domain\ProviderRefund;
 use App\Payment\Domain\Refund;
 use App\Payment\Domain\WebhookOutcome;
 use App\Shared\Database\DocumentPersonSql;
 use App\Shared\Database\DocumentWindowSql;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Exceptions\ConflictException;
 use App\Shared\Money\Money;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -42,6 +42,11 @@ final class PostgresPaymentRepository implements PaymentRepository
         id, tenant_id, product_id, invoice_id, subscription_id, provider,
         provider_payment_id, status, amount_minor_units, currency, method,
         failure_code, failure_reason, succeeded_at, failed_at, created_at
+        SQL;
+
+    private const REFUND_COLUMNS = <<<'SQL'
+        id, payment_id, provider, provider_refund_id, amount_minor_units,
+        currency, reason, status, settled_at, created_at, credit_note_id
         SQL;
 
     /**
@@ -208,9 +213,7 @@ final class PostgresPaymentRepository implements PaymentRepository
         }
 
         $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT id, payment_id, provider, provider_refund_id, amount_minor_units,
-                       currency, reason, status, settled_at, created_at
+            'SELECT ' . self::REFUND_COLUMNS . <<<'SQL'
                   FROM refunds
                  WHERE payment_id = :payment
                  ORDER BY created_at, id
@@ -222,6 +225,34 @@ final class PostgresPaymentRepository implements PaymentRepository
     }
 
     public function start(
+        string $tenantId,
+        string $productId,
+        string $invoiceId,
+        ?string $subscriptionId,
+        string $provider,
+        ProviderPayment $started,
+        Money $amount,
+        ?string $actorUserId,
+    ): Payment {
+        try {
+            return $this->startOnce($tenantId, $productId, $invoiceId, $subscriptionId, $provider, $started, $amount, $actorUserId);
+        } catch (UniqueConstraintViolationException $violation) {
+            // Two attempts started at once on one invoice (2026-10-29): the
+            // index lets one live attempt exist and refuses the second,
+            // rather than a check both would pass.
+            if (!str_contains($violation->getMessage(), 'payments_one_live_attempt_per_invoice')) {
+                throw $violation;
+            }
+
+            throw new ConflictException(
+                'PAYMENT_STILL_IN_FLIGHT',
+                'Another payment of this invoice has just been started. Wait for it to settle or fail.',
+                ['invoice_id' => $invoiceId],
+            );
+        }
+    }
+
+    private function startOnce(
         string $tenantId,
         string $productId,
         string $invoiceId,
@@ -324,27 +355,36 @@ final class PostgresPaymentRepository implements PaymentRepository
 
     public function recordRefund(
         Payment $payment,
-        ProviderRefund $refund,
-        Money $amount,
         string $reason,
         ?string $actorUserId,
-        ?callable $alsoRecord = null,
+        callable $underLock,
     ): Refund {
         return $this->connection->transactional(function () use (
             $payment,
-            $refund,
-            $amount,
             $reason,
             $actorUserId,
-            $alsoRecord,
+            $underLock,
         ): Refund {
+            // First, before anything is read: every refund and every credit
+            // note of this invoice queues here, so the ceilings `$underLock`
+            // reads cannot move before the write below (2026-10-29).
+            $this->connection->fetchOne(
+                'SELECT id FROM invoices WHERE id = :invoice FOR UPDATE',
+                ['invoice' => $payment->invoiceId],
+            );
+
+            $asked = $underLock();
+            $refund = $asked['refund'];
+            $amount = $asked['amount'];
+
             $id = $this->connection->fetchOne(
                 <<<'SQL'
                     INSERT INTO refunds
                         (payment_id, tenant_id, product_id, provider, provider_refund_id,
-                         amount_minor_units, currency, reason, status)
+                         amount_minor_units, currency, reason, status, settled_at)
                     VALUES (:payment, :tenantId, :productId, :provider, :reference,
-                            :amount, :currency, :reason, :status)
+                            :amount, :currency, :reason, :status,
+                            CASE WHEN :status = 'SUCCEEDED' THEN now() END)
                     RETURNING id
                     SQL,
                 [
@@ -364,44 +404,105 @@ final class PostgresPaymentRepository implements PaymentRepository
                 throw new RuntimeException('Failed to record a refund.');
             }
 
+            $failed = $refund->status === Refund::FAILED;
+
             $this->record(
                 $payment->tenantId,
                 $payment->productId,
-                'PAYMENT_REFUNDED',
+                // Refused by the provider on the spot: no money moved, so no
+                // refund in the ledger and no document below — only the fact
+                // that one was asked for and refused.
+                $failed ? 'REFUND_FAILED' : 'PAYMENT_REFUNDED',
                 $payment->id,
                 $payment->invoiceId,
                 $payment->subscriptionId,
                 $amount,
                 $actorUserId,
-                ['reason' => $reason],
+                ['reason' => $reason, 'refund_id' => $id],
             );
-
-            $rows = $this->connection->fetchAllAssociative(
-                <<<'SQL'
-                    SELECT id, payment_id, provider, provider_refund_id, amount_minor_units,
-                           currency, reason, status, settled_at, created_at
-                      FROM refunds WHERE id = :id
-                    SQL,
-                ['id' => $id],
-            );
-
-            $row = $rows[0] ?? null;
-
-            if ($row === null) {
-                throw new RuntimeException('The refund vanished during the transaction that created it.');
-            }
-
-            $recorded = self::toRefund($row);
 
             // Last, and still inside: the credit note this refund carries
             // (2026-09-26). Money back with no document leaves the invoice's
             // VAT declared on a sale that was undone, and the period close
-            // would freeze it.
-            if ($alsoRecord !== null) {
-                $alsoRecord($recorded);
+            // would freeze it. Linked to the refund (2026-10-29), so a refund
+            // that fails later names the document it leaves unanswered.
+            $alsoRecord = $asked['alsoRecord'];
+
+            if ($alsoRecord !== null && !$failed) {
+                $note = $alsoRecord($this->requireRefund($id));
+
+                if ($note !== null) {
+                    $this->connection->executeStatement(
+                        'UPDATE refunds SET credit_note_id = :note, updated_at = now() WHERE id = :id',
+                        ['note' => $note, 'id' => $id],
+                    );
+                }
             }
 
-            return $recorded;
+            // Settled on the spot, as a card refund usually is: the payment
+            // moves now, exactly as the webhook would have moved it.
+            if ($refund->status === Refund::SUCCEEDED) {
+                $this->afterRefundSettled($payment->id);
+            }
+
+            return $this->requireRefund($id);
+        });
+    }
+
+    public function liveAttemptsForInvoice(string $invoiceId): array
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::COLUMNS . <<<'SQL'
+                 FROM payments
+                WHERE invoice_id = :invoiceId AND status IN ('PENDING', 'AUTHORIZED')
+                ORDER BY created_at, id
+                SQL,
+            ['invoiceId' => $invoiceId],
+        );
+
+        return array_map(self::toPayment(...), $rows);
+    }
+
+    public function supersede(Payment $payment, ?string $actorUserId): bool
+    {
+        return $this->connection->transactional(function () use ($payment, $actorUserId): bool {
+            // Conditioned on the status, never on the id alone: a success
+            // that landed since the read is money collected, and overwriting
+            // it with CANCELLED would lose it.
+            $moved = $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE payments
+                       SET status = 'CANCELLED',
+                           failed_at = now(),
+                           failure_code = 'SUPERSEDED',
+                           failure_reason = 'Abandoned for a new attempt at the same invoice.',
+                           updated_at = now()
+                     WHERE id = :id AND status IN ('PENDING', 'AUTHORIZED')
+                    SQL,
+                ['id' => $payment->id],
+            );
+
+            if ($moved === 0) {
+                return false;
+            }
+
+            $this->record(
+                $payment->tenantId,
+                $payment->productId,
+                'PAYMENT_FAILED',
+                $payment->id,
+                $payment->invoiceId,
+                $payment->subscriptionId,
+                $payment->amount,
+                $actorUserId,
+                ['from' => $payment->status, 'to' => PaymentStatus::CANCELLED, 'superseded' => true],
+            );
+
+            return true;
         });
     }
 
@@ -422,10 +523,11 @@ final class PostgresPaymentRepository implements PaymentRepository
         $requested = $event->requestedStatus();
 
         if ($requested === null) {
-            // A refund settling, or the provider naming the instrument: real,
-            // recorded, applied — but not a move of the payment itself.
+            // A refund settling or failing, or the provider naming the
+            // instrument: real, recorded, applied — but not a move of the
+            // payment itself.
             return match ($event->type) {
-                ProviderEvent::REFUND_SUCCEEDED => WebhookOutcome::APPLIED,
+                ProviderEvent::REFUND_SUCCEEDED, ProviderEvent::REFUND_FAILED => WebhookOutcome::APPLIED,
                 ProviderEvent::INSTRUMENT_KNOWN => $event->method === null
                     ? WebhookOutcome::IGNORED_NOT_APPLICABLE
                     : WebhookOutcome::APPLIED,
@@ -472,10 +574,25 @@ final class PostgresPaymentRepository implements PaymentRepository
             return WebhookOutcome::of($outcome, $payment?->id);
         }
 
-        if ($event->type === ProviderEvent::REFUND_SUCCEEDED) {
-            $this->settleRefund($event, $payment);
+        if ($event->type === ProviderEvent::REFUND_SUCCEEDED || $event->type === ProviderEvent::REFUND_FAILED) {
+            $matched = $event->type === ProviderEvent::REFUND_SUCCEEDED
+                ? $this->settleRefund($event, $payment)
+                : $this->failRefund($event, $payment);
 
-            return WebhookOutcome::of(WebhookOutcome::APPLIED, $payment->id);
+            if ($matched) {
+                return WebhookOutcome::of(WebhookOutcome::APPLIED, $payment->id);
+            }
+
+            // About no refund this platform has a pending row for — one
+            // already settled by the provider's own answer, or one whose row
+            // has not committed yet (2026-10-29). Nothing moved, and the
+            // delivery says so rather than claiming to have applied.
+            $this->connection->executeStatement(
+                'UPDATE payment_events SET outcome = :outcome WHERE provider = :provider AND provider_event_id = :event',
+                ['outcome' => WebhookOutcome::IGNORED_NOT_APPLICABLE, 'provider' => $provider, 'event' => $event->id],
+            );
+
+            return WebhookOutcome::of(WebhookOutcome::IGNORED_NOT_APPLICABLE, $payment->id);
         }
 
         if ($event->type === ProviderEvent::INSTRUMENT_KNOWN) {
@@ -577,10 +694,15 @@ final class PostgresPaymentRepository implements PaymentRepository
      * much has come back in total — summed from the refund rows rather than
      * from this one event, because refunds arrive one at a time and only the
      * total says whether anything is left.
+     *
+     * **Nothing when no row matched** (2026-10-29). The payment's status was
+     * recomputed regardless, so a delivery arriving before the refund row had
+     * committed — or one about a refund already settled — still moved the
+     * payment, on the strength of a refund this platform had not recorded.
      */
-    private function settleRefund(ProviderEvent $event, Payment $payment): void
+    private function settleRefund(ProviderEvent $event, Payment $payment): bool
     {
-        $this->connection->executeStatement(
+        $settled = $this->connection->executeStatement(
             <<<'SQL'
                 UPDATE refunds
                    SET status = 'SUCCEEDED', settled_at = now(), updated_at = now()
@@ -590,6 +712,87 @@ final class PostgresPaymentRepository implements PaymentRepository
                 SQL,
             ['payment' => $payment->id, 'reference' => $event->providerRefundId],
         );
+
+        if ($settled === 0) {
+            return false;
+        }
+
+        $this->afterRefundSettled($payment->id);
+
+        return true;
+    }
+
+    /**
+     * A refund the provider says has failed (2026-10-29).
+     *
+     * Until today nothing could say so: the refund stayed PENDING for ever,
+     * went on counting against `REFUND_EXCEEDS_PAYMENT`, and the credit note
+     * written with it stayed declared on money that never moved.
+     *
+     * The refund becomes FAILED, which stops it counting against what is
+     * still refundable. The payment does not move — a pending refund never
+     * moved it. **The credit note stays**: it is a numbered legal document
+     * and is never deleted, and the two remedies — give the money back
+     * another way, or invoice the sale again — are a person's decision, not
+     * something a webhook should invent. So the failure is put in the ledger
+     * with the document it leaves unanswered, `decision_required` set, and
+     * the refund keeps its link to it ({@see Refund::needsADecision()}).
+     *
+     * Only by the provider's refund id: a failure that named no refund would
+     * otherwise fail every pending refund on the payment.
+     */
+    private function failRefund(ProviderEvent $event, Payment $payment): bool
+    {
+        if ($event->providerRefundId === null) {
+            return false;
+        }
+
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                UPDATE refunds
+                   SET status = 'FAILED', updated_at = now()
+                 WHERE payment_id = :payment
+                   AND provider_refund_id = :reference
+                   AND status = 'PENDING'
+                RETURNING id, credit_note_id, amount_minor_units, currency
+                SQL,
+            ['payment' => $payment->id, 'reference' => $event->providerRefundId],
+        );
+
+        if ($row === false) {
+            return false;
+        }
+
+        $note = Row::nullableString($row, 'credit_note_id');
+
+        $this->record(
+            $payment->tenantId,
+            $payment->productId,
+            'REFUND_FAILED',
+            $payment->id,
+            $payment->invoiceId,
+            $payment->subscriptionId,
+            Money::of(Row::integer($row, 'amount_minor_units'), Row::string($row, 'currency')),
+            null,
+            [
+                'refund_id' => Row::string($row, 'id'),
+                'event' => $event->id,
+                'failure_code' => $event->failureCode,
+                'credit_note_id' => $note,
+                'decision_required' => $note !== null,
+            ],
+        );
+
+        return true;
+    }
+
+    /**
+     * The payment's status from the refunds that have actually settled,
+     * read again rather than taken from whatever the caller held.
+     */
+    private function afterRefundSettled(string $paymentId): void
+    {
+        $payment = $this->requireById($paymentId);
 
         $returned = $this->connection->fetchOne(
             <<<'SQL'
@@ -610,9 +813,23 @@ final class PostgresPaymentRepository implements PaymentRepository
         }
 
         $this->connection->executeStatement(
-            'UPDATE payments SET status = :status, updated_at = now() WHERE id = :id',
-            ['status' => $status, 'id' => $payment->id],
+            'UPDATE payments SET status = :status, updated_at = now() WHERE id = :id AND status = :from',
+            ['status' => $status, 'id' => $payment->id, 'from' => $payment->status],
         );
+    }
+
+    private function requireRefund(string $id): Refund
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT ' . self::REFUND_COLUMNS . ' FROM refunds WHERE id = :id',
+            ['id' => $id],
+        );
+
+        if ($row === false) {
+            throw new RuntimeException('The refund vanished during the transaction that created it.');
+        }
+
+        return self::toRefund($row);
     }
 
     private static function ledgerTypeFor(string $status): string
@@ -720,6 +937,7 @@ final class PostgresPaymentRepository implements PaymentRepository
             Row::string($row, 'status'),
             Row::nullableTimestamp($row, 'settled_at'),
             Row::timestamp($row, 'created_at'),
+            Row::nullableString($row, 'credit_note_id'),
         );
     }
 

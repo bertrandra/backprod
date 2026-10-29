@@ -10,6 +10,7 @@ use App\Payment\Domain\PaymentStatus;
 use App\Payment\Domain\ProviderEvent;
 use App\Payment\Domain\ProviderPayment;
 use App\Payment\Domain\ProviderRefund;
+use App\Payment\Domain\Refund;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Shared\Money\Money;
 use DateTimeImmutable;
@@ -139,12 +140,25 @@ final class StubPaymentProvider implements PaymentProvider
         );
     }
 
-    public function refund(Payment $payment, Money $amount, string $reason): ProviderRefund
+    public function refund(Payment $payment, Money $amount, string $reason, int $attempt = 1): ProviderRefund
     {
+        // The attempt is part of the handle from the second one on
+        // (2026-10-29): two identical partial refunds are two refunds, and
+        // minting one handle for both died on `refunds_provider_reference_unique`.
+        $key = $payment->providerPaymentId . $amount->minorUnits . $reason . ($attempt > 1 ? '#' . $attempt : '');
+
         return new ProviderRefund(
-            'stub_re_' . substr(hash('sha256', $payment->providerPaymentId . $amount->minorUnits . $reason), 0, 24),
-            'PENDING',
+            'stub_re_' . substr(hash('sha256', $key), 0, 24),
+            Refund::PENDING,
         );
+    }
+
+    public function cancel(Payment $payment): bool
+    {
+        // Nothing here ever collects by itself: an attempt is collected only
+        // when a test delivers the webhook that says so, so every attempt can
+        // be abandoned.
+        return true;
     }
 
     /**
@@ -166,6 +180,7 @@ final class StubPaymentProvider implements PaymentProvider
             'payment.failed' => ProviderEvent::PAYMENT_FAILED,
             'payment.cancelled' => ProviderEvent::PAYMENT_CANCELLED,
             'refund.succeeded' => ProviderEvent::REFUND_SUCCEEDED,
+            'refund.failed' => ProviderEvent::REFUND_FAILED,
             'chargeback.opened' => ProviderEvent::CHARGEBACK_OPENED,
             default => null,
         };

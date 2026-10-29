@@ -118,6 +118,7 @@ final class StubPaymentProviderTest extends TestCase
             ['payment.failed', ProviderEvent::PAYMENT_FAILED],
             ['payment.cancelled', ProviderEvent::PAYMENT_CANCELLED],
             ['refund.succeeded', ProviderEvent::REFUND_SUCCEEDED],
+            ['refund.failed', ProviderEvent::REFUND_FAILED],
             ['chargeback.opened', ProviderEvent::CHARGEBACK_OPENED],
         ];
     }

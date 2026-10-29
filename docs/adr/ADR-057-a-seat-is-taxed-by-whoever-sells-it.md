@@ -63,6 +63,13 @@ period is immutable.
 remain, as `platformSelling()` plus one of those — so `POST /tax/calculate`
 and an invoice still run the same code, which is what §25.3 asks for.
 
+*Amended 2026-10-29.* Running the same code was not enough: the endpoint ran
+it on `platformSelling()`, a pair no invoice names, and so could answer
+"reverse charge, 0%" for a seat every invoice charges at the domestic rate.
+`calculate()` is gone; `POST /tax/calculate` asks `WhoSellsAndWhoBuys::forSale()`
+for the caller's sale and passes it to `calculateSale()`, and refuses
+`BILLING_PROFILE_REQUIRED` exactly where the invoice would.
+
 `WhoSellsAndWhoBuys::forSale()` fills it, because that is where the same
 question is already answered for the supplier block and the number's series.
 For a seat:

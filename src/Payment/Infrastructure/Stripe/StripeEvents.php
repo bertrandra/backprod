@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Payment\Infrastructure\Stripe;
 
 use App\Payment\Domain\ProviderEvent;
+use App\Payment\Domain\Refund;
 use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * Stripe's events, normalised into the seven this platform models.
+ * Stripe's events, normalised into the eight this platform models.
  *
  * `ProviderEvent.id` is Stripe's `evt_…`, stable across retries, which is
  * what `payment_events_delivered_once` needs. `providerPaymentId` is always
@@ -28,7 +29,8 @@ use DateTimeZone;
  * rules out.
  *
  * Everything not in the table below parses to **null**: `payment_intent.created`,
- * `payment_intent.processing`, `refund.created`, `charge.refunded`,
+ * `payment_intent.processing`, `refund.created`, a refund still pending,
+ * `charge.refunded`,
  * `charge.dispute.closed`, every `customer.*`, `invoice.*` and `checkout.*`.
  * Null is not an error — the port says so and ADR-022 says why: a 4xx makes
  * Stripe retry until it gives up, and buries the deliveries that matter
@@ -101,16 +103,31 @@ final class StripeEvents
                 self::text($object, 'id'),
                 $occurredAt,
             ),
-            'refund.updated' => self::text($object, 'status') === 'succeeded'
-                ? self::event(
+            // A refund's outcome, from whichever delivery carries it. Stripe
+            // sends `refund.updated` on every move and, since 2024,
+            // `refund.failed` as well; a failed or cancelled refund is money
+            // that never went back (2026-10-29), and until then nothing here
+            // said so — it stayed PENDING for ever.
+            'refund.updated', 'refund.failed' => match (StripePaymentProvider::refundStatus(self::text($object, 'status'))) {
+                Refund::SUCCEEDED => self::event(
                     $id,
                     ProviderEvent::REFUND_SUCCEEDED,
                     self::text($object, 'payment_intent'),
                     $occurredAt,
                     amount: self::integer($object, 'amount'),
                     refundId: self::text($object, 'id'),
-                )
-                : null,
+                ),
+                Refund::FAILED => self::event(
+                    $id,
+                    ProviderEvent::REFUND_FAILED,
+                    self::text($object, 'payment_intent'),
+                    $occurredAt,
+                    failureCode: self::text($object, 'failure_reason') ?? self::text($object, 'status'),
+                    amount: self::integer($object, 'amount'),
+                    refundId: self::text($object, 'id'),
+                ),
+                default => null,
+            },
             'charge.dispute.created' => self::event(
                 $id,
                 ProviderEvent::CHARGEBACK_OPENED,

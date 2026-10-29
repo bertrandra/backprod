@@ -232,30 +232,6 @@ final class Taxation
     }
 
     /**
-     * What would be applied, and why — with no side effect (§25.3).
-     *
-     * Deliberately the same code path invoicing uses. Two implementations of
-     * "which regime applies" would drift, and the one that drifted would be
-     * the one nobody could reproduce when a customer questioned an invoice.
-     */
-    public function calculate(
-        string $tenantId,
-        string $productId,
-        int $amountMinorUnits,
-        string $currency,
-        ?string $supplyType,
-        ?DateTimeImmutable $on,
-    ): TaxCalculation {
-        return $this->calculateSale(
-            $this->platformSelling($tenantId, $productId),
-            $amountMinorUnits,
-            $currency,
-            $supplyType,
-            $on,
-        );
-    }
-
-    /**
      * The platform selling to an organisation — the pair this service assumed
      * until 2026-09-26, named now that it is one pair of two (ADR-055).
      */
@@ -265,13 +241,16 @@ final class Taxation
     }
 
     /**
-     * The same decision, between parties the caller has resolved.
+     * What would be applied, and why, between parties the caller has
+     * resolved — with no side effect (§25.3).
      *
      * Which is every caller that raises a document, since a seat is sold by
-     * the organisation and not by the platform. `calculate()` above is this
-     * one with the pair filled in, so there is still a single code path from
-     * `/tax/calculate` to an invoice line — the property §25.3 wants, now
-     * stated as an argument instead of assumed.
+     * the organisation and not by the platform — and `/tax/calculate` too,
+     * since 2026-10-29: it took the pair from {@see platformSelling} through a
+     * `calculate()` of its own, which answered for a sale no invoice makes.
+     * It now asks `WhoSellsAndWhoBuys` for the caller's sale and comes here,
+     * so there is one code path from the diagnostic to an invoice line,
+     * parties included — the property §25.3 wants.
      */
     public function calculateSale(
         TaxableSale $sale,
@@ -410,6 +389,17 @@ final class Taxation
     public function factsOfInvoice(string $invoiceId): array
     {
         return $this->tax->transactionsOfInvoice($invoiceId);
+    }
+
+    /**
+     * What the credit notes of one invoice have already reversed
+     * (2026-10-29).
+     *
+     * @return list<VatTransaction>
+     */
+    public function reversalsOfInvoice(string $invoiceId): array
+    {
+        return $this->tax->reversalsOfInvoice($invoiceId);
     }
 
     /**

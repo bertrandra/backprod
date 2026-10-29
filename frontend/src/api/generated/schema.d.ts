@@ -680,7 +680,7 @@ export interface paths {
         put?: never;
         /**
          * Refund a settled payment
-         * @description 202: the provider decides when the money moves. Omitting `amount_minor_units` refunds the whole payment; a partial refund may not exceed what is left unrefunded, and the database enforces that rather than the caller remembering it.
+         * @description 202: the provider decides when the money moves. Omitting `amount_minor_units` refunds everything still refundable — what was collected, less every refund that has not failed; a partial refund may not exceed that. The refund carries its credit note, written in the same transaction under the invoice's lock, and its `status` is the provider's own answer: `PENDING` until a webhook settles it, `SUCCEEDED` when the provider settled it at once, `FAILED` when it refused (and then no credit note is written). A refund that fails later keeps the credit note it carried, named by `credit_note_id`, and says `needs_decision`: the document is legal and stays, and an operator decides what answers it.
          */
         post: operations["refundPayment"];
         delete?: never;
@@ -2670,7 +2670,7 @@ export interface paths {
         put?: never;
         /**
          * What VAT would apply, and why
-         * @description A dry run against the tenant's tax profile. Returns the rule that decided, the regime, the legal mention where one is required, and the reasons in plain words — everything a quote needs to show before anything is invoiced.
+         * @description A dry run of the sale the caller would make — decided between the parties an invoice to the caller would name (the organisation selling a seat to the caller), exactly as invoicing decides it. Returns the rule that decided, the regime, the legal mention where one is required, and the reasons in plain words — everything a quote needs to show before anything is invoiced.
          */
         post: operations["calculateTax"];
         delete?: never;
@@ -7457,7 +7457,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description The invoice cannot be paid — a draft, cancelled, or already settled. */
+            /** @description `INVOICE_NOT_PAYABLE` — the invoice cannot be paid: a draft, cancelled, credited or already settled. An invoice on its way through e-invoicing is still payable. `PAYMENT_STILL_IN_FLIGHT` — an earlier attempt at this invoice is still collecting and the provider would not abandon it; wait for it to settle or fail. An earlier attempt nobody completed is abandoned at the provider and replaced, so one invoice has one live attempt at a time. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7724,7 +7724,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description Not refundable — unsettled, or already fully refunded. */
+            /** @description `PAYMENT_NOT_REFUNDABLE` — unsettled, or nothing is left to refund. `REFUND_EXCEEDS_PAYMENT` — more than is left. `REFUND_AMOUNT_INVALID` — not a positive amount. `CREDIT_EXCEEDS_INVOICE`, `CREDIT_NOTE_MULTIPLE_RATES` or `INVALID_INVOICE_TRANSITION` — the credit note the refund must carry cannot be written; nothing was asked of the provider. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12747,6 +12747,15 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
+            /** @description `BILLING_PROFILE_REQUIRED` — the organisation has no billing profile, or it does not say from which country it sells, so no sale to the caller could be invoiced and none can be priced. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description The amount or currency was unacceptable. */
             422: {
                 headers: {

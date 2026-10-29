@@ -304,6 +304,26 @@ final class PostgresTaxRepository implements TaxRepository
         return array_map(self::toTransaction(...), $rows);
     }
 
+    public function reversalsOfInvoice(string $invoiceId): array
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::TRANSACTION_COLUMNS . <<<'SQL'
+                  FROM vat_transactions
+                 WHERE credit_note_id IN (
+                       SELECT id FROM credit_notes WHERE invoice_id = CAST(:invoiceId AS uuid)
+                 )
+                 ORDER BY created_at, id
+                SQL,
+            ['invoiceId' => $invoiceId],
+        );
+
+        return array_map(self::toTransaction(...), $rows);
+    }
+
     public function transactionsFor(
         string $tenantId,
         ?string $productCode,

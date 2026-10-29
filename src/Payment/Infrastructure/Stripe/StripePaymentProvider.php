@@ -10,6 +10,7 @@ use App\Payment\Domain\PaymentStatus;
 use App\Payment\Domain\ProviderEvent;
 use App\Payment\Domain\ProviderPayment;
 use App\Payment\Domain\ProviderRefund;
+use App\Payment\Domain\Refund;
 use App\Shared\Exceptions\NotConfiguredException;
 use App\Shared\Exceptions\UnprocessableEntityException;
 use App\Shared\Money\Money;
@@ -20,6 +21,7 @@ use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\AuthenticationException;
 use Stripe\Exception\IdempotencyException;
+use Stripe\Exception\InvalidRequestException;
 use Stripe\Exception\PermissionException;
 use Stripe\StripeClient;
 
@@ -155,7 +157,7 @@ final class StripePaymentProvider implements PaymentProvider
         return StripeEvents::parse($rawBody, $this->livemode);
     }
 
-    public function refund(Payment $payment, Money $amount, string $reason): ProviderRefund
+    public function refund(Payment $payment, Money $amount, string $reason, int $attempt = 1): ProviderRefund
     {
         try {
             $refund = $this->stripe->refunds->create(
@@ -165,19 +167,71 @@ final class StripePaymentProvider implements PaymentProvider
                     'reason' => self::refundReason($reason),
                     'metadata' => ['reason' => $reason],
                 ],
-                // Two identical requests are one refund — the same rule the
-                // stub mints its refund id by.
+                // A retried request for the same refund is one refund — the
+                // same rule the stub mints its refund id by. The attempt is in
+                // the key (2026-10-29): two identical partial refunds within
+                // Stripe's 24 hours are two refunds, and without it the second
+                // was handed the first one's answer and died on
+                // `refunds_provider_reference_unique`.
                 ['idempotency_key' => $this->idempotencyKey(
                     'refund',
-                    $payment->providerPaymentId . '|' . $amount->minorUnits . '|' . $reason,
+                    $payment->providerPaymentId . '|' . $amount->minorUnits . '|' . $reason . '|' . $attempt,
                 )],
             );
         } catch (ApiErrorException $failure) {
             throw $this->refused($failure, 'refund', $payment->providerPaymentId);
         }
 
-        // Settlement arrives by `refund.updated`, as ADR-022 requires.
-        return new ProviderRefund($refund->id, 'PENDING');
+        // Stripe's own word, not an assumption (2026-10-29). A card refund
+        // usually answers `succeeded` at once and sends no `refund.updated`
+        // after; recording it PENDING left it pending for ever and counting
+        // against what was still refundable.
+        return new ProviderRefund($refund->id, self::refundStatus($refund->status));
+    }
+
+    /**
+     * Stripe's refund statuses onto this platform's three. `pending` and
+     * `requires_action` are both "not yet", and anything unknown is too:
+     * reading an unknown word as settled would declare money returned that
+     * may never be.
+     */
+    public static function refundStatus(mixed $status): string
+    {
+        return match ($status) {
+            'succeeded' => Refund::SUCCEEDED,
+            'failed', 'canceled' => Refund::FAILED,
+            default => Refund::PENDING,
+        };
+    }
+
+    public function cancel(Payment $payment): bool
+    {
+        try {
+            $this->stripe->paymentIntents->cancel(
+                $payment->providerPaymentId,
+                [],
+                ['idempotency_key' => $this->idempotencyKey('cancel', $payment->providerPaymentId)],
+            );
+
+            return true;
+        } catch (InvalidRequestException $failure) {
+            if ($failure->getStripeCode() !== 'payment_intent_unexpected_state') {
+                throw $this->refused($failure, 'cancel', $payment->providerPaymentId);
+            }
+        } catch (ApiErrorException $failure) {
+            throw $this->refused($failure, 'cancel', $payment->providerPaymentId);
+        }
+
+        // Past cancelling. Already cancelled is what was wanted; anything
+        // else — processing, succeeded — is money in flight or arrived, and a
+        // second attempt beside it is how one invoice is paid twice.
+        try {
+            $intent = $this->stripe->paymentIntents->retrieve($payment->providerPaymentId);
+        } catch (ApiErrorException $failure) {
+            throw $this->refused($failure, 'cancel', $payment->providerPaymentId);
+        }
+
+        return $intent->status === 'canceled';
     }
 
     /**

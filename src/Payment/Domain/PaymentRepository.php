@@ -111,26 +111,60 @@ interface PaymentRepository
     ): WebhookOutcome;
 
     /**
-     * Records a refund this platform asked for. Settlement arrives later, by
-     * webhook.
+     * Asks for a refund and records it, **under the invoice's lock**
+     * (2026-10-29).
      *
-     * `$alsoRecord` runs **inside** that transaction, after the refund row
-     * exists (2026-09-26) — the shape {@see \App\Billing\Domain\InvoiceRepository::issue}
-     * and {@see \App\Billing\Domain\CreditNoteRepository::issue} both have.
-     * It is how a refund carries its credit note: money going back and the
-     * document that makes it legal commit together or not at all, exactly as
-     * an early-termination charge is raised on the cancellation's own
-     * transaction. A refund with no credit note leaves the invoice's VAT
-     * declared while the money has gone.
+     * The transaction opens and locks the invoice the payment collected
+     * (`SELECT … FOR UPDATE`) before anything else, then calls `$underLock`,
+     * which re-reads the ceilings, plans the credit note and asks the
+     * provider. Everything it read stays true until the refund and its credit
+     * note are written, because every other refund of that invoice — and
+     * every credit note, {@see \App\Billing\Domain\CreditNoteRepository::applyIssue}
+     * takes the same lock — waits behind it. Until today the ceilings were
+     * read with no lock, the provider was asked, and the credit-note write
+     * could then refuse `CREDIT_EXCEEDS_INVOICE` after the money had left.
      *
-     * @param (callable(Refund): void)|null $alsoRecord
+     * `$underLock` answers with the provider's refund, the amount asked for,
+     * and what to write beside it. The refund row carries the provider's own
+     * status: a refund the provider failed at once writes no document and is
+     * recorded FAILED; one it settled at once moves the payment as the
+     * webhook would have.
+     *
+     * `alsoRecord` runs **inside** that transaction, after the refund row
+     * exists (2026-09-26), and answers the id of the credit note it wrote. It
+     * is how a refund carries its credit note: money going back and the
+     * document that makes it legal commit together or not at all. A refund
+     * with no credit note leaves the invoice's VAT declared while the money
+     * has gone.
+     *
+     * The provider is called with a transaction open. That is the price of
+     * the lock, and it is paid by refunds of the same invoice only.
+     *
+     * @param callable(): array{refund: ProviderRefund, amount: Money, alsoRecord: (callable(Refund): ?string)|null} $underLock
      */
     public function recordRefund(
         Payment $payment,
-        ProviderRefund $refund,
-        Money $amount,
         string $reason,
         ?string $actorUserId,
-        ?callable $alsoRecord = null,
+        callable $underLock,
     ): Refund;
+
+    /**
+     * The attempts against an invoice that can still collect — PENDING or
+     * AUTHORIZED (2026-10-29). At most one, since
+     * `payments_one_live_attempt_per_invoice`; a list because the question is
+     * asked of rows written before that index existed too.
+     *
+     * @return list<Payment>
+     */
+    public function liveAttemptsForInvoice(string $invoiceId): array;
+
+    /**
+     * Marks an attempt the provider has abandoned as CANCELLED, so a new one
+     * may replace it (2026-10-29).
+     *
+     * Conditioned on the attempt still being live: false when something —
+     * a webhook — moved it first, and the caller must not start another.
+     */
+    public function supersede(Payment $payment, ?string $actorUserId): bool;
 }

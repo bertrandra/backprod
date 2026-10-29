@@ -30,6 +30,15 @@ interface CreditNoteRepository
     public function creditedOn(string $invoiceId): int;
 
     /**
+     * The same total split into its two halves — base and VAT — so the slice
+     * that closes an invoice can be exactly what is left of each
+     * (2026-10-29).
+     *
+     * @return array{net: int, vat: int}
+     */
+    public function creditedPartsOn(string $invoiceId): array;
+
+    /**
      * Issues a credit note against an invoice and moves that invoice to
      * CREDITED, in one transaction.
      *

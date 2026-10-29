@@ -9,11 +9,14 @@ use App\Commerce\Service\Subscriptions;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Tax\Controller\TaxPresenter;
+use App\Tax\Service\Taxation;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
 use App\Tests\Support\TestDatabase;
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -244,6 +247,10 @@ final class FiscalChainTest extends DatabaseApiTestCase
         self::assertSame(0, $this->rowsMatching(
             "SELECT count(*) FROM notifications WHERE type = 'tax.vat_number_unverified'",
         ));
+
+        // The evidence names whoever answered (2026-10-29) — here the stub,
+        // never `VIES`, which is what every verdict was stored as until today.
+        self::assertSame('stub', $this->connection->fetchOne('SELECT verification_source FROM tax_identifications'));
     }
 
     /**
@@ -289,6 +296,54 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         self::assertSame('OUT_OF_SCOPE', $calculation['regime']);
         self::assertSame(0, $calculation['vat_amount']);
+    }
+
+    // --- the diagnostic prices the sale an invoice would make ------------
+
+    /**
+     * `POST /tax/calculate` decides between the parties an invoice to the
+     * caller would name (2026-10-29).
+     *
+     * It resolved the product's supplier against the tenant's profile, the
+     * pair ADR-057 removed from invoicing: this organisation, holding a
+     * verified German number, was told "reverse charge, 0%" for a seat every
+     * invoice would charge at the French 20%.
+     */
+    public function testTheDiagnosticAnswersWhatTheInvoiceWouldCharge(): void
+    {
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456781',
+        ]);
+        $this->saveBillingProfile();
+
+        // The pair the endpoint used to invent.
+        self::assertSame('REVERSE_CHARGE', $this->calculate(10_000)['regime']);
+
+        $response = $this->calculateThroughTheEndpoint(10_000);
+        self::assertSame(200, $response->getStatusCode());
+
+        $calculation = $this->decode($response)['calculation'] ?? null;
+        self::assertIsArray($calculation);
+
+        // The organisation selling a seat, in France, to one of its people.
+        self::assertSame('STANDARD', $calculation['regime'] ?? null);
+        self::assertSame('FR', $calculation['country_of_taxation'] ?? null);
+        self::assertSame(2000, $calculation['rate_basis_points'] ?? null);
+        self::assertSame(2000, $calculation['vat_amount'] ?? null);
+        self::assertFalse($calculation['reverse_charge'] ?? null);
+    }
+
+    public function testAnOrganisationThatCouldNotInvoiceTheSaleCannotPriceIt(): void
+    {
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+
+        $response = $this->calculateThroughTheEndpoint(10_000);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('BILLING_PROFILE_REQUIRED', $this->errorOf($response)['code'] ?? null);
     }
 
     // --- the history invariants ------------------------------------------
@@ -944,26 +999,39 @@ final class FiscalChainTest extends DatabaseApiTestCase
     }
 
     /**
+     * The rule engine, between the platform and the tenant's own profile.
+     *
+     * Asked of the service rather than of `POST /tax/calculate` since
+     * 2026-10-29: the endpoint now prices the caller's own sale — the seat an
+     * invoice to them would describe, always domestic — so it can no longer
+     * reach the cross-border regimes these tests are about. The regimes are
+     * still decided by this one code path; only the endpoint stopped
+     * inventing a pair of parties no invoice names.
+     *
      * @return array<string, mixed>
      */
     private function calculate(int $amount, ?string $on = null): array
     {
-        $path = '/api/v1/tax/calculate' . ($on === null ? '' : '?on=' . $on);
+        $taxation = $this->container()->get(Taxation::class);
+        self::assertInstanceOf(Taxation::class, $taxation);
 
-        $response = $this->request(
+        return TaxPresenter::calculation($taxation->calculateSale(
+            $taxation->platformSelling($this->tenant, $this->product),
+            $amount,
+            'EUR',
+            null,
+            $on === null ? null : new DateTimeImmutable($on),
+        ));
+    }
+
+    private function calculateThroughTheEndpoint(int $amount): ResponseInterface
+    {
+        return $this->request(
             'POST',
-            $path,
+            '/api/v1/tax/calculate',
             $this->headers(),
             $this->json(['amount_minor_units' => $amount, 'currency' => 'EUR']),
         );
-
-        self::assertSame(200, $response->getStatusCode());
-
-        $calculation = $this->decode($response)['calculation'] ?? null;
-        self::assertIsArray($calculation);
-
-        /** @var array<string, mixed> $calculation */
-        return $calculation;
     }
 
     private function openPeriod(): string

@@ -228,7 +228,56 @@ final class CreditNotes
             return new CreditNotePlan($invoice, true, true, $invoice->lines, self::negate($facts));
         }
 
-        return self::partial($invoice, $amount, $facts, $closes);
+        return self::partial(
+            $invoice,
+            $amount,
+            $facts,
+            $closes,
+            $closes ? $this->remainderOf($invoice, $facts) : null,
+        );
+    }
+
+    /**
+     * What is left of an invoice once its earlier credits are taken out —
+     * base and VAT on the document, base and VAT on its fiscal fact
+     * (2026-10-29).
+     *
+     * The slice that closes an invoice is this, and not a share recomputed
+     * from its gross: each partial credit takes its base back out at the rate
+     * and rounds, so three slices recomputed independently could total a cent
+     * of base more and a cent of VAT less than the invoice charged, and the
+     * fully-credited invoice would leave that cent declared for ever.
+     *
+     * The fact's remainder is read from the reversals already written, never
+     * from the documents: they are what the declaration sums.
+     *
+     * @param list<VatTransaction> $facts
+     *
+     * @return array{net: int, vat: int, base: int|null, tax: int|null}
+     */
+    private function remainderOf(Invoice $invoice, array $facts): array
+    {
+        $credited = $this->creditNotes->creditedPartsOn($invoice->id);
+        $fact = count($facts) === 1 ? $facts[0] : null;
+        $base = null;
+        $tax = null;
+
+        if ($fact !== null) {
+            $base = $fact->taxableBase;
+            $tax = $fact->vatAmount;
+
+            foreach ($this->taxation->reversalsOfInvoice($invoice->id) as $reversal) {
+                $base += $reversal->taxableBase;
+                $tax += $reversal->vatAmount;
+            }
+        }
+
+        return [
+            'net' => $invoice->net->minorUnits - $credited['net'],
+            'vat' => $invoice->vat->minorUnits - $credited['vat'],
+            'base' => $base,
+            'tax' => $tax,
+        ];
     }
 
     /**
@@ -318,13 +367,22 @@ final class CreditNotes
      * after the invoice went out was charged 20% and would be credited 0%,
      * leaving the difference declared for ever.
      *
+     * **Except the slice that closes the invoice** (2026-10-29), which is
+     * `$remainder` — what is left of the document's base and VAT, and of the
+     * fact's, after the credits already written. Its gross is still exactly
+     * the money that moved, because what is left of the invoice's gross is
+     * what this credit was bounded to; only the split between base and VAT
+     * comes from the remainder instead of a rounding of its own.
+     *
      * @param list<VatTransaction> $facts
+     * @param array{net: int, vat: int, base: int|null, tax: int|null}|null $remainder
      */
     private static function partial(
         Invoice $invoice,
         Money $amount,
         array $facts,
         bool $closes,
+        ?array $remainder = null,
     ): CreditNotePlan {
         if ($amount->minorUnits <= 0) {
             throw new ConflictException(
@@ -365,6 +423,20 @@ final class CreditNotes
 
         $net = Money::of(TaxCalculation::baseOfGross($amount->minorUnits, $rate), $amount->currency);
         $vat = $amount->minus($net);
+        $reversedBase = $net->minorUnits;
+        $reversedVat = $vat->minorUnits;
+
+        // The last slice is what is left, to the minor unit — provided what
+        // is left adds up to the money that moved, which it does whenever
+        // the documents themselves add up (`credit_notes_gross_is_net_plus_vat`,
+        // and the invoice's own). If it ever did not, the rounding above is
+        // still an exact document, and inventing a third answer would not be.
+        if ($remainder !== null && $remainder['net'] + $remainder['vat'] === $amount->minorUnits) {
+            $net = Money::of($remainder['net'], $amount->currency);
+            $vat = Money::of($remainder['vat'], $amount->currency);
+            $reversedBase = $remainder['base'] ?? $net->minorUnits;
+            $reversedVat = $remainder['tax'] ?? $vat->minorUnits;
+        }
 
         // Built by hand rather than through InvoiceLine::of(), which would
         // derive the VAT from the base and could land a minor unit away from
@@ -389,8 +461,8 @@ final class CreditNotes
                     $fact->vatRegime,
                     $fact->country,
                     $fact->vatRate,
-                    -$net->minorUnits,
-                    -$vat->minorUnits,
+                    -$reversedBase,
+                    -$reversedVat,
                     $amount->currency,
                     $fact->reverseCharge,
                     $fact->customerTaxStatus,
