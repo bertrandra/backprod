@@ -1176,8 +1176,11 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
     {
         $this->collect();
 
-        self::assertSame(202, $this->refund(['amount_minor_units' => 1_000])->getStatusCode());
-        self::assertSame(202, $this->refund(['amount_minor_units' => 1_000])->getStatusCode());
+        $first = $this->refund(['amount_minor_units' => 1_000]);
+        $second = $this->refund(['amount_minor_units' => 1_000]);
+
+        self::assertSame(202, $first->getStatusCode());
+        self::assertSame(202, $second->getStatusCode());
 
         self::assertSame(2, $this->rowsMatching('SELECT count(DISTINCT provider_refund_id) FROM refunds'));
     }
