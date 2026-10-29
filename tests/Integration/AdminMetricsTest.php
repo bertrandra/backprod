@@ -9,10 +9,12 @@ use App\Finance\Infrastructure\PostgresFinancialPeriods;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Database\Row;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
@@ -150,6 +152,42 @@ final class AdminMetricsTest extends DatabaseApiTestCase
 
         self::assertSame(10000, $month['net_minor_units'] ?? null);
         self::assertSame(1000, $month['credited_minor_units'] ?? null);
+    }
+
+    /**
+     * A credit note in a month that invoiced nothing is still reported
+     * (2026-10-29). Credits were joined onto the months that had invoices, so
+     * last month's sale corrected this month vanished from the rollup.
+     */
+    public function testACreditInAMonthWithNoInvoiceIsStillReported(): void
+    {
+        $invoice = $this->invoice('F-1', 'ISSUED', 10000, 2000, 12000);
+        $this->creditNote($invoice, 1000, 200, 1200);
+
+        // The sale belongs to last month; the correction to this one.
+        TestDatabase::forge(
+            $this->connection,
+            ['invoices'],
+            "UPDATE invoices SET issued_at = date_trunc('month', now()) - interval '1 day' WHERE id = :id",
+            ['id' => $invoice],
+        );
+
+        $this->rollUp();
+
+        $months = $this->connection->fetchAllAssociative(
+            'SELECT period_start, net_minor_units, credited_minor_units, invoices_issued'
+            . ' FROM revenue_periods ORDER BY period_start',
+        );
+
+        self::assertCount(2, $months);
+        $sold = $months[0] ?? [];
+        $corrected = $months[1] ?? [];
+
+        self::assertSame(10000, Row::integer($sold, 'net_minor_units'));
+        self::assertSame(0, Row::integer($sold, 'credited_minor_units'));
+        self::assertSame(0, Row::integer($corrected, 'net_minor_units'));
+        self::assertSame(1000, Row::integer($corrected, 'credited_minor_units'));
+        self::assertSame(0, Row::integer($corrected, 'invoices_issued'));
     }
 
     /**
