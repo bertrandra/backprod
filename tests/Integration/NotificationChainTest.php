@@ -536,7 +536,7 @@ final class NotificationChainTest extends DatabaseApiTestCase
      */
     public function testAFailedSendIsRetriedLaterAndFailsOnlyAtTheLastAttempt(): void
     {
-        $this->override(['notification.email' => new class implements Notifier {
+        $this->override(['notification.email' => new class () implements Notifier {
             public function channel(): string
             {
                 return Channel::EMAIL;

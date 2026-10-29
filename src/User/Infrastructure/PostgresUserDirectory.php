@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\User\Infrastructure;
 
 use App\Auth\Domain\AuthenticatedIdentity;
-use App\User\Domain\PlatformUser;
-use App\User\Domain\UserDirectory;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\UnauthenticatedException;
+use App\User\Domain\PlatformUser;
+use App\User\Domain\UserDirectory;
 use Doctrine\DBAL\Connection;
 use RuntimeException;
 
