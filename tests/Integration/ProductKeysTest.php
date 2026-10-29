@@ -276,6 +276,38 @@ final class ProductKeysTest extends DatabaseApiTestCase
         self::assertSame(400, $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 0, 'idempotency_key' => 'y'])->getStatusCode());
     }
 
+    /**
+     * A retry of the report that filled the quota is the same fact, not a
+     * new one: answered as already recorded, never `QUOTA_EXCEEDED` — the
+     * product would otherwise undo work the platform has already counted.
+     */
+    public function testARetryOfTheReportThatFilledTheQuotaIsNotRefused(): void
+    {
+        $feature = $this->id("INSERT INTO features (code, name, kind, unit) VALUES ('plan.documents', 'Documents', 'QUOTA', 'documents') RETURNING id");
+        $this->connection->executeStatement(
+            "INSERT INTO entitlements (tenant_id, product_id, feature_id, limit_value, source) VALUES (:t, :p, :f, 1, 'OVERRIDE')",
+            ['t' => $this->acme, 'p' => $this->plan, 'f' => $feature],
+        );
+        $bearer = $this->bearer(['product.usage.write']);
+        $path = '/api/v1/product/tenants/' . $this->acme . '/usage';
+        $report = ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-1:created'];
+
+        self::assertSame(201, $this->asProduct('POST', $path, $bearer, $report)->getStatusCode());
+
+        $again = $this->asProduct('POST', $path, $bearer, $report);
+        self::assertSame(200, $again->getStatusCode());
+        $answer = $this->decode($again);
+        self::assertFalse($answer['recorded'] ?? null);
+        self::assertSame(1, $answer['used'] ?? null);
+        self::assertSame(1, $answer['limit'] ?? null);
+
+        // A new fact is still refused: the quota is full.
+        $next = $this->asProduct('POST', $path, $bearer, ['idempotency_key' => 'doc-2:created'] + $report);
+        self::assertSame(403, $next->getStatusCode());
+        self::assertSame('QUOTA_EXCEEDED', $this->errorOf($next)['code'] ?? null);
+        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM product_usage'));
+    }
+
     // --- What the product says it has built (2026-09-24) ------------------------
 
     /**
