@@ -29,7 +29,37 @@ final class RenewalNotice
         public readonly DateTimeImmutable $termEndsAt,
         public readonly int $noticeDays,
         public readonly ?string $recipientUserId,
+        public readonly DateTimeImmutable $currentPeriodEnd,
+        public readonly string $billingPeriod,
     ) {
+    }
+
+    /**
+     * When the next term actually starts: the end of the term's last period.
+     *
+     * Period ends are counted one from the next and the term from the start,
+     * so a month-end start or a clock between the two leaves the last period
+     * ending short of `termEndsAt`. The renewal happens there, so that is the
+     * date the customer is told. Null when the period has no length, so no
+     * renewal can be priced and none will happen.
+     */
+    public function renewsOn(): ?DateTimeImmutable
+    {
+        $end = $this->currentPeriodEnd;
+
+        while (true) {
+            $next = OfferVersion::periodEndAfter($this->billingPeriod, $end);
+
+            if ($next === null) {
+                return null;
+            }
+
+            if ($next > $this->termEndsAt) {
+                return $end;
+            }
+
+            $end = $next;
+        }
     }
 
     /**
@@ -41,6 +71,16 @@ final class RenewalNotice
      */
     public function dedupKey(): string
     {
-        return $this->subscriptionId . ':' . $this->termEndsAt->format('Y-m-d');
+        return self::keyFor($this->subscriptionId, $this->termEndsAt);
+    }
+
+    /**
+     * The same key, for the renewal that has to find this notice before it
+     * may roll the term (ADR-071). One function, so the two cannot come to
+     * spell it differently.
+     */
+    public static function keyFor(string $subscriptionId, DateTimeImmutable $termEndsAt): string
+    {
+        return $subscriptionId . ':' . $termEndsAt->format('Y-m-d');
     }
 }

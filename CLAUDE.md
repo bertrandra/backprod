@@ -592,11 +592,21 @@ current_period_end   the paid period rolls      the contract running
 term_ends_at         the term rolls             a new contract, tacitly
 ```
 
-`subscription.renewal` rolls periods **inside** a term and stops at it. Renewal
-does not silently re-arm the commitment: tacit renewal of a term requires
-notifying the customer beforehand — that notice is a notification, and whether it
-was attempted must be answerable — and its deadline varies by member state, so
-nothing automatic rolls a term. R11 stays open for that half and for no other.
+**Auto-renewal is the baseline** (ADR-071, 2026-10-29, the operator's decision).
+`subscription.renewal` rolls periods inside a term, and at the end of a term an
+offer sold `AUTO_RENEW` rolls into its next term with that term's first period —
+the term and the commitment re-armed from the end of the one ending, never from
+now, on the same transaction as the invoice. It never re-arms a commitment
+silently: the notice names `renews_on` and `cancel_by` (a renewal lead before
+it, the day the renewal is decided), and the term rolls only once that notice
+was **mailed** — sent, not merely raised — at least `notice_days` before
+`cancel_by`, and `cancel_by` has come. Read from the notice and its deliveries,
+so "did we tell them?" and "may we renew?" are one fact. Otherwise
+`TERM_RENEWAL_NOT_NOTICED`, and at the end of its last period it ends. Terms
+that commit the customer but promise no notice never roll by themselves. An
+`ENDS_AT_TERM` offer ends at its last period, by the sweep, never early by the
+pass. R11 records only what is still unverified: the `notice_days` figures
+themselves, never checked per member state against an official source.
 
 **Renewing bills, and billing is a required argument of it.** `renew()` moved the
 period and the entitlements forward and raised no invoice at all, which was
@@ -606,8 +616,9 @@ a renewal is where ADR-033's promise is actually tested — taxed at today's rat
 on the renewal's own transaction, through `RenewalCharge` and never a special
 path.
 
-**It is off until an operator chooses it** (`product_configuration`, never a
-constant) and it renews **before** the period ends, not after. Renewing what has
+**It is on until an operator switches it off** (`product_configuration`, never a
+constant; only a strict `"automatic": false` is off) and it renews **before**
+the period ends, not after. Renewing what has
 lapsed races `sweep.subscriptions` over the same rows, and whichever won would
 decide whether somebody kept their subscription. One period is billed once by the
 statement that moves it — conditioned on the period it was asked about — never by
@@ -621,8 +632,9 @@ receipt: an early invoice payable on receipt is overdue the next morning, and th
 collection schedule would suspend a customer inside a period they already paid
 for. The same transaction raises `subscription.renewal_payment_request` to whoever
 can settle it, with a link to the invoice's own screen, where they pay by card or
-any other means. Still periods only: a term is never renewed this way, because an
-invoice for a term nobody agreed to is a debt claimed without consent.
+any other means. At a term the same invoice opens the next term, and only after
+the notice above: an invoice for a term nobody was told about is a debt claimed
+without consent.
 
 ## Notifications
 

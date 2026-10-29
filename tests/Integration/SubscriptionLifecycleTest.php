@@ -519,6 +519,27 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         self::assertSame('free', $applied->offer->code);
         self::assertNull($applied->pending, 'the intention is spent, not kept');
+
+        // Applied ahead of the boundary — the renewal pass runs a lead early —
+        // so the plan already paid for is still held until it (2026-10-29).
+        // Revoking it at once took away days the customer had paid for.
+        self::assertNotSame(
+            ['max_projects'],
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
+            'the pro offer is kept to the end of the period it was paid for',
+        );
+
+        // Once the boundary has passed, the arriving offer is what is held.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE entitlements
+                   SET valid_from = valid_from - (CAST(:start AS timestamptz) - now() + interval '1 second'),
+                       valid_until = valid_until - (CAST(:start AS timestamptz) - now() + interval '1 second')
+                 WHERE subscription_id IS NOT NULL
+                SQL,
+            ['start' => $applied->currentPeriodStart->format('Y-m-d H:i:s.uP')],
+        );
+
         self::assertSame(3, $this->limitFor('max_projects'));
         self::assertSame(
             ['max_projects'],

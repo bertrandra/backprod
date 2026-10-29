@@ -21,6 +21,7 @@ use App\Commerce\Domain\SubscriptionMember;
 use App\Commerce\Domain\SubscriptionPlaces;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
+use App\Commerce\Domain\TermRenewal;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\ConflictException;
@@ -465,7 +466,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
      * subscription moved to the offer it was going to move to. The detail
      * says it arrived by schedule rather than by somebody clicking.
      */
-    public function applyPendingChange(Subscription $subscription, string $direction): Subscription
+    public function applyPendingChange(Subscription $subscription, string $direction, callable $alsoBill): Subscription
     {
         $pending = $subscription->pending;
 
@@ -478,8 +479,8 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         $periodEnd = $offer->version->periodEndFrom($from);
 
         return $this->connection->transactional(
-            function () use ($subscription, $offer, $periodEnd, $pending, $direction): Subscription {
-                $this->connection->executeStatement(
+            function () use ($subscription, $offer, $from, $periodEnd, $pending, $direction, $alsoBill): Subscription {
+                $moved = $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
                            SET offer_version_id = :versionId,
@@ -504,17 +505,35 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                pending_requested_by = NULL,
                                updated_at = now()
                          WHERE id = :id
+                           -- Conditioned on the period it was asked about, as
+                           -- `renew()` is (2026-10-29): two overlapping passes
+                           -- must not both apply it, nor both bill it.
+                           AND current_period_end IS NOT DISTINCT FROM :from
+                           AND status = 'ACTIVE'
+                           AND pending_offer_version_id IS NOT NULL
                         SQL,
-                    self::reSnapshot($subscription, $offer, new DateTimeImmutable())
+                    // The new terms run from the boundary the change happens
+                    // at, never from the moment the pass ran: a week early
+                    // left the term ending a week before its periods did.
+                    self::reSnapshot($subscription, $offer, $from)
                         + [
                             'periodEnd' => self::moment($periodEnd),
                             'arrivingIsFree' => $offer->version->isFreemium(),
                             'id' => $subscription->id,
+                            'from' => self::moment($from),
                         ],
                     // Typed, because PDO hands an untyped `false` to
                     // PostgreSQL as an empty string and the column refuses it.
                     ['arrivingIsFree' => ParameterType::BOOLEAN],
                 );
+
+                if ($moved === 0) {
+                    throw new ConflictException(
+                        'RENEWAL_ALREADY_APPLIED',
+                        'This period has already been renewed.',
+                        ['subscription_id' => $subscription->id],
+                    );
+                }
 
                 $this->record(
                     $subscription->id,
@@ -532,16 +551,26 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     ],
                 );
 
-                $this->revokeEntitlements($subscription->id);
+                // The plan already paid for is kept to the end of its period,
+                // and the new one starts there (2026-10-29). Revoking at once
+                // took away up to a renewal lead of days the customer had paid
+                // for. The old rows end where they already did, at `$from`.
                 $this->grantEntitlements(
                     $subscription->id,
                     $subscription->tenantId,
                     $subscription->productId,
                     $offer,
                     $periodEnd,
+                    $from,
                 );
 
-                return $this->requireById($subscription->id, 'changed');
+                $changed = $this->requireById($subscription->id, 'changed');
+
+                // On this transaction, like every renewal: the period and its
+                // invoice commit together or not at all.
+                $alsoBill($changed, $periodEnd);
+
+                return $changed;
             },
         );
     }
@@ -639,7 +668,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    public function dueForRenewal(int $limit, int $leadDays): array
+    public function dueForRenewal(int $limit, int $leadDays, int $offset = 0): array
     {
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
@@ -651,23 +680,35 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                            extract(epoch FROM s.current_period_end - now()) / 86400
                        )::int AS days_until_end
                   FROM subscriptions s
+                  JOIN offer_versions ov ON ov.id = s.offer_version_id
                  WHERE s.status = 'ACTIVE'
                    AND s.current_period_end IS NOT NULL
                    -- Still inside the period, which is what keeps this and
                    -- `expireLapsed()` off the same rows.
                    AND s.current_period_end > now()
                    AND s.current_period_end <= now() + make_interval(days => :lead)
-                   -- Nothing the customer has already asked to end.
-                   AND s.cancel_at_period_end = false
+                   -- Nothing ending at this period's end. A cancellation
+                   -- deferred to a commitment months out is not that: it
+                   -- renews until its date (2026-10-29), or the customer walks
+                   -- out of the commitment at the period end they asked in.
+                   -- The flag cannot say which, because every deferral sets it.
                    AND (s.cancel_effective_at IS NULL
                         OR s.cancel_effective_at > s.current_period_end)
-                   -- A period ending at the term is the last one; what follows
-                   -- is tacit renewal, and that is a decision.
-                   AND (s.term_ends_at IS NULL OR s.current_period_end < s.term_ends_at)
-                 ORDER BY s.current_period_end
-                 LIMIT :limit
+                   -- An offer sold as ending at its term is offered only for
+                   -- the periods inside it: its last one ends by the sweep, at
+                   -- its end, never by this pass days before (2026-10-29).
+                   -- With no term, the one period it was sold is the last.
+                   -- An `AUTO_RENEW` term rolls (ADR-071).
+                   AND (s.renewal = 'AUTO_RENEW'
+                        OR (s.term_ends_at IS NOT NULL
+                            AND s.current_period_end + CASE ov.billing_period
+                                    WHEN 'MONTHLY' THEN INTERVAL '1 month'
+                                    WHEN 'YEARLY' THEN INTERVAL '1 year'
+                                END <= s.term_ends_at))
+                 ORDER BY s.current_period_end, s.id
+                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['lead' => $leadDays, 'limit' => $limit],
+            ['lead' => $leadDays, 'limit' => $limit, 'offset' => $offset],
         );
 
         return array_map(
@@ -686,10 +727,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     public function renew(
         Subscription $subscription,
         ?DateTimeImmutable $periodEnd,
+        ?TermRenewal $term,
         callable $alsoBill,
     ): Subscription {
         return $this->connection->transactional(
-            function () use ($subscription, $periodEnd, $alsoBill): Subscription {
+            function () use ($subscription, $periodEnd, $term, $alsoBill): Subscription {
                 $from = $subscription->currentPeriodEnd;
 
                 // The new period starts where the old one ended, not at now():
@@ -711,8 +753,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                            -- And still renewable (2026-10-26): a cancellation
                            -- that landed after the pass read the row must win,
                            -- or a cancelled subscription is rolled and billed.
+                           -- One due at this period's end, that is: a deferral
+                           -- further out renews until its date (2026-10-29).
                            AND status = 'ACTIVE'
-                           AND cancel_at_period_end = false
+                           AND (cancel_effective_at IS NULL OR cancel_effective_at > current_period_end)
                         SQL,
                     [
                         'periodEnd' => self::moment($periodEnd),
@@ -720,6 +764,28 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         'id' => $subscription->id,
                     ],
                 );
+
+                if ($moved === 1 && $term !== null) {
+                    // The next term, on the same transaction as its first
+                    // period (ADR-071), and conditioned on the term this was
+                    // asked about, for the reason the period is.
+                    $moved = $this->connection->executeStatement(
+                        <<<'SQL'
+                            UPDATE subscriptions
+                               SET term_ends_at = :termEndsAt,
+                                   commitment_ends_at = :commitmentEndsAt
+                             WHERE id = :id
+                               AND term_ends_at = :endingTerm
+                               AND renewal = 'AUTO_RENEW'
+                            SQL,
+                        [
+                            'termEndsAt' => self::moment($term->termEndsAt),
+                            'commitmentEndsAt' => self::moment($term->commitmentEndsAt),
+                            'endingTerm' => self::moment($term->endingTermEndsAt),
+                            'id' => $subscription->id,
+                        ],
+                    );
+                }
 
                 if ($moved === 0) {
                     // Somebody else renewed it between the read and here.
@@ -738,7 +804,14 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     $subscription->offer->version->id,
                     $subscription->offer->version->id,
                     null,
-                    [],
+                    // A term rolled says so, with the dates it now runs to:
+                    // "when did this contract start again?" must be answerable
+                    // from the history, not inferred from two columns.
+                    $term === null ? [] : [
+                        'term_renewed' => true,
+                        'term_ends_at' => $term->termEndsAt->format(DATE_ATOM),
+                        'commitment_ends_at' => $term->commitmentEndsAt?->format(DATE_ATOM),
+                    ],
                 );
 
                 $this->connection->executeStatement(
@@ -746,8 +819,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         UPDATE entitlements
                            SET valid_until = :periodEnd, updated_at = now()
                          WHERE subscription_id = :id AND source = 'SUBSCRIPTION'
+                           -- The rows of the period being renewed, and not
+                           -- those of an offer it left at an earlier boundary,
+                           -- which end where that offer did.
+                           AND (valid_until IS NULL OR valid_until >= :from)
                         SQL,
-                    ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
+                    ['periodEnd' => self::moment($periodEnd), 'from' => self::moment($from), 'id' => $subscription->id],
                 );
 
                 // On this transaction, after the move and after the guard: a
@@ -831,7 +908,37 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    public function dueForRenewalNotice(int $limit): array
+    public function renewalNoticeHonoured(string $dedupKey, int $noticeDays): bool
+    {
+        return $this->connection->fetchOne(
+            <<<'SQL'
+                -- Sent, and not merely raised: a notice whose every delivery
+                -- was suppressed or failed told nobody. On a channel that
+                -- leaves the platform, because the inbox on screen is only
+                -- read by somebody who signs in, and the person who meant to
+                -- leave may not.
+                --
+                -- Sent `notice_days` before the day it said to cancel by, and
+                -- that day reached: the customer had the time promised, and
+                -- the time is up. A notice from before `cancel_by` existed
+                -- names no day and counts for nothing — the safe side.
+                SELECT 1
+                  FROM notifications n
+                  JOIN notification_deliveries d ON d.notification_id = n.id
+                 WHERE n.type = 'subscription.renewal_notice'
+                   AND n.dedup_key = :key
+                   AND n.payload ->> 'cancel_by' IS NOT NULL
+                   AND d.channel <> 'SCREEN'
+                   AND d.status IN ('SENT', 'DELIVERED')
+                   AND CAST(n.payload ->> 'cancel_by' AS date) <= current_date
+                   AND CAST(d.sent_at AS date) <= CAST(n.payload ->> 'cancel_by' AS date) - CAST(:days AS integer)
+                 LIMIT 1
+                SQL,
+            ['key' => $dedupKey, 'days' => $noticeDays],
+        ) !== false;
+    }
+
+    public function dueForRenewalNotice(int $limit, int $aheadDays, int $offset = 0): array
     {
         // The recipient is resolved here, in the same query, rather than by
         // asking the membership repository. That port is deliberately shaped
@@ -847,8 +954,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
                 SELECT s.id, s.tenant_id, s.product_id, s.term_ends_at,
-                       s.notice_days, r.user_id AS recipient_user_id
+                       s.notice_days, r.user_id AS recipient_user_id,
+                       s.current_period_end, ov.billing_period
                   FROM subscriptions s
+                  JOIN offer_versions ov ON ov.id = s.offer_version_id
                   LEFT JOIN LATERAL (
                         -- The person the subscription is addressed to, and
                         -- nobody else. A second branch fell back to the
@@ -863,12 +972,27 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    AND s.term_ends_at IS NOT NULL
                    AND s.notice_days > 0
                    AND s.cancel_at_period_end = false
-                   AND now() >= s.term_ends_at - make_interval(days => s.notice_days)
+                   AND s.current_period_end IS NOT NULL
+                   -- Broad enough to hold the day the notice is due, which the
+                   -- handler decides: the last period of the term ends up to a
+                   -- month short of it, and the renewal comes a lead before
+                   -- that (ADR-071).
+                   AND now() >= s.term_ends_at - make_interval(days => s.notice_days + :ahead)
                    AND now() <  s.term_ends_at
-                 ORDER BY s.term_ends_at, r.user_id
-                 LIMIT :limit
+                   -- Not those already told this term (2026-10-29). The index
+                   -- refused them in PHP, but they kept their place at the head
+                   -- of the batch, and the subscriptions behind them were told
+                   -- too late to renew.
+                   AND NOT EXISTS (
+                        SELECT 1 FROM notifications n
+                         WHERE n.type = 'subscription.renewal_notice'
+                           AND n.recipient_user_id = r.user_id
+                           AND n.dedup_key = s.id::text || ':' || to_char(s.term_ends_at, 'YYYY-MM-DD')
+                   )
+                 ORDER BY s.term_ends_at, s.id, r.user_id
+                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['limit' => $limit],
+            ['limit' => $limit, 'ahead' => $aheadDays, 'offset' => $offset],
         );
 
         return array_map(
@@ -879,6 +1003,8 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 Row::timestamp($row, 'term_ends_at'),
                 Row::integer($row, 'notice_days'),
                 Row::nullableString($row, 'recipient_user_id'),
+                Row::timestamp($row, 'current_period_end'),
+                Row::string($row, 'billing_period'),
             ),
             $rows,
         );
@@ -1122,13 +1248,15 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         string $productId,
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
+        ?DateTimeImmutable $validFrom = null,
     ): void {
         foreach ($offer->version->grants as $grant) {
             $this->connection->executeStatement(
                 <<<'SQL'
                     INSERT INTO entitlements
-                        (tenant_id, product_id, feature_id, limit_value, source, subscription_id, valid_until)
-                    VALUES (:tenantId, :productId, :featureId, :limit, 'SUBSCRIPTION', :subscriptionId, :validUntil)
+                        (tenant_id, product_id, feature_id, limit_value, source, subscription_id, valid_from, valid_until)
+                    VALUES (:tenantId, :productId, :featureId, :limit, 'SUBSCRIPTION', :subscriptionId,
+                            coalesce(CAST(:validFrom AS timestamptz), now()), :validUntil)
                     SQL,
                 [
                     'tenantId' => $tenantId,
@@ -1136,6 +1264,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     'featureId' => $grant->feature->id,
                     'limit' => $grant->limit,
                     'subscriptionId' => $subscriptionId,
+                    'validFrom' => self::moment($validFrom),
                     'validUntil' => self::moment($periodEnd),
                 ],
             );
@@ -1398,11 +1527,16 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                          WHERE id = :id
                            AND status = :status
                            AND cancel_at_period_end = :pending
+                           -- And the period the decision was priced on
+                           -- (2026-10-29): a renewal between the read and here
+                           -- rolled and billed a period the buy-out also counts.
+                           AND current_period_end IS NOT DISTINCT FROM :seenPeriodEnd
                         SQL,
                         [
                             'id' => $subscription->id,
                             'status' => $subscription->status,
                             'pending' => $subscription->cancelAtPeriodEnd,
+                            'seenPeriodEnd' => self::moment($subscription->currentPeriodEnd),
                         ],
                         ['pending' => ParameterType::BOOLEAN],
                     );
@@ -1438,12 +1572,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                          WHERE id = :id
                            AND status = :status
                            AND cancel_at_period_end = :pending
+                           -- And the period the decision was priced on
+                           -- (2026-10-29): a renewal between the read and here
+                           -- rolled and billed a period the buy-out also counts.
+                           AND current_period_end IS NOT DISTINCT FROM :seenPeriodEnd
                         SQL,
                         [
                             'id' => $subscription->id,
                             'effectiveAt' => self::moment($decision->effectiveAt),
                             'status' => $subscription->status,
                             'pending' => $subscription->cancelAtPeriodEnd,
+                            'seenPeriodEnd' => self::moment($subscription->currentPeriodEnd),
                         ],
                         ['pending' => ParameterType::BOOLEAN],
                     );

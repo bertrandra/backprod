@@ -14,12 +14,14 @@ use App\Commerce\Domain\ChangeDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\RenewalCharge;
+use App\Commerce\Domain\RenewalNotice;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
+use App\Commerce\Domain\TermRenewal;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use DateTimeImmutable;
@@ -896,39 +898,47 @@ final class Subscriptions
         // deferred to a commitment ten months away does not stop next
         // month's renewal.
         if ($subscription->pending !== null && $subscription->pending->isDueBy($from)) {
+            // Billed like any other period, at the price of the offer it
+            // becomes (2026-10-29). It rolled the period and raised nothing,
+            // which gave the next period away the moment renewal ran by itself.
             return $this->subscriptions->applyPendingChange(
                 $subscription,
                 self::directionBetween(
                     $subscription->offer->plan->rank,
                     $subscription->pending->plan->rank,
                 ),
-            );
-        }
-
-        // Third: an offer that was sold as ending at its term ends there
-        // (spec §6.3). Asked of the **terms the subscription snapshotted**,
-        // never of the offer version as it stands today — the version may have
-        // been re-termed since, and what a customer agreed to is what they
-        // agreed to. It is a property and not a plan's name, which is §13's
-        // rule and what `gate:plans` holds in PHP: the freemium is recognised
-        // here by not renewing, not by being called one.
-        if ($subscription->terms->endsAtTerm()) {
-            return $this->subscriptions->expire($subscription, SubscriptionTerms::ENDS_AT_TERM);
-        }
-
-        // The term is reached, and what follows a term is tacit renewal of a
-        // commitment — a decision somebody takes, with a notice whose deadline
-        // `SendRenewalNotices` says is unconfirmed (ADR-068). Nothing automatic
-        // rolls past here.
-        if ($subscription->hasReachedTermAt($from)) {
-            throw new ConflictException(
-                'TERM_REACHED',
-                'This subscription has reached its term; renewing it is a decision, not a roll.',
-                ['term_ends_at' => $subscription->termEndsAt?->format(DATE_ATOM)],
+                // A period with no length (the free period's `CUSTOM`) has no
+                // end to bill to, and nothing to price: no document.
+                fn (Subscription $changed, ?DateTimeImmutable $periodEnd): ?string => $periodEnd === null
+                    ? null
+                    : $this->billPeriod($changed, $from, $periodEnd),
             );
         }
 
         $periodEnd = $subscription->offer->version->periodEndFrom($from);
+
+        // Whether this is the last period of the term (2026-10-29). Reached,
+        // or the next period would run past it: period ends are counted from
+        // one another and the term from the start, so a month-end start or a
+        // few microseconds between the two clocks leave the last period ending
+        // just short of the term. Requiring equality left every such term
+        // unable to roll, after its customer had been told it would.
+        $lastOfTerm = $subscription->termEndsAt !== null
+            && ($subscription->hasReachedTermAt($from)
+                || ($periodEnd !== null && $periodEnd > $subscription->termEndsAt));
+
+        // Third: an offer that was sold as ending at its term ends there
+        // (spec §6.3) — at its **last** period, and not before. Asked of the
+        // **terms the subscription snapshotted**, never of the offer version
+        // as it stands today. With no term, the one period it was sold is the
+        // last; with a term, the periods inside it roll and are billed like any
+        // other (2026-10-29: it expired at the first renewal, so a twelve-month
+        // contract ended after a month, and with renewal on by default every
+        // free period was ended days early by the pass). It is a property and
+        // not a plan's name: the freemium is recognised by not renewing.
+        if ($subscription->terms->endsAtTerm() && ($subscription->termEndsAt === null || $lastOfTerm)) {
+            return $this->subscriptions->expire($subscription, SubscriptionTerms::ENDS_AT_TERM);
+        }
 
         if ($periodEnd === null) {
             // A CUSTOM billing period has no length, so there is no period to
@@ -942,17 +952,35 @@ final class Subscriptions
             );
         }
 
+        // A cancellation dated inside the next period (2026-10-29). Deferred
+        // cancellations now renew until their date, so the period that would
+        // run past it is not one to sell: billing it whole charges for days
+        // after the date the customer was given. The subscription lapses at
+        // this period's end instead, which is the side to err on.
+        if ($subscription->cancelEffectiveAt !== null && $subscription->cancelEffectiveAt < $periodEnd) {
+            throw new ConflictException(
+                'CANCELLATION_DUE',
+                'This subscription ends before its next period would.',
+                ['cancel_effective_at' => $subscription->cancelEffectiveAt->format(DATE_ATOM)],
+            );
+        }
+
+        // The end of the term. What follows is the next term, tacitly, on the
+        // terms the subscription snapshotted (ADR-071) — once the customer was
+        // told and had the time the offer promised to refuse.
+        $term = $lastOfTerm ? $this->nextTerm($subscription, $from) : null;
+        $termEndsAt = $term->termEndsAt ?? $subscription->termEndsAt;
+
         // A period that would run past the term is not a period the customer
         // bought. Refused rather than shortened: billing a whole period for a
         // part of one overcharges, and capping the end would sell service past
-        // the contract. The subscription reaches its term and the decision
-        // above applies.
-        if ($subscription->termEndsAt !== null && $periodEnd > $subscription->termEndsAt) {
+        // the contract.
+        if ($termEndsAt !== null && $periodEnd > $termEndsAt) {
             throw new ConflictException(
                 'RENEWAL_WOULD_PASS_TERM',
                 'The next period would end after the term, so it is not one to roll into.',
                 [
-                    'term_ends_at' => $subscription->termEndsAt->format(DATE_ATOM),
+                    'term_ends_at' => $termEndsAt->format(DATE_ATOM),
                     'period_would_end_at' => $periodEnd->format(DATE_ATOM),
                 ],
             );
@@ -961,20 +989,99 @@ final class Subscriptions
         return $this->subscriptions->renew(
             $subscription,
             $periodEnd,
+            $term,
             // On the renewal's own transaction (ADR-068). The period moving and
             // the invoice for it are one fact: a period extended unbilled is
             // revenue given away, and an invoice for a period the subscription
             // never got is a customer charged for nothing.
-            //
-            // No actor: nobody did this, the clock did — the same `null` the
-            // expiry event carries.
-            fn (Subscription $renewed): string => $this->renewals->applyRenewal(
-                $renewed,
-                $from,
-                $periodEnd,
-                null,
-            ),
+            fn (Subscription $renewed): ?string => $this->billPeriod($renewed, $from, $periodEnd),
         );
+    }
+
+    /**
+     * The invoice for one renewed period, or none when it costs nothing.
+     *
+     * No actor: nobody did this, the clock did — the same `null` the expiry
+     * event carries. **Nothing outstanding raises no document** (2026-10-29):
+     * a free plan that renews renewed into a €0 invoice and a request to pay
+     * it, every period, each one a permanent number in a gapless series for
+     * no transaction.
+     */
+    private function billPeriod(Subscription $subscription, DateTimeImmutable $from, DateTimeImmutable $periodEnd): ?string
+    {
+        if ($subscription->offer->version->priceMinorUnits === 0) {
+            return null;
+        }
+
+        return $this->renewals->applyRenewal($subscription, $from, $periodEnd, null);
+    }
+
+    /**
+     * The next term of a subscription whose term has ended, or a refusal
+     * saying why it may not roll (ADR-071).
+     *
+     * **Told first, with the time promised.** A tacit renewal is the contract
+     * agreed again by not refusing it, which is only fair to somebody who
+     * knew. So the pre-renewal notice for *this* term must have been sent by
+     * mail at least `notice_days` before the date it gave to cancel by, and
+     * that date must have passed — read from the notice and its delivery
+     * rows, so "did we tell them?" and "may we renew?" are one fact. The term
+     * rolls up to a renewal lead before it ends, which is why the notice names
+     * that day and not the term's end: a customer told "cancel before the
+     * 31st" who cancels on the 28th must not find a new commitment already
+     * armed. Not sent, too late, or the date not yet reached:
+     * `TERM_RENEWAL_NOT_NOTICED`, and the next pass asks again; at the end of
+     * its last period an unrenewed subscription ends, the safe side to fail on.
+     *
+     * **A commitment is never re-armed without a notice.** Terms that promise
+     * no notice (`notice_days = 0`) roll freely only when they commit to
+     * nothing — the customer can leave the next day. With a commitment, no
+     * notice can satisfy them, so they are refused, and the subscription
+     * reaches its term as before.
+     */
+    private function nextTerm(Subscription $subscription, DateTimeImmutable $from): TermRenewal
+    {
+        $endingTerm = $subscription->termEndsAt;
+        $next = $endingTerm === null ? null : TermRenewal::after($subscription->terms, $endingTerm);
+
+        if ($endingTerm === null || $next === null) {
+            // No length to repeat. Reached, it is reached; not yet, the next
+            // period is simply one the contract does not hold.
+            throw $subscription->hasReachedTermAt($from)
+                ? new ConflictException(
+                    'TERM_REACHED',
+                    'This subscription has reached a term its terms give no length to repeat.',
+                    ['term_ends_at' => $endingTerm?->format(DATE_ATOM)],
+                )
+                : new ConflictException(
+                    'RENEWAL_WOULD_PASS_TERM',
+                    'The next period would end after the term, so it is not one to roll into.',
+                    ['term_ends_at' => $endingTerm?->format(DATE_ATOM)],
+                );
+        }
+
+        $noticeDays = $subscription->terms->noticeDays;
+
+        if ($noticeDays === 0 && $subscription->terms->hasCommitment()) {
+            throw new ConflictException(
+                'TERM_RENEWAL_NOT_NOTICED',
+                'These terms commit the customer again but promise no notice, so the term cannot roll by itself.',
+                ['term_ends_at' => $endingTerm->format(DATE_ATOM)],
+            );
+        }
+
+        if ($noticeDays > 0 && !$this->subscriptions->renewalNoticeHonoured(
+            RenewalNotice::keyFor($subscription->id, $endingTerm),
+            $noticeDays,
+        )) {
+            throw new ConflictException(
+                'TERM_RENEWAL_NOT_NOTICED',
+                'The customer has not yet been told this term renews, or not long enough ago.',
+                ['term_ends_at' => $endingTerm->format(DATE_ATOM), 'notice_days' => $noticeDays],
+            );
+        }
+
+        return $next;
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
 use App\Job\Domain\Job;
 use App\Job\Service\RenewSubscriptions;
+use App\Job\Service\SendRenewalNotices;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
@@ -32,10 +33,10 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  * service method with no endpoint and no job. A double here would prove the
  * double writes nothing.
  *
- * The first case is the one that protects every existing deployment: a product
- * that has said nothing renews nothing. Everything this file adds is off until
- * an operator chooses it, because what silence would cost is a customer billed
- * for a period nobody decided to sell them.
+ * The first case is the baseline (ADR-071, the operator's decision of
+ * 2026-10-29): a product that has said nothing renews, and only a strict
+ * `"automatic": false` stops it. The last section is the term rolling, and the
+ * notice it waits for.
  */
 #[CoversNothing]
 final class RenewalPassTest extends DatabaseApiTestCase
@@ -81,45 +82,58 @@ final class RenewalPassTest extends DatabaseApiTestCase
         ]);
     }
 
-    // --- the default, which is nothing ---------------------------------------
+    // --- the baseline, which is renewing (ADR-071) ---------------------------
 
-    public function testAProductThatHasSaidNothingRenewsNothing(): void
+    public function testAProductThatHasSaidNothingRenews(): void
     {
         $this->subscribe();
         $this->periodEndsIn('1 day');
 
         $outcome = $this->pass();
 
-        // The whole of what an upgrading deployment gets: the subscription is
-        // read, recognised as due, and left alone because nobody decided to
-        // sell another period of it.
+        // What an upgrading deployment gets: the subscription continues, and
+        // the period it continues into is invoiced.
+        self::assertSame(1, $outcome['renewed']);
+        self::assertSame(0, $outcome['switched_off']);
+        self::assertSame(1, $this->invoiceCount());
+    }
+
+    public function testSwitchedOffRenewsNothing(): void
+    {
+        $this->chooseRenewal('{"automatic": false}');
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+
+        $outcome = $this->pass();
+
         self::assertSame(0, $outcome['renewed']);
         self::assertSame(1, $outcome['switched_off']);
         self::assertSame(0, $this->invoiceCount());
     }
 
-    public function testAnUnreadableSettingIsTreatedAsNoSettingAtAll(): void
+    public function testAnUnreadableFlagIsNoDecisionAndLeavesTheBaseline(): void
     {
-        // A string "true" is what a hand-edited document produces. Reading it as
-        // truthy would turn a typo into money.
-        $this->chooseRenewal('{"automatic": "true"}');
+        // A string "false" is what a hand-edited document produces. Only the
+        // operator's strict false is a decision to stop.
+        $this->chooseRenewal('{"automatic": "false"}');
         $this->subscribe();
         $this->periodEndsIn('1 day');
 
-        self::assertSame(1, $this->pass()['switched_off']);
-        self::assertSame(0, $this->invoiceCount());
+        self::assertSame(1, $this->pass()['renewed']);
     }
 
-    public function testALeadOutsideTheBoundsIsTreatedAsNoSettingAtAll(): void
+    public function testALeadOutsideTheBoundsFallsBackToTheDefaultLead(): void
     {
         $this->chooseRenewal(sprintf(
             '{"automatic": true, "lead_days": %d}',
             RenewalPolicy::LONGEST_LEAD + 1,
         ));
         $this->subscribe();
-        $this->periodEndsIn('1 day');
+        $this->periodEndsIn('9 days');
 
-        self::assertSame(1, $this->pass()['switched_off']);
+        // Nine days out is inside the bad lead and outside the default seven.
+        self::assertSame(1, $this->pass()['not_yet']);
+        self::assertSame(0, $this->invoiceCount());
     }
 
     // --- switched on ----------------------------------------------------------
@@ -289,6 +303,7 @@ final class RenewalPassTest extends DatabaseApiTestCase
             $repository->renew(
                 $held,
                 new DateTimeImmutable('+2 months'),
+                null,
                 function () use (&$billed): string {
                     $billed++;
 
@@ -393,24 +408,212 @@ final class RenewalPassTest extends DatabaseApiTestCase
         self::assertSame(0, $this->invoiceCount());
     }
 
-    public function testThePeriodEndingAtTheTermIsNotRead(): void
-    {
-        // The last period of a contract. What follows it is tacit renewal of a
-        // commitment, which is a decision somebody takes and not something cron
-        // does — so the query does not offer it.
-        $this->chooseRenewal('{"automatic": true}');
-        $this->subscribe();
-        $this->periodEndsIn('1 day');
+    // --- what the baseline made live (audit, 2026-10-29) ----------------------
 
+    public function testAFreePeriodIsNotEndedEarlyByThePass(): void
+    {
+        // Sold as one period that ends: the pass ran four days before its end
+        // and expired it then. Its end is the sweep's, when it lapses.
+        $this->subscribe();
+        $this->periodEndsIn('4 days');
         $this->connection->executeStatement(
-            'UPDATE subscriptions SET term_ends_at = current_period_end',
+            "UPDATE subscriptions SET renewal = 'ENDS_AT_TERM', term_months = NULL, term_ends_at = NULL",
         );
 
         $outcome = $this->pass();
 
         self::assertSame(0, $outcome['renewed']);
-        self::assertSame(0, $outcome['switched_off']);
+        self::assertSame([], $outcome['refused']);
+        self::assertSame('ACTIVE', $this->connection->fetchOne('SELECT status FROM subscriptions'));
+    }
+
+    public function testAContractEndingAtItsTermRollsThePeriodsInsideIt(): void
+    {
+        // A twelve-month contract sold as ending at its term was expired at
+        // its first renewal, a month in.
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET renewal = 'ENDS_AT_TERM', term_months = 12,
+                       term_ends_at = current_period_end + INTERVAL '6 months'
+                SQL,
+        );
+
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertSame(1, $this->invoiceCount());
+        self::assertSame('ACTIVE', $this->connection->fetchOne('SELECT status FROM subscriptions'));
+    }
+
+    public function testACancellationDeferredToItsDateStillRenewsUntilThen(): void
+    {
+        // Cancelling under commitment defers the end; every deferral set the
+        // flag the pass refused, so the customer walked out at the period end
+        // they asked in, months before the date they were given.
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET cancel_at_period_end = true, cancel_effective_at = current_period_end + INTERVAL '6 months'",
+        );
+
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertSame(1, $this->invoiceCount());
+    }
+
+    public function testAFreePlanRenewsWithoutADocument(): void
+    {
+        // Nothing outstanding raises no document: it raised a €0 invoice and
+        // a request to pay it, every period, each a permanent number.
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        TestDatabase::forge($this->connection, ['offer_versions'], 'UPDATE offer_versions SET price_minor_units = 0');
+
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertSame(0, $this->invoiceCount());
+        $requests = $this->connection->fetchOne(
+            "SELECT count(*) FROM notifications WHERE type = 'subscription.renewal_payment_request'",
+        );
+        self::assertIsNumeric($requests);
+        self::assertSame(0, (int) $requests);
+    }
+
+    public function testATermEndingJustAfterItsLastPeriodStillRolls(): void
+    {
+        // The term is counted from one clock and the periods from another,
+        // microseconds apart; equality was required, so such a term never
+        // rolled after its customer had been told it would.
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET term_ends_at = term_ends_at + INTERVAL '1 second',"
+            . " commitment_ends_at = commitment_ends_at + INTERVAL '1 second'",
+        );
+        $this->noticeRaised(daysAgo: 40);
+
+        self::assertSame(1, $this->pass()['renewed']);
+    }
+
+    // --- the term rolling (ADR-071) -------------------------------------------
+
+    public function testAnOfferSoldAsEndingAtItsTermIsNotReadAtItsTerm(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+        $this->connection->executeStatement("UPDATE subscriptions SET renewal = 'ENDS_AT_TERM'");
+
+        $outcome = $this->pass();
+
+        self::assertSame(0, $outcome['renewed']);
         self::assertSame(0, $outcome['not_yet']);
+        self::assertSame([], $outcome['refused']);
+    }
+
+    public function testATermIsNotRolledBeforeTheCustomerWasTold(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+
+        $outcome = $this->pass();
+
+        self::assertSame(0, $outcome['renewed']);
+        self::assertSame(['TERM_RENEWAL_NOT_NOTICED' => 1], $outcome['refused']);
+        self::assertSame(0, $this->invoiceCount());
+    }
+
+    public function testATermIsNotRolledWhileTheNoticeIsYoungerThanItsDays(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+
+        // Mailed yesterday: the customer has not had the thirty days the offer
+        // promised before the day the notice said to cancel by.
+        $this->noticeRaised(daysAgo: 1);
+
+        self::assertSame(['TERM_RENEWAL_NOT_NOTICED' => 1], $this->pass()['refused']);
+        self::assertSame(0, $this->invoiceCount());
+    }
+
+    public function testANoticeRaisedButNeverMailedDoesNotCount(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+
+        // Raised long ago and suppressed: it told nobody, so the term does not
+        // roll, and at its end the subscription ends — the safe side.
+        $this->noticeRaised(daysAgo: 40, outcome: 'SUPPRESSED');
+
+        self::assertSame(['TERM_RENEWAL_NOT_NOTICED' => 1], $this->pass()['refused']);
+        self::assertSame(0, $this->invoiceCount());
+    }
+
+    public function testATermToldInTimeRollsIntoTheNextOneWithItsFirstPeriod(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+        $this->noticeRaised(daysAgo: 40);
+
+        $endingTerm = $this->moment('term_ends_at');
+
+        self::assertSame(1, $this->pass()['renewed']);
+
+        // Twelve months on from the end of the term that ended, never from now:
+        // renewing a day early must neither shorten the next term nor push its
+        // commitment past what the offer sold.
+        $expected = $endingTerm->modify('+12 months')->format('Y-m-d');
+
+        self::assertSame($expected, $this->moment('term_ends_at')->format('Y-m-d'));
+        self::assertSame($expected, $this->moment('commitment_ends_at')->format('Y-m-d'));
+        self::assertSame($endingTerm->format('Y-m-d'), $this->currentPeriodStart()->format('Y-m-d'));
+        self::assertSame(1, $this->invoiceCount());
+
+        // The history says a term rolled, with the date it runs to.
+        $detail = $this->connection->fetchOne(
+            "SELECT detail->>'term_renewed' FROM subscription_events WHERE type = 'RENEWED'",
+        );
+        self::assertSame('true', $detail);
+    }
+
+    public function testACommitmentWithNoNoticePromisedNeverRollsByItself(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 0);
+
+        self::assertSame(['TERM_RENEWAL_NOT_NOTICED' => 1], $this->pass()['refused']);
+        self::assertSame(0, $this->invoiceCount());
+    }
+
+    public function testATermThatCommitsToNothingRollsWithoutANotice(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 0, noticeDays: 0);
+
+        // Nothing binding is re-armed: the customer may leave the next day.
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertNull($this->connection->fetchOne('SELECT commitment_ends_at FROM subscriptions'));
+    }
+
+    public function testACancellationAskedForInTheNoticeWindowStopsTheRoll(): void
+    {
+        $this->subscribe();
+        $this->periodEndsIn('1 day');
+        $this->lastPeriodOfATerm(commitmentMonths: 12, noticeDays: 30);
+        $this->noticeRaised(daysAgo: 40);
+
+        $this->connection->executeStatement(
+            'UPDATE subscriptions SET cancel_at_period_end = true, cancel_effective_at = term_ends_at',
+        );
+
+        self::assertSame(0, $this->pass()['renewed']);
+        self::assertSame(0, $this->invoiceCount());
     }
 
     // --- helpers -------------------------------------------------------------
@@ -498,6 +701,54 @@ final class RenewalPassTest extends DatabaseApiTestCase
                     SQL,
                 $interval,
             ),
+        );
+    }
+
+    /**
+     * Makes the current period the last of a twelve-month term.
+     *
+     * The start moves a year back, so the term is one the subscription has
+     * actually run: `subscriptions_term_after_start`.
+     */
+    private function lastPeriodOfATerm(int $commitmentMonths, int $noticeDays): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET started_at = current_period_end - INTERVAL '12 months',
+                       term_months = 12,
+                       term_ends_at = current_period_end,
+                       commitment_months = :commitment,
+                       commitment_ends_at = CASE WHEN :commitment > 0 THEN current_period_end END,
+                       notice_days = :notice,
+                       renewal = 'AUTO_RENEW'
+                SQL,
+            ['commitment' => $commitmentMonths, 'notice' => $noticeDays],
+        );
+    }
+
+    /**
+     * The real notice, raised by its own job, then mailed and aged.
+     *
+     * The mail is marked sent here rather than through the dispatcher, which
+     * needs a transport: what is under test is that the renewal reads the
+     * delivery, not how the delivery is made.
+     */
+    private function noticeRaised(int $daysAgo, string $outcome = 'SENT'): void
+    {
+        $handler = $this->container()->get(SendRenewalNotices::class);
+        self::assertInstanceOf(SendRenewalNotices::class, $handler);
+        self::assertSame(1, $handler->handle($this->job())['raised'] ?? null);
+
+        $sentAt = $outcome === 'SENT' ? 'now() - make_interval(days => :days)' : 'NULL';
+        $reason = $outcome === 'SUPPRESSED' ? "'OPTED_OUT'" : 'NULL';
+
+        TestDatabase::forge(
+            $this->connection,
+            ['notifications', 'notification_deliveries'],
+            "UPDATE notification_deliveries SET status = :status, sent_at = {$sentAt},"
+            . " suppression_reason = {$reason} WHERE channel = 'EMAIL'",
+            ['status' => $outcome, 'days' => $daysAgo],
         );
     }
 

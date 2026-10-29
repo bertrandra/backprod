@@ -194,9 +194,43 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
 
         self::assertSame(1, $first['raised'] ?? null);
         self::assertSame(0, $second['raised'] ?? null);
-        self::assertSame(1, $second['already_noticed'] ?? null);
+        // Not even read again (2026-10-29): a subscription already told this
+        // term no longer holds a place at the head of the batch.
+        self::assertSame(0, $second['already_noticed'] ?? null);
         self::assertSame(0, $third['raised'] ?? null);
         self::assertSame(1, $this->noticesRaised());
+    }
+
+    /**
+     * The notice names the day the renewal is decided — a lead before the
+     * next term starts — and the renewal reads that day back (ADR-071).
+     */
+    public function testTheNoticeSaysWhichDayToCancelBy(): void
+    {
+        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $this->sweep();
+
+        $payload = $this->connection->fetchOne(
+            "SELECT payload::text FROM notifications WHERE type = 'subscription.renewal_notice'",
+        );
+        self::assertIsString($payload);
+        $payload = json_decode($payload, true);
+        self::assertIsArray($payload);
+
+        $renewsOn = new \DateTimeImmutable('+10 days');
+        self::assertSame($renewsOn->format('Y-m-d'), $payload['renews_on'] ?? null);
+        self::assertSame($renewsOn->modify('-7 days')->format('Y-m-d'), $payload['cancel_by'] ?? null);
+    }
+
+    /** Too early: the day to tell them is `notice_days` before the day to cancel by. */
+    public function testNothingIsSentBeforeTheNoticeIsDue(): void
+    {
+        $this->tenantSubscription(endsInDays: 80, noticeDays: 30);
+
+        $pass = $this->sweep();
+
+        self::assertSame(0, $pass['raised'] ?? null);
+        self::assertSame(1, $pass['not_yet'] ?? null);
     }
 
     /**
@@ -287,11 +321,15 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
             <<<'SQL'
                 INSERT INTO subscriptions
                     (tenant_id, product_id, offer_version_id, status,
-                     subscriber_user_id, started_at, current_period_start,
+                     subscriber_user_id, started_at, current_period_start, current_period_end,
                      term_months, term_ends_at, notice_days, renewal)
                 VALUES (:tenant, :product, :version, 'ACTIVE',
                         CAST(:subscriber AS uuid),
                         now() - interval '400 days', now() - interval '400 days',
+                        -- The last period of the term, ending with it: the
+                        -- notice names the day the renewal is decided, which
+                        -- is counted from this (ADR-071).
+                        now() + make_interval(days => :endsIn),
                         12, now() + make_interval(days => :endsIn), :noticeDays, :renewal)
                 RETURNING id
                 SQL,

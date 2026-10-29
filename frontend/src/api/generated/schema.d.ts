@@ -6090,9 +6090,9 @@ export interface components {
              */
             currency: string;
         };
-        /** @description Whether a product's subscriptions roll into their next paid period by themselves, and how early. Off unless chosen: absent configuration renews nothing. */
+        /** @description Whether a product's subscriptions roll into their next paid period by themselves, and how early. On unless switched off (ADR-071): absent configuration renews, seven days ahead. At the end of a term, an offer sold `AUTO_RENEW` rolls into its next term once the pre-renewal notice was raised at least `notice_days` before. */
         RenewalSettings: {
-            /** @description True renews each paid period inside its term without anybody acting; false leaves every subscription to end at its period. */
+            /** @description True renews each paid period without anybody acting, and at the term the term itself once the customer was told; false leaves every subscription to end at its period. */
             automatic: boolean;
             /** @description How many days before the period ends the next one is invoiced and the customer is mailed a request to pay it. The invoice is due on the day the period starts. */
             lead_days: number;

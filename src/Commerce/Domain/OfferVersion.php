@@ -99,7 +99,16 @@ final class OfferVersion
      */
     public function periodEndFrom(DateTimeImmutable $from): ?DateTimeImmutable
     {
-        return match ($this->billingPeriod) {
+        return self::periodEndAfter($this->billingPeriod, $from);
+    }
+
+    /**
+     * The same arithmetic for a billing period known only by name, so the
+     * notice and the renewal count one calendar between them.
+     */
+    public static function periodEndAfter(string $billingPeriod, DateTimeImmutable $from): ?DateTimeImmutable
+    {
+        return match ($billingPeriod) {
             'MONTHLY' => $from->modify('+1 month'),
             'YEARLY' => $from->modify('+1 year'),
             default => null,

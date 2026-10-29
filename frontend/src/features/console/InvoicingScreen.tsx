@@ -694,8 +694,9 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
  * and nothing could write it.
  *
  * Said on the form, because it is the part nobody would guess: the invoice is
- * due on the day the period starts, not the day it is raised, and a period never
- * rolls past the subscription's term — renewing a commitment stays a decision.
+ * due on the day the period starts, not the day it is raised, and renewal is
+ * the baseline (ADR-071): on until switched off, and at the term a new term,
+ * once the customer's renewal notice has run its days.
  */
 function RenewalForm({ productCode, initial }: { productCode: string; initial: RenewalSettings }) {
   const save = useSetRenewal(productCode);
@@ -728,7 +729,7 @@ function RenewalForm({ productCode, initial }: { productCode: string; initial: R
           />
           <span>
             {t("Renew each paid period and ask for payment")}<span className="mt-0.5 block text-xs text-muted">
-              {t("Off, every subscription ends at its period and nothing is invoiced. A period never rolls past the subscription's term: renewing a commitment stays a decision.")}</span>
+              {t("On unless you switch it off. Off, every subscription ends at its period and nothing is invoiced. At the end of its term, an offer sold as renewing starts a new term, once the customer's renewal notice has run its days.")}</span>
           </span>
         </label>
 
