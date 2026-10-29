@@ -90,12 +90,22 @@ final class PostgresTenantProducts implements TenantProducts
             // the roles they hold in the organisation — DISTINCT across the
             // products they already have, because a role is held in the
             // tenant and the rows per product are its mirror (ADR-047).
+            //
+            // With the status they hold, too. A membership PENDING an
+            // administrator or UNCONFIRMED by its own address is not a
+            // membership yet, and copying it without its status made it an
+            // ACTIVE one on the new product — a sign-up nobody had accepted,
+            // let in by the platform assigning a product. Should the mirror
+            // ever disagree with itself, the row still waiting wins: fail
+            // closed.
             $this->connection->executeStatement(
                 <<<'SQL'
-                    INSERT INTO tenant_members (tenant_id, user_id, product_id)
-                    SELECT DISTINCT tenant_id, user_id, CAST(:product AS uuid)
+                    INSERT INTO tenant_members (tenant_id, user_id, product_id, status, requested_at)
+                    SELECT DISTINCT ON (tenant_id, user_id)
+                           tenant_id, user_id, CAST(:product AS uuid), status, requested_at
                       FROM tenant_members
                      WHERE tenant_id = :tenant
+                     ORDER BY tenant_id, user_id, (status = 'ACTIVE'), requested_at
                     ON CONFLICT DO NOTHING
                     SQL,
                 ['tenant' => $tenantId, 'product' => $productId],

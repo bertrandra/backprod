@@ -99,6 +99,62 @@ final class TenantProductsTest extends DatabaseApiTestCase
         self::assertNotContains('members.manage', $this->stringsIn($grace, 'permissions'));
     }
 
+    /**
+     * A sign-up still waiting — on an administrator, or on its own address —
+     * is mirrored onto the new product **waiting**, not let in by it. And a
+     * decision taken from either product is the decision in both: declined,
+     * nothing of the request is left anywhere.
+     */
+    public function testAssigningAProductKeepsAWaitingSignUpWaiting(): void
+    {
+        $zed = $this->id("INSERT INTO users (auth_subject, email) VALUES ('sub-zed', 'zed@acme.test') RETURNING id");
+        $uma = $this->id("INSERT INTO users (auth_subject, email) VALUES ('sub-uma', 'uma@acme.test') RETURNING id");
+        $this->member($zed, $this->atlas, 'USER');
+        $this->member($uma, $this->atlas, 'USER');
+        $this->connection->executeStatement("UPDATE tenant_members SET status = 'PENDING' WHERE user_id = :user", ['user' => $zed]);
+        $this->connection->executeStatement("UPDATE tenant_members SET status = 'UNCONFIRMED' WHERE user_id = :user", ['user' => $uma]);
+        $this->override([
+            AuthProvider::class => new FakeAuthProvider([
+                'ada-token' => 'sub-ada',
+                'ola-token' => 'sub-ola',
+                'zed-token' => 'sub-zed',
+                'uma-token' => 'sub-uma',
+            ]),
+        ]);
+
+        self::assertSame(200, $this->assign($this->boreas, 'ola-token')->getStatusCode());
+
+        self::assertSame(
+            ['PENDING'],
+            $this->connection->fetchFirstColumn(
+                'SELECT DISTINCT status FROM tenant_members WHERE user_id = :user AND product_id = :product',
+                ['user' => $zed, 'product' => $this->boreas],
+            ),
+        );
+        self::assertSame(
+            ['UNCONFIRMED'],
+            $this->connection->fetchFirstColumn(
+                'SELECT DISTINCT status FROM tenant_members WHERE user_id = :user AND product_id = :product',
+                ['user' => $uma, 'product' => $this->boreas],
+            ),
+        );
+        self::assertSame(403, $this->permissions('zed-token', 'boreas')->getStatusCode());
+        self::assertSame(403, $this->permissions('uma-token', 'boreas')->getStatusCode());
+
+        // Declined from the new product: gone from both.
+        $declined = $this->request(
+            'POST',
+            '/api/v1/tenants/current/members/' . $zed . '/decline',
+            ['Authorization' => 'Bearer ada-token', 'X-Product' => 'boreas'],
+        );
+
+        self::assertSame(204, $declined->getStatusCode());
+        self::assertSame(0, $this->membershipsOf($zed));
+        self::assertSame(0, $this->roleRowsOf($zed));
+        self::assertSame(403, $this->permissions('zed-token', 'atlas')->getStatusCode());
+        self::assertSame(403, $this->permissions('zed-token', 'boreas')->getStatusCode());
+    }
+
     public function testAssigningTwiceIsTheStateThatWasAskedFor(): void
     {
         self::assertSame(200, $this->assign($this->boreas, 'ola-token')->getStatusCode());
