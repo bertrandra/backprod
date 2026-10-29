@@ -9,7 +9,10 @@ use App\Commerce\Domain\RenewalPolicy;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
+use App\Entitlement\Domain\Coverage;
+use App\Entitlement\Domain\EntitlementRepository;
 use App\Job\Domain\Job;
+use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\RenewSubscriptions;
 use App\Job\Service\SendRenewalNotices;
 use App\Product\Domain\Product;
@@ -387,6 +390,93 @@ final class RenewalPassTest extends DatabaseApiTestCase
         self::assertSame(1, $this->invoiceCount());
     }
 
+    // --- arrears under commitment (ADR-072) ----------------------------------
+
+    public function testArrearsUnderACommitmentKeepRenewingAndStaySuspended(): void
+    {
+        $this->chooseRenewal('{"automatic": true}');
+        $this->subscribe();
+        $debt = $this->inArrearsWithAPeriodEndingIn('1 day');
+        $this->committedFor('6 months');
+
+        $endedAt = $this->currentPeriodEnd();
+
+        // One missed payment does not end a twenty-four-month contract: the
+        // period rolls and the next one is invoiced, like any renewal.
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertSame(2, $this->invoiceCount());
+        $after = $this->currentPeriodEnd();
+        self::assertGreaterThan($endedAt, $after);
+        self::assertSame($endedAt->format('Y-m-d'), $this->currentPeriodStart()->format('Y-m-d'));
+
+        // And it is not reactivated by renewing: still suspended, still naming
+        // the debt that suspended it — only paying lifts that.
+        $row = $this->connection->fetchAssociative('SELECT status, past_due_invoice_id FROM subscriptions');
+        self::assertIsArray($row);
+        self::assertSame('PAST_DUE', $row['status']);
+        self::assertSame($debt, $row['past_due_invoice_id']);
+
+        // The entitlements moved with the period, and the workshop stays shut:
+        // the person is told they are in arrears, not that they have nothing.
+        $entitlements = $this->container()->get(EntitlementRepository::class);
+        self::assertInstanceOf(EntitlementRepository::class, $entitlements);
+        self::assertSame(Coverage::IN_ARREARS, $entitlements->coverageFor($this->tenant, $this->product, $this->user));
+
+        // The new period's invoice is due the day it starts, like any renewal.
+        $due = $this->connection->fetchOne(
+            "SELECT to_char(due_at, 'YYYY-MM-DD') FROM invoices WHERE id <> :debt",
+            ['debt' => $debt],
+        );
+        self::assertSame($endedAt->format('Y-m-d'), $due);
+    }
+
+    public function testArrearsWhoseCommitmentEndsWithThisPeriodAreNotRenewed(): void
+    {
+        // The commitment is over at the boundary being crossed: nothing binds
+        // the customer to the next period, so arrears are the dunning pass's.
+        $this->chooseRenewal('{"automatic": true}');
+        $this->subscribe();
+        $this->inArrearsWithAPeriodEndingIn('1 day');
+        $this->committedFor('0 days');
+
+        self::assertSame(0, $this->pass()['renewed']);
+        self::assertSame(1, $this->invoiceCount());
+    }
+
+    public function testTheSweepLeavesArrearsUnderCommitmentToTheRenewal(): void
+    {
+        $this->chooseRenewal('{"automatic": true}');
+        $this->subscribe();
+        $this->inArrearsWithAPeriodEndingIn('-1 day');
+        $this->committedFor('6 months');
+
+        // Cron missed the window. The sweep must not end a contract the
+        // customer is bound to because one invoice went unpaid…
+        self::assertSame(0, $this->sweep());
+        $afterTheSweep = $this->connection->fetchOne('SELECT status FROM subscriptions');
+        self::assertSame('PAST_DUE', $afterTheSweep);
+
+        // …and the renewal catches the period up, from where it ended.
+        $endedAt = $this->currentPeriodEnd();
+
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertSame(2, $this->invoiceCount());
+        self::assertSame($endedAt->format('Y-m-d'), $this->currentPeriodStart()->format('Y-m-d'));
+        $afterTheRenewal = $this->connection->fetchOne('SELECT status FROM subscriptions');
+        self::assertSame('PAST_DUE', $afterTheRenewal);
+    }
+
+    public function testTheSweepStillEndsArrearsWithNoCommitment(): void
+    {
+        $this->chooseRenewal('{"automatic": true}');
+        $this->subscribe();
+        $this->inArrearsWithAPeriodEndingIn('-1 day');
+
+        self::assertSame(0, $this->pass()['renewed']);
+        self::assertSame(1, $this->sweep());
+        self::assertSame('EXPIRED', $this->connection->fetchOne('SELECT status FROM subscriptions'));
+    }
+
     public function testAPeriodThatWouldRunPastTheTermIsRefusedRatherThanShortened(): void
     {
         $this->chooseRenewal('{"automatic": true}');
@@ -617,6 +707,57 @@ final class RenewalPassTest extends DatabaseApiTestCase
     }
 
     // --- helpers -------------------------------------------------------------
+
+    /**
+     * One period renewed and billed, then the period moved to end `$interval`
+     * from now and the subscription declared in arrears on that invoice — a
+     * real debt, because `subscriptions_arrears_name_their_debt` wants one.
+     * Returns the invoice the arrears name.
+     */
+    private function inArrearsWithAPeriodEndingIn(string $interval): string
+    {
+        $this->periodEndsIn('1 day');
+        self::assertSame(1, $this->pass()['renewed']);
+
+        $debt = $this->id('SELECT id FROM invoices LIMIT 1');
+
+        $this->periodEndsIn($interval);
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET status = 'PAST_DUE', past_due_since = now(), past_due_invoice_id = :debt
+                SQL,
+            ['debt' => $debt],
+        );
+
+        return $debt;
+    }
+
+    /** A commitment that runs `$interval` past the current period's end. */
+    private function committedFor(string $interval): void
+    {
+        $this->connection->executeStatement(
+            sprintf(
+                <<<'SQL'
+                    UPDATE subscriptions
+                       SET commitment_months = 12,
+                           commitment_ends_at = current_period_end + INTERVAL '%s'
+                    SQL,
+                $interval,
+            ),
+        );
+    }
+
+    private function sweep(): int
+    {
+        $handler = $this->container()->get(ExpireSubscriptions::class);
+        self::assertInstanceOf(ExpireSubscriptions::class, $handler);
+
+        $expired = $handler->handle($this->job())['expired'] ?? null;
+        self::assertIsInt($expired);
+
+        return $expired;
+    }
 
     /** @return array<string, mixed> */
     private function pass(): array

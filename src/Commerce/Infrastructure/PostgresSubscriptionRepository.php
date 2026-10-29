@@ -88,8 +88,27 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         LEFT JOIN plans ppl ON ppl.id = po.plan_id
         SQL;
 
+    /**
+     * In arrears and still committed past the period being renewed (ADR-072).
+     *
+     * Arrears are not an exit from a commitment: such a subscription keeps
+     * renewing — and being billed — and stays `PAST_DUE` while it does, and
+     * the sweep leaves it alone. Unqualified columns, so the same words serve
+     * an UPDATE on `subscriptions` and a read aliasing it `s` (which
+     * {@see self::committedArrears()} prefixes). The SQL twin of
+     * {@see Subscription::keepsRenewingInArrears()}; a NULL
+     * `commitment_ends_at` (no commitment) compares false.
+     */
+    private const COMMITTED_ARREARS = "(status = 'PAST_DUE' AND commitment_ends_at > current_period_end)";
+
     public function __construct(private readonly Connection $connection)
     {
+    }
+
+    /** {@see self::COMMITTED_ARREARS} over a subscriptions table aliased `s`. */
+    private static function committedArrears(): string
+    {
+        return "(s.status = 'PAST_DUE' AND s.commitment_ends_at > s.current_period_end)";
     }
 
     public function history(string $tenantId, string $productId): array
@@ -509,7 +528,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                            -- `renew()` is (2026-10-29): two overlapping passes
                            -- must not both apply it, nor both bill it.
                            AND current_period_end IS NOT DISTINCT FROM :from
-                           AND status = 'ACTIVE'
+                           -- In arrears under commitment too (ADR-072): a
+                           -- change due at this boundary is part of renewing.
+                           AND (status = 'ACTIVE' OR
+                        SQL . self::COMMITTED_ARREARS . <<<'SQL'
+                           )
                            AND pending_offer_version_id IS NOT NULL
                         SQL,
                     // The new terms run from the boundary the change happens
@@ -681,11 +704,16 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                        )::int AS days_until_end
                   FROM subscriptions s
                   JOIN offer_versions ov ON ov.id = s.offer_version_id
-                 WHERE s.status = 'ACTIVE'
-                   AND s.current_period_end IS NOT NULL
+                 WHERE s.current_period_end IS NOT NULL
                    -- Still inside the period, which is what keeps this and
-                   -- `expireLapsed()` off the same rows.
-                   AND s.current_period_end > now()
+                   -- `expireLapsed()` off the same rows. Or in arrears under a
+                   -- commitment (ADR-072), lapsed or not: the sweep never
+                   -- touches those, so a period cron missed is caught up here
+                   -- rather than left suspended for ever.
+                   AND ((s.status = 'ACTIVE' AND s.current_period_end > now())
+                        OR
+                SQL . self::committedArrears() . <<<'SQL'
+                       )
                    AND s.current_period_end <= now() + make_interval(days => :lead)
                    -- Nothing ending at this period's end. A cancellation
                    -- deferred to a commitment months out is not that: it
@@ -755,7 +783,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                            -- or a cancelled subscription is rolled and billed.
                            -- One due at this period's end, that is: a deferral
                            -- further out renews until its date (2026-10-29).
-                           AND status = 'ACTIVE'
+                           -- In arrears under commitment as well (ADR-072),
+                           -- and the status is left as it is: the next period
+                           -- is billed and the workshop stays shut.
+                           AND (status = 'ACTIVE' OR
+                        SQL . self::COMMITTED_ARREARS . <<<'SQL'
+                           )
                            AND (cancel_effective_at IS NULL OR cancel_effective_at > current_period_end)
                         SQL,
                     [
@@ -1128,7 +1161,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         });
     }
 
-    public function clearArrears(string $invoiceId): bool
+    public function clearArrears(string $invoiceId, int $graceDays): bool
     {
         if (!Uuid::isValid($invoiceId)) {
             return false;
@@ -1139,6 +1172,16 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         // marked the invoice paid, and the workshop reopening is part of that
         // one fact. Opening a second transaction inside it would make
         // correctness depend on how the driver nests.
+        //
+        // First, the suspension that outlives this payment (ADR-072). Arrears
+        // under commitment keep renewing, so one subscription can owe several
+        // invoices at once, and settling the one the column names must not
+        // reopen a workshop another debt — past the grace, in the words the
+        // collection pass uses — would shut again on its next run. The
+        // suspension is handed to the oldest such debt instead, and its date
+        // is kept: it is the same suspension, still unpaid.
+        $this->handOverArrears($invoiceId, $graceDays);
+
         $ids = $this->connection->fetchFirstColumn(
             <<<'SQL'
                 UPDATE subscriptions
@@ -1169,6 +1212,86 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         return $ids !== [];
     }
 
+    /**
+     * Moves each suspension `$paidInvoiceId` named onto the oldest other
+     * invoice of the same subscription still unpaid past the grace, recording
+     * it; the subscriptions left naming the paid invoice are the ones to
+     * reopen.
+     *
+     * `FOR UPDATE` on the debt it hands over to: a payment settling that very
+     * invoice at the same moment either commits first — and the locked read,
+     * re-checked against the row it waited for, no longer finds it unpaid — or
+     * waits for this one, and then finds the suspension naming it and lifts
+     * it. Either way no subscription is left suspended by a paid invoice.
+     */
+    private function handOverArrears(string $paidInvoiceId, int $graceDays): void
+    {
+        $suspended = $this->connection->fetchFirstColumn(
+            <<<'SQL'
+                SELECT id FROM subscriptions
+                 WHERE status = 'PAST_DUE'
+                   AND past_due_invoice_id = :invoice
+                 FOR UPDATE
+                SQL,
+            ['invoice' => $paidInvoiceId],
+        );
+
+        foreach ($suspended as $subscriptionId) {
+            if (!is_string($subscriptionId)) {
+                continue;
+            }
+
+            // The same unpaid statuses and the same day count as `overdue()`,
+            // so "still owed past the grace" here and "due a chase" there
+            // cannot come to disagree.
+            $next = $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT i.id
+                      FROM invoices i
+                     WHERE i.subscription_id = :subscription
+                       AND i.id <> :paid
+                       AND i.status IN ('ISSUED', 'READY_FOR_EINVOICE', 'SUBMITTED', 'ACCEPTED', 'REJECTED')
+                       AND i.issued_at IS NOT NULL
+                       AND floor(
+                               extract(epoch FROM now() - coalesce(i.due_at, i.issued_at)) / 86400
+                           )::int >= :grace
+                     ORDER BY coalesce(i.due_at, i.issued_at), i.id
+                     LIMIT 1
+                     FOR UPDATE
+                    SQL,
+                ['subscription' => $subscriptionId, 'paid' => $paidInvoiceId, 'grace' => $graceDays],
+                ['grace' => ParameterType::INTEGER],
+            );
+
+            if (!is_string($next)) {
+                continue;
+            }
+
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE subscriptions
+                       SET past_due_invoice_id = :next, updated_at = now()
+                     WHERE id = :id
+                       AND status = 'PAST_DUE'
+                       AND past_due_invoice_id = :paid
+                    SQL,
+                ['next' => $next, 'id' => $subscriptionId, 'paid' => $paidInvoiceId],
+            );
+
+            // Declared again, against the debt that now holds it, and saying
+            // which one was settled: the history has to explain why a paid
+            // invoice did not reopen anything.
+            $this->record(
+                $subscriptionId,
+                SubscriptionEvent::ARREARS_DECLARED,
+                null,
+                null,
+                null,
+                ['invoice_id' => $next, 'settled_invoice_id' => $paidInvoiceId],
+            );
+        }
+    }
+
     public function expireLapsed(): int
     {
         return $this->connection->transactional(function (): int {
@@ -1186,6 +1309,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             // would keep a dead subscription in the collection pass, chasing
             // somebody for a product that has ended. The arrears dates stay on
             // the row: it *was* owed for, and nothing reconstructs that.
+            //
+            // **Except under a commitment** (ADR-072, 2026-10-29). Arrears are
+            // not an exit: a subscription in arrears whose commitment runs past
+            // its period end is the renewal pass's, which rolls and bills it
+            // even when the period has lapsed. Expiring it here would end a
+            // contract the customer is bound to because one invoice went
+            // unpaid — and because two jobs disagreed about the same row.
             $ids = $this->connection->fetchFirstColumn(
                 <<<'SQL'
                     UPDATE subscriptions
@@ -1193,6 +1323,9 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                      WHERE status IN ('ACTIVE', 'PAST_DUE')
                        AND current_period_end IS NOT NULL
                        AND current_period_end < now()
+                       AND NOT
+                    SQL . self::COMMITTED_ARREARS . <<<'SQL'
+
                     RETURNING id
                     SQL,
             );

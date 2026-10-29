@@ -38,7 +38,10 @@ use Throwable;
  * would race `sweep.subscriptions` over the same rows — both daily, and whichever
  * won would decide whether somebody kept their subscription. Inside the lead
  * window there is no race at all, because a subscription still in its period is
- * not lapsed.
+ * not lapsed. The one exception is arrears under a commitment (ADR-072): they
+ * renew, are billed and stay `PAST_DUE`, and one cron missed is caught up here
+ * even after the period ended — the sweep never takes those rows, so the two
+ * still share none.
  *
  * **Nothing here decides anything about one subscription.** It asks `renew()`,
  * which holds every rule in order: a cancellation already due, a change the

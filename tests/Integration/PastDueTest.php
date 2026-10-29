@@ -250,6 +250,65 @@ final class PastDueTest extends DatabaseApiTestCase
         self::assertSame('PAST_DUE', $this->statusOf($subscription));
     }
 
+    /**
+     * Arrears under commitment keep renewing (ADR-072), so one suspension can
+     * stand on several unpaid invoices. Paying the one that shut the workshop
+     * while another is overdue past the grace hands the suspension to that one:
+     * reopening would last until the next collection pass shut it again.
+     */
+    public function testPayingOneDebtWhileAnotherIsOverdueKeepsTheWorkshopShut(): void
+    {
+        $subscription = $this->subscribe();
+        $first = $this->overdueInvoice($subscription, days: 5);
+        $this->collect();
+        $second = $this->overdueInvoice($subscription, days: 2, number: '2026-000002');
+
+        $since = $this->connection->fetchOne(
+            'SELECT past_due_since FROM subscriptions WHERE id = :id',
+            ['id' => $subscription],
+        );
+
+        $this->settle($first);
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT status, past_due_since, past_due_invoice_id FROM subscriptions WHERE id = :id',
+            ['id' => $subscription],
+        );
+        self::assertIsArray($row);
+        self::assertSame('PAST_DUE', $row['status']);
+        self::assertSame($second, $row['past_due_invoice_id']);
+        // The same suspension, still unpaid, so it keeps its date.
+        self::assertSame($since, $row['past_due_since']);
+        self::assertSame(403, $this->projects('ada-token')->getStatusCode());
+        self::assertSame(
+            0,
+            $this->rowsMatching("SELECT count(*) FROM subscription_events WHERE type = 'ARREARS_CLEARED'"),
+        );
+
+        // Paying the last of it is what reopens.
+        $this->settle($second);
+
+        self::assertSame('ACTIVE', $this->statusOf($subscription));
+        self::assertSame(200, $this->projects('ada-token')->getStatusCode());
+    }
+
+    /**
+     * A debt still inside the grace is not arrears yet, so it holds nothing:
+     * paying the overdue one reopens, and the collection pass declares the
+     * other if it is still unpaid once its grace is over.
+     */
+    public function testADebtStillInsideTheGraceDoesNotHoldTheSuspension(): void
+    {
+        $subscription = $this->subscribe();
+        $first = $this->overdueInvoice($subscription, days: 5);
+        $this->collect();
+        $this->overdueInvoice($subscription, days: 0, number: '2026-000002');
+
+        $this->settle($first);
+
+        self::assertSame('ACTIVE', $this->statusOf($subscription));
+    }
+
     // --- 2. the refusal is its own -------------------------------------------
 
     /**
