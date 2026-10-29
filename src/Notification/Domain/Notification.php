@@ -23,6 +23,25 @@ use DateTimeImmutable;
 final class Notification
 {
     /**
+     * The payload key a link travels under. Some links carry a credential —
+     * a password-reset, invitation or confirmation token — so a link is never
+     * served back through the API: the mail is the only place it goes.
+     */
+    public const LINK = 'link';
+
+    /**
+     * The types whose link is a credential (2026-10-29). Their link is
+     * scrubbed from the stored payload once the mail carrying it has been
+     * sent or given up on — rendered at send time from the payload, so it is
+     * no longer needed — and no raw token rests in the database after use.
+     */
+    public const CREDENTIAL_TYPES = [
+        'account.email_verification',
+        'account.password_reset',
+        'account.invitation',
+    ];
+
+    /**
      * @param array<string, mixed> $payload
      */
     public function __construct(

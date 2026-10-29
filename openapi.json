@@ -3030,7 +3030,8 @@
           },
           "payload": {
             "type": "object",
-            "additionalProperties": true
+            "additionalProperties": true,
+            "description": "The notice's data. Never carries `link`: a link is for the mail, and for a password reset, an invitation or a confirmation it holds a credential."
           },
           "legal_effect": {
             "type": "boolean",
@@ -10766,7 +10767,7 @@
         ],
         "operationId": "listNotifications",
         "summary": "The caller's notifications",
-        "description": "Theirs alone: another person's notification is not found rather than refused, because whether it exists is itself none of their business.",
+        "description": "Theirs alone: another person's notification is not found rather than refused, because whether it exists is itself none of their business. Only notices sent to the screen are listed, and not those whose category the person muted there: a notice sent by email alone never appears.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"

@@ -1227,7 +1227,7 @@ export interface paths {
         };
         /**
          * The caller's notifications
-         * @description Theirs alone: another person's notification is not found rather than refused, because whether it exists is itself none of their business.
+         * @description Theirs alone: another person's notification is not found rather than refused, because whether it exists is itself none of their business. Only notices sent to the screen are listed, and not those whose category the person muted there: a notice sent by email alone never appears.
          */
         get: operations["listNotifications"];
         put?: never;
@@ -5273,6 +5273,7 @@ export interface components {
             type: string;
             /** @enum {string} */
             category: "BILLING" | "ACCOUNT" | "SECURITY" | "SUPPORT" | "MARKETING";
+            /** @description The notice's data. Never carries `link`: a link is for the mail, and for a password reset, an invitation or a confirmation it holds a credential. */
             payload: {
                 [key: string]: unknown;
             };

@@ -30,7 +30,11 @@ final class NotificationPresenter
             'id' => $notification->id,
             'type' => $notification->type,
             'category' => $notification->category,
-            'payload' => (object) $notification->payload,
+            // Never the link (2026-10-29): for a password reset, an invitation
+            // or a confirmation it carries a token, and a stolen access token
+            // reading the inbox would be a way to take over the account. A
+            // link is for the mail; a screen routes on its own.
+            'payload' => (object) array_diff_key($notification->payload, [Notification::LINK => true]),
             'legal_effect' => $notification->legalEffect,
             'created_at' => $notification->createdAt->format(DATE_ATOM),
             'read_at' => $notification->readAt?->format(DATE_ATOM),

@@ -10,6 +10,7 @@ use App\Job\Service\JobRunner;
 use App\Notification\Domain\Category;
 use App\Notification\Domain\Channel;
 use App\Notification\Domain\NotificationRepository;
+use App\Notification\Domain\Notifier;
 use App\Notification\Service\DispatchNotifications;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
@@ -21,6 +22,7 @@ use App\Tests\Support\FakeAuthProvider;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
+use RuntimeException;
 
 /**
  * Notifications through the real pipeline, the real database and the real
@@ -425,6 +427,164 @@ final class NotificationChainTest extends DatabaseApiTestCase
         self::assertSame(count(Category::all()) * count(Channel::all()), count($preferences));
     }
 
+    // --- what the inbox shows (2026-10-29) ---------------------------------
+
+    /**
+     * An EMAIL-only notice is not in the inbox. A password reset carries its
+     * token in the payload, and the inbox used to serve every notification
+     * whatever its channels — so anybody holding the person's access token
+     * could ask for a reset and read the link back.
+     */
+    public function testAnEmailOnlyNoticeNeverReachesTheInbox(): void
+    {
+        $this->raiseWith('account.password_reset', Category::SECURITY, [Channel::EMAIL], [
+            'link' => 'https://app.test/sign-in?reset=' . str_repeat('a', 64),
+        ]);
+
+        $body = $this->decode($this->request('GET', '/api/v1/notifications', $this->headers()));
+
+        self::assertSame(0, $body['total'] ?? null);
+        self::assertSame([], $body['notifications'] ?? null);
+        self::assertSame(0, $this->unreadCount());
+
+        $read = $this->decode($this->request('POST', '/api/v1/notifications/read-all', $this->headers()));
+        self::assertSame(0, $read['marked_read'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM notifications WHERE read_at IS NOT NULL'));
+    }
+
+    /** Muting a category on the screen hides it from the inbox and the badge. */
+    public function testAMutedScreenCategoryIsHiddenFromTheInbox(): void
+    {
+        $this->setPreference(Category::BILLING, Channel::SCREEN, false);
+        $this->raise('payment.failed', Category::BILLING, [Channel::SCREEN, Channel::EMAIL]);
+        $this->raise('export.ready', Category::ACCOUNT, [Channel::SCREEN]);
+
+        $this->dispatch();
+
+        self::assertSame(['SUPPRESSED', 'OPTED_OUT'], $this->deliveryState(Channel::SCREEN, 'payment.failed'));
+
+        $body = $this->decode($this->request('GET', '/api/v1/notifications', $this->headers()));
+        $notifications = $body['notifications'] ?? null;
+        self::assertIsArray($notifications);
+        self::assertCount(1, $notifications);
+        self::assertSame(1, $body['total'] ?? null);
+        self::assertSame(1, $this->unreadCount());
+
+        $only = $notifications[0] ?? null;
+        self::assertIsArray($only);
+        self::assertSame('export.ready', $only['type'] ?? null);
+    }
+
+    /** A link is for the mail: the inbox never serves one, whatever the type. */
+    public function testTheInboxNeverServesALink(): void
+    {
+        $this->raiseWith('export.ready', Category::ACCOUNT, [Channel::SCREEN], [
+            'link' => 'https://app.test/secret',
+            'file' => 'export.zip',
+        ]);
+
+        $notifications = $this->decode($this->request('GET', '/api/v1/notifications', $this->headers()))['notifications'] ?? null;
+        self::assertIsArray($notifications);
+
+        $notification = $notifications[0] ?? null;
+        self::assertIsArray($notification);
+        $payload = $notification['payload'] ?? null;
+        self::assertIsArray($payload);
+        self::assertArrayNotHasKey('link', $payload);
+        self::assertSame('export.zip', $payload['file'] ?? null);
+    }
+
+    /**
+     * Once the mail carrying a credential link is sent, the link leaves the
+     * database: the mail was rendered from it at send time, and nothing will
+     * render it again.
+     */
+    public function testACredentialLinkIsScrubbedOnceItsMailIsSent(): void
+    {
+        $id = $this->raiseWith('account.password_reset', Category::SECURITY, [Channel::EMAIL], [
+            'link' => 'https://app.test/sign-in?reset=' . str_repeat('b', 64),
+            'email' => 'alice@example.test',
+        ]);
+
+        self::assertNotNull($this->linkIn($id));
+
+        $outcome = $this->dispatch();
+
+        self::assertSame(['SENT', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame(1, $outcome['scrubbed'] ?? null);
+        self::assertNull($this->linkIn($id));
+    }
+
+    /** A link that is not a credential stays: it is the payload's to keep. */
+    public function testAnOrdinaryLinkIsNotScrubbed(): void
+    {
+        $id = $this->raiseWith('subscription.renewal_payment_request', Category::BILLING, [Channel::EMAIL], [
+            'link' => 'https://app.test/invoices/1',
+        ]);
+
+        $this->dispatch();
+
+        self::assertSame('https://app.test/invoices/1', $this->linkIn($id));
+    }
+
+    // --- a failed send is retried (2026-10-29) ----------------------------
+
+    /**
+     * One refused connection used to end a delivery for ever. Now it goes
+     * back to the queue, not before its time, and is FAILED only once its
+     * attempts are spent — when a credential link it carried is scrubbed.
+     */
+    public function testAFailedSendIsRetriedLaterAndFailsOnlyAtTheLastAttempt(): void
+    {
+        $this->override(['notification.email' => new class implements Notifier {
+            public function channel(): string
+            {
+                return Channel::EMAIL;
+            }
+
+            public function isLive(): bool
+            {
+                return true;
+            }
+
+            /**
+             * @param array<string, mixed> $payload
+             */
+            public function send(string $address, string $subject, string $body, array $payload): string
+            {
+                throw new RuntimeException('connection refused');
+            }
+        }]);
+
+        $id = $this->raiseWith('account.password_reset', Category::SECURITY, [Channel::EMAIL], [
+            'link' => 'https://app.test/sign-in?reset=' . str_repeat('c', 64),
+        ]);
+
+        $this->dispatch();
+
+        self::assertSame(['PENDING', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame(1, $this->attemptsOn(Channel::EMAIL));
+        self::assertSame(RuntimeException::class, $this->connection->fetchOne('SELECT failure_reason FROM notification_deliveries'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM notification_deliveries WHERE next_attempt_at > now()'));
+        // Still needed for the retry.
+        self::assertNotNull($this->linkIn($id));
+
+        // Not before its time.
+        $this->dispatch();
+        self::assertSame(1, $this->attemptsOn(Channel::EMAIL));
+
+        $this->dueNow();
+        $this->dispatch();
+        self::assertSame(['PENDING', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame(2, $this->attemptsOn(Channel::EMAIL));
+
+        $this->dueNow();
+        $this->dispatch();
+        self::assertSame(['FAILED', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame(3, $this->attemptsOn(Channel::EMAIL));
+        self::assertNull($this->linkIn($id));
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /**
@@ -436,7 +596,17 @@ final class NotificationChainTest extends DatabaseApiTestCase
     }
 
     /**
-     * @param list<string> $channels
+     * @param list<string>         $channels
+     * @param array<string, mixed> $payload
+     */
+    private function raiseWith(string $type, string $category, array $channels, array $payload): string
+    {
+        return $this->raiseFor($this->user, $type, $category, $channels, null, $payload);
+    }
+
+    /**
+     * @param list<string>         $channels
+     * @param array<string, mixed> $payload
      */
     private function raiseFor(
         string $userId,
@@ -444,6 +614,7 @@ final class NotificationChainTest extends DatabaseApiTestCase
         string $category,
         array $channels,
         ?string $dedupKey = null,
+        array $payload = ['amount' => 2900],
     ): string {
         $repository = $this->container()->get(NotificationRepository::class);
         self::assertInstanceOf(NotificationRepository::class, $repository);
@@ -454,7 +625,7 @@ final class NotificationChainTest extends DatabaseApiTestCase
             $userId,
             $type,
             $category,
-            ['amount' => 2900],
+            $payload,
             $dedupKey,
             false,
             $channels,
@@ -523,6 +694,34 @@ final class NotificationChainTest extends DatabaseApiTestCase
         );
     }
 
+    private function unreadCount(): int
+    {
+        $unread = $this->decode($this->request('GET', '/api/v1/notifications/unread-count', $this->headers()))['unread'] ?? null;
+        self::assertIsInt($unread);
+
+        return $unread;
+    }
+
+    /** The link in a notification's stored payload, or null once it is gone. */
+    private function linkIn(string $notificationId): ?string
+    {
+        $link = $this->connection->fetchOne(
+            "SELECT payload ->> 'link' FROM notifications WHERE id = :id",
+            ['id' => $notificationId],
+        );
+
+        return is_string($link) ? $link : null;
+    }
+
+    /** Brings a retry's time forward rather than waiting it out. */
+    private function dueNow(): void
+    {
+        $this->connection->executeStatement(
+            "UPDATE notification_deliveries SET next_attempt_at = now() - interval '1 second'"
+            . ' WHERE next_attempt_at IS NOT NULL',
+        );
+    }
+
     private function attemptsOn(string $channel): int
     {
         $attempts = $this->connection->fetchOne(
@@ -538,11 +737,13 @@ final class NotificationChainTest extends DatabaseApiTestCase
     /**
      * @return array{string, string|null}
      */
-    private function deliveryState(string $channel): array
+    private function deliveryState(string $channel, ?string $type = null): array
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT status, suppression_reason FROM notification_deliveries WHERE channel = :channel',
-            ['channel' => $channel],
+            'SELECT d.status, d.suppression_reason FROM notification_deliveries d'
+            . ' JOIN notifications n ON n.id = d.notification_id'
+            . ' WHERE d.channel = :channel AND (CAST(:type AS TEXT) IS NULL OR n.type = :type)',
+            ['channel' => $channel, 'type' => $type],
         );
 
         self::assertIsArray($row);
