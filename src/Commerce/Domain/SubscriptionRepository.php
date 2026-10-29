@@ -324,12 +324,29 @@ interface SubscriptionRepository
      * bill one period twice — claimed by the statement rather than by a prior
      * read both of them would pass. A caller that loses the race gets
      * `RENEWAL_ALREADY_APPLIED` and nothing is billed.
+     *
+     * **`$term` rolls the term with the period** (ADR-071): the period that
+     * starts at the end of a term is the first of the next one, so both move
+     * in one statement or neither does. Required and nullable — null is "inside
+     * the term" — so a caller has to say which renewal it means.
      */
     public function renew(
         Subscription $subscription,
         ?DateTimeImmutable $periodEnd,
+        ?TermRenewal $term,
         callable $alsoBill,
     ): Subscription;
+
+    /**
+     * Whether this term's pre-renewal notice was raised at least `$daysAgo`
+     * days ago (ADR-071).
+     *
+     * The precondition of rolling a term: the customer was told, and had the
+     * time the offer promised to refuse. Read from the notification itself —
+     * the row `SendRenewalNotices` writes, with its rendered body kept — so
+     * "did we tell them?" and "may we renew?" are one fact, never two.
+     */
+    public function renewalNoticeRaised(string $dedupKey, int $daysAgo): bool;
 
     /**
      * Subscriptions whose paid period ends within `$leadDays` (ADR-068).
@@ -345,9 +362,10 @@ interface SubscriptionRepository
      * invoice against a suspended service would compound a debt somebody is
      * already being chased for.
      *
-     * Stops at the term: a period ending *at* `term_ends_at` is the last one,
-     * and what follows it is tacit renewal of a commitment, which is a decision
-     * and not something cron takes.
+     * At the term: a period ending *at* `term_ends_at` is the last one of the
+     * term, and it is offered only when the subscription was sold `AUTO_RENEW`
+     * — what follows is the next term, which `renew()` rolls once the customer
+     * was told (ADR-071).
      *
      * `$leadDays` bounds the read and does not decide anything: a product's own
      * lead is a product's, so a caller passes the longest any product could have
@@ -393,8 +411,10 @@ interface SubscriptionRepository
      * Subscriptions inside their pre-renewal notice window, and who to tell.
      *
      * §13.1's notice is a *deadline*, not a courtesy: a notice sent late is a
-     * notice not sent, so the window is the question and `notice_days` before
-     * `term_ends_at` is the answer. Past the term end nothing is returned —
+     * notice not sent, so the window is the question. It opens `notice_days`
+     * plus `$aheadDays` before `term_ends_at`: the term rolls with the last
+     * period, up to a product's renewal lead before the term ends, and the
+     * customer must have had their `notice_days` before *that* (ADR-071). Past the term end nothing is returned —
      * whatever that would be, it is not prior notice.
      *
      * A subscription already set to end is excluded. There is no tacit
@@ -409,7 +429,7 @@ interface SubscriptionRepository
      *
      * @return list<RenewalNotice>
      */
-    public function dueForRenewalNotice(int $limit): array;
+    public function dueForRenewalNotice(int $limit, int $aheadDays): array;
 
     /**
      * Subscriptions with an unpaid invoice against them, and who to chase

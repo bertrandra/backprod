@@ -105,6 +105,18 @@ final class MailWording
                 . "Invoice {invoice_number} is due on {due_on}. You can pay it by card or by another means from here:\n{link}\n\n"
                 . 'If it is still unpaid after that date, access to the product may be suspended until it is settled.',
         ],
+        // The pre-renewal notice (ADR-071): a term renews by itself only once
+        // this has gone out `notice_days` before, so it says when, and how to
+        // stop it. Kept as sent, because "what did we tell them?" is the half
+        // of a tacit renewal a contract is judged on.
+        'subscription.renewal_notice' => [
+            'about' => 'A subscription’s term renews by itself on a date, on the same conditions, unless it is cancelled first. Sent before the term ends; the term only renews once this has gone out the offer’s notice days before. Kept as sent because it has legal effect.',
+            'placeholders' => ['renews_on', 'notice_days'],
+            'subject' => 'Your subscription renews on {renews_on}',
+            'body' => "Your subscription reaches the end of its term on {renews_on}. Unless you cancel it before that date, it renews by itself for a new term, on the same conditions.\n\n"
+                . "Nothing is needed to keep it. To stop it, cancel it from the subscription screen before {renews_on}.\n\n"
+                . 'You are told {notice_days} days or more ahead, as your offer provides.',
+        ],
     ];
 
     /**
@@ -160,6 +172,12 @@ final class MailWording
                     . "La facture {invoice_number} est à régler avant le {due_on}. Vous pouvez la payer par carte ou par un autre moyen ici :\n{link}\n\n"
                     . "Si elle reste impayée après cette date, l'accès au produit pourra être suspendu jusqu'à son règlement.",
             ],
+            'subscription.renewal_notice' => [
+                'subject' => 'Votre abonnement est reconduit le {renews_on}',
+                'body' => "Votre abonnement arrive au terme de sa durée le {renews_on}. Sauf résiliation avant cette date, il est reconduit automatiquement pour une nouvelle durée, aux mêmes conditions.\n\n"
+                    . "Il n'y a rien à faire pour le garder. Pour l'arrêter, résiliez-le depuis l'écran d'abonnement avant le {renews_on}.\n\n"
+                    . 'Vous êtes prévenu au moins {notice_days} jours à l’avance, comme le prévoit votre offre.',
+            ],
         ],
         'es' => [
             'account.password_reset' => [
@@ -204,6 +222,12 @@ final class MailWording
                 'body' => "Su suscripción a {offer} continúa un periodo más, hasta el {period_end}.\n\n"
                     . "La factura {invoice_number} vence el {due_on}. Puede pagarla con tarjeta o por otro medio aquí:\n{link}\n\n"
                     . 'Si sigue sin pagar después de esa fecha, el acceso al producto podrá suspenderse hasta que se liquide.',
+            ],
+            'subscription.renewal_notice' => [
+                'subject' => 'Su suscripción se renueva el {renews_on}',
+                'body' => "Su suscripción llega al final de su duración el {renews_on}. Salvo que la cancele antes de esa fecha, se renueva automáticamente por una nueva duración, en las mismas condiciones.\n\n"
+                    . "No necesita hacer nada para conservarla. Para detenerla, cancélela desde la pantalla de suscripción antes del {renews_on}.\n\n"
+                    . 'Se le avisa con al menos {notice_days} días de antelación, como prevé su oferta.',
             ],
         ],
         'de' => [
@@ -250,6 +274,12 @@ final class MailWording
                     . "Die Rechnung {invoice_number} ist am {due_on} fällig. Sie können sie hier per Karte oder auf anderem Weg bezahlen:\n{link}\n\n"
                     . 'Bleibt sie nach diesem Datum unbezahlt, kann der Zugang zum Produkt bis zur Begleichung gesperrt werden.',
             ],
+            'subscription.renewal_notice' => [
+                'subject' => 'Ihr Abonnement verlängert sich am {renews_on}',
+                'body' => "Ihr Abonnement erreicht am {renews_on} das Ende seiner Laufzeit. Wenn Sie es nicht vorher kündigen, verlängert es sich automatisch um eine neue Laufzeit, zu denselben Bedingungen.\n\n"
+                    . "Um es zu behalten, ist nichts zu tun. Um es zu beenden, kündigen Sie es vor dem {renews_on} über die Abonnementseite.\n\n"
+                    . 'Sie werden mindestens {notice_days} Tage im Voraus benachrichtigt, wie es Ihr Angebot vorsieht.',
+            ],
         ],
         'it' => [
             'account.password_reset' => [
@@ -294,6 +324,12 @@ final class MailWording
                 'body' => "Il tuo abbonamento a {offer} continua per un altro periodo, fino al {period_end}.\n\n"
                     . "La fattura {invoice_number} scade il {due_on}. Puoi pagarla con carta o con un altro mezzo da qui:\n{link}\n\n"
                     . "Se risulta ancora non pagata dopo quella data, l'accesso al prodotto potrà essere sospeso fino al saldo.",
+            ],
+            'subscription.renewal_notice' => [
+                'subject' => 'Il tuo abbonamento si rinnova il {renews_on}',
+                'body' => "Il tuo abbonamento arriva alla fine della sua durata il {renews_on}. Se non lo disdici prima di quella data, si rinnova automaticamente per una nuova durata, alle stesse condizioni.\n\n"
+                    . "Non serve fare nulla per mantenerlo. Per fermarlo, disdicilo dalla schermata dell'abbonamento prima del {renews_on}.\n\n"
+                    . 'Sei avvisato con almeno {notice_days} giorni di anticipo, come prevede la tua offerta.',
             ],
         ],
     ];
@@ -415,6 +451,10 @@ final class MailWording
      */
     public static function sample(string $type, string $email, string $appUrl): array
     {
+        if ($type === 'subscription.renewal_notice') {
+            return ['email' => $email, 'renews_on' => '2027-01-31', 'notice_days' => 30, 'subscription_id' => 'SAMPLE'];
+        }
+
         if ($type === 'subscription.renewal_payment_request') {
             return [
                 'link' => rtrim($appUrl, '/') . '/invoices/SAMPLE',

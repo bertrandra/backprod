@@ -21,6 +21,7 @@ use App\Commerce\Domain\SubscriptionMember;
 use App\Commerce\Domain\SubscriptionPlaces;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
+use App\Commerce\Domain\TermRenewal;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\ConflictException;
@@ -661,9 +662,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    AND s.cancel_at_period_end = false
                    AND (s.cancel_effective_at IS NULL
                         OR s.cancel_effective_at > s.current_period_end)
-                   -- A period ending at the term is the last one; what follows
-                   -- is tacit renewal, and that is a decision.
-                   AND (s.term_ends_at IS NULL OR s.current_period_end < s.term_ends_at)
+                   -- A period ending at the term is the last one. What follows
+                   -- is the next term, tacitly, for an offer sold that way
+                   -- (ADR-071); `renew()` asks whether the customer was told.
+                   AND (s.term_ends_at IS NULL
+                        OR s.current_period_end < s.term_ends_at
+                        OR s.renewal = 'AUTO_RENEW')
                  ORDER BY s.current_period_end
                  LIMIT :limit
                 SQL,
@@ -686,10 +690,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     public function renew(
         Subscription $subscription,
         ?DateTimeImmutable $periodEnd,
+        ?TermRenewal $term,
         callable $alsoBill,
     ): Subscription {
         return $this->connection->transactional(
-            function () use ($subscription, $periodEnd, $alsoBill): Subscription {
+            function () use ($subscription, $periodEnd, $term, $alsoBill): Subscription {
                 $from = $subscription->currentPeriodEnd;
 
                 // The new period starts where the old one ended, not at now():
@@ -721,6 +726,28 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     ],
                 );
 
+                if ($moved === 1 && $term !== null) {
+                    // The next term, on the same transaction as its first
+                    // period (ADR-071), and conditioned on the term this was
+                    // asked about, for the reason the period is.
+                    $moved = $this->connection->executeStatement(
+                        <<<'SQL'
+                            UPDATE subscriptions
+                               SET term_ends_at = :termEndsAt,
+                                   commitment_ends_at = :commitmentEndsAt
+                             WHERE id = :id
+                               AND term_ends_at = :endingTerm
+                               AND renewal = 'AUTO_RENEW'
+                            SQL,
+                        [
+                            'termEndsAt' => self::moment($term->termEndsAt),
+                            'commitmentEndsAt' => self::moment($term->commitmentEndsAt),
+                            'endingTerm' => self::moment($term->endingTermEndsAt),
+                            'id' => $subscription->id,
+                        ],
+                    );
+                }
+
                 if ($moved === 0) {
                     // Somebody else renewed it between the read and here.
                     // Nothing is billed, and the transaction rolls back
@@ -738,7 +765,14 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     $subscription->offer->version->id,
                     $subscription->offer->version->id,
                     null,
-                    [],
+                    // A term rolled says so, with the dates it now runs to:
+                    // "when did this contract start again?" must be answerable
+                    // from the history, not inferred from two columns.
+                    $term === null ? [] : [
+                        'term_renewed' => true,
+                        'term_ends_at' => $term->termEndsAt->format(DATE_ATOM),
+                        'commitment_ends_at' => $term->commitmentEndsAt?->format(DATE_ATOM),
+                    ],
                 );
 
                 $this->connection->executeStatement(
@@ -831,7 +865,22 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    public function dueForRenewalNotice(int $limit): array
+    public function renewalNoticeRaised(string $dedupKey, int $daysAgo): bool
+    {
+        return $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT 1
+                  FROM notifications
+                 WHERE type = 'subscription.renewal_notice'
+                   AND dedup_key = :key
+                   AND created_at <= now() - make_interval(days => :days)
+                 LIMIT 1
+                SQL,
+            ['key' => $dedupKey, 'days' => $daysAgo],
+        ) !== false;
+    }
+
+    public function dueForRenewalNotice(int $limit, int $aheadDays): array
     {
         // The recipient is resolved here, in the same query, rather than by
         // asking the membership repository. That port is deliberately shaped
@@ -863,12 +912,14 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    AND s.term_ends_at IS NOT NULL
                    AND s.notice_days > 0
                    AND s.cancel_at_period_end = false
-                   AND now() >= s.term_ends_at - make_interval(days => s.notice_days)
+                   -- Early enough that the renewal, which may come a lead
+                   -- ahead of the term, still finds `notice_days` behind it.
+                   AND now() >= s.term_ends_at - make_interval(days => s.notice_days + :ahead)
                    AND now() <  s.term_ends_at
                  ORDER BY s.term_ends_at, r.user_id
                  LIMIT :limit
                 SQL,
-            ['limit' => $limit],
+            ['limit' => $limit, 'ahead' => $aheadDays],
         );
 
         return array_map(

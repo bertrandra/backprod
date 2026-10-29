@@ -326,11 +326,12 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
 
     // --- Renewal and the payment request (2026-10-05) ----------------------
 
-    public function testAProductThatSaidNothingRenewsNothingAndShowsTheDefaultLead(): void
+    /** The baseline (ADR-071): a product that has said nothing renews. */
+    public function testAProductThatSaidNothingRenewsAndShowsTheDefaultLead(): void
     {
         $renewal = $this->itemIn($this->show(), 'renewal');
 
-        self::assertFalse($renewal['automatic'] ?? null);
+        self::assertTrue($renewal['automatic'] ?? null);
         self::assertSame(7, $renewal['lead_days'] ?? null);
     }
 
@@ -346,8 +347,9 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
 
     public function testALeadOutsideTheBoundsIsRefusedRatherThanStored(): void
     {
-        // Stored, the renewal pass would read it as no setting at all and
-        // switch renewal off behind a form that said "saved".
+        // Stored, the renewal pass would read it as no lead at all and renew
+        // on the default behind a form that said "saved" with another figure.
+        $this->setRenewal(['automatic' => false, 'lead_days' => 7]);
         $response = $this->setRenewal(['automatic' => true, 'lead_days' => 31], 400);
 
         self::assertSame('lead_days', $this->refusedField($response));

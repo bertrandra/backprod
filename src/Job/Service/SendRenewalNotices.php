@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Job\Service;
 
 use App\Commerce\Domain\RenewalNotice;
+use App\Commerce\Domain\RenewalPolicy;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Job\Domain\Job;
 use App\Job\Domain\JobHandler;
@@ -32,11 +33,13 @@ use App\Notification\Service\Notifications;
  * between them, because uniqueness is a partial unique index and not a check
  * each of them would separately pass.
  *
- * **What it does not do is renew anything.** R11 stays open until the
- * deadlines themselves are confirmed against official sources, especially
- * toward consumers where they vary by member state. Until then a committed
- * subscription still must not auto-renew unattended: this makes the notice
- * possible and observable, it does not make the renewal safe.
+ * **What it does not do is renew anything.** `subscription.renewal` rolls the
+ * term, and only once it finds this notice, raised at least `notice_days`
+ * before (ADR-071). That is the operator's decision of 2026-10-29: tacit
+ * renewal is the baseline, and this notice is its precondition rather than
+ * a courtesy beside it. What R11 still records is that the deadlines
+ * themselves — a product's `notice_days` — were never checked against an
+ * official source per member state; the offer's figure is the one applied.
  */
 final class SendRenewalNotices implements JobHandler
 {
@@ -76,7 +79,11 @@ final class SendRenewalNotices implements JobHandler
         $alreadyNoticed = 0;
         $unaddressed = 0;
 
-        foreach ($this->subscriptions->dueForRenewalNotice(self::BATCH) as $notice) {
+        // Ahead by the longest lead any product may renew with, so that the
+        // renewal finds `notice_days` behind it whichever lead its product
+        // chose (ADR-071). Earlier than strictly needed for most products,
+        // which is the direction a notice may err in.
+        foreach ($this->subscriptions->dueForRenewalNotice(self::BATCH, RenewalPolicy::LONGEST_LEAD) as $notice) {
             $recipient = $notice->recipientUserId;
 
             if ($recipient === null) {

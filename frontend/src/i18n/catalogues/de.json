@@ -864,7 +864,7 @@
   "Notifications about billing, your account and security appear here.": "Benachrichtigungen zu Abrechnung, Ihrem Konto und Sicherheit erscheinen hier.",
   "Now": "Jetzt",
   "of": "von",
-  "Off, every subscription ends at its period and nothing is invoiced. A period never rolls past the subscription's term: renewing a commitment stays a decision.": "Aus: Jedes Abonnement endet mit seiner Periode, und nichts wird in Rechnung gestellt. Eine Periode reicht nie über die Laufzeit des Abonnements hinaus: Eine Verpflichtung zu verlängern bleibt eine Entscheidung.",
+  "On unless you switch it off. Off, every subscription ends at its period and nothing is invoiced. At the end of its term, an offer sold as renewing starts a new term, once the customer's renewal notice has run its days.": "Aktiv, solange Sie es nicht ausschalten. Ausgeschaltet endet jedes Abonnement mit seinem Zeitraum, und nichts wird in Rechnung gestellt. Am Ende seiner Laufzeit beginnt ein Angebot, das mit Verlängerung verkauft wurde, eine neue Laufzeit, sobald die Verlängerungsmitteilung an den Kunden ihre Frist durchlaufen hat.",
   "Offer": "Angebot",
   "Offer authoring": "Angebotserstellung",
   "Offer code": "Angebotscode",

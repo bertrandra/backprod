@@ -14,12 +14,14 @@ use App\Commerce\Domain\ChangeDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\RenewalCharge;
+use App\Commerce\Domain\RenewalNotice;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
+use App\Commerce\Domain\TermRenewal;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use DateTimeImmutable;
@@ -916,17 +918,11 @@ final class Subscriptions
             return $this->subscriptions->expire($subscription, SubscriptionTerms::ENDS_AT_TERM);
         }
 
-        // The term is reached, and what follows a term is tacit renewal of a
-        // commitment — a decision somebody takes, with a notice whose deadline
-        // `SendRenewalNotices` says is unconfirmed (ADR-068). Nothing automatic
-        // rolls past here.
-        if ($subscription->hasReachedTermAt($from)) {
-            throw new ConflictException(
-                'TERM_REACHED',
-                'This subscription has reached its term; renewing it is a decision, not a roll.',
-                ['term_ends_at' => $subscription->termEndsAt?->format(DATE_ATOM)],
-            );
-        }
+        // The term is reached. What follows is the next term, tacitly, on the
+        // terms the subscription snapshotted (ADR-071) — once the customer was
+        // told and had the time the offer promised to refuse.
+        $term = $subscription->hasReachedTermAt($from) ? $this->nextTerm($subscription) : null;
+        $termEndsAt = $term?->termEndsAt ?? $subscription->termEndsAt;
 
         $periodEnd = $subscription->offer->version->periodEndFrom($from);
 
@@ -947,12 +943,12 @@ final class Subscriptions
         // part of one overcharges, and capping the end would sell service past
         // the contract. The subscription reaches its term and the decision
         // above applies.
-        if ($subscription->termEndsAt !== null && $periodEnd > $subscription->termEndsAt) {
+        if ($termEndsAt !== null && $periodEnd > $termEndsAt) {
             throw new ConflictException(
                 'RENEWAL_WOULD_PASS_TERM',
                 'The next period would end after the term, so it is not one to roll into.',
                 [
-                    'term_ends_at' => $subscription->termEndsAt->format(DATE_ATOM),
+                    'term_ends_at' => $termEndsAt->format(DATE_ATOM),
                     'period_would_end_at' => $periodEnd->format(DATE_ATOM),
                 ],
             );
@@ -961,6 +957,7 @@ final class Subscriptions
         return $this->subscriptions->renew(
             $subscription,
             $periodEnd,
+            $term,
             // On the renewal's own transaction (ADR-068). The period moving and
             // the invoice for it are one fact: a period extended unbilled is
             // revenue given away, and an invoice for a period the subscription
@@ -975,6 +972,60 @@ final class Subscriptions
                 null,
             ),
         );
+    }
+
+    /**
+     * The next term of a subscription whose term has ended, or a refusal
+     * saying why it may not roll (ADR-071).
+     *
+     * **Told first, with the time promised.** A tacit renewal is the contract
+     * agreed again by not refusing it, which is only fair to somebody who
+     * knew. So the pre-renewal notice for *this* term must have been raised
+     * at least `notice_days` before now — read from the notification itself,
+     * so "did we tell them?" and "may we renew?" are one fact. Not found, not
+     * old enough: `TERM_RENEWAL_NOT_NOTICED`, and the next pass asks again.
+     *
+     * **A commitment is never re-armed without a notice.** Terms that promise
+     * no notice (`notice_days = 0`) roll freely only when they commit to
+     * nothing — the customer can leave the next day. With a commitment, no
+     * notice can satisfy them, so they are refused, and the subscription
+     * reaches its term as before.
+     */
+    private function nextTerm(Subscription $subscription): TermRenewal
+    {
+        $endingTerm = $subscription->termEndsAt;
+        $next = $endingTerm === null ? null : TermRenewal::after($subscription->terms, $endingTerm);
+
+        if ($endingTerm === null || $next === null) {
+            throw new ConflictException(
+                'TERM_REACHED',
+                'This subscription has reached a term its terms give no length to repeat.',
+                ['term_ends_at' => $endingTerm?->format(DATE_ATOM)],
+            );
+        }
+
+        $noticeDays = $subscription->terms->noticeDays;
+
+        if ($noticeDays === 0 && $subscription->terms->hasCommitment()) {
+            throw new ConflictException(
+                'TERM_RENEWAL_NOT_NOTICED',
+                'These terms commit the customer again but promise no notice, so the term cannot roll by itself.',
+                ['term_ends_at' => $endingTerm->format(DATE_ATOM)],
+            );
+        }
+
+        if ($noticeDays > 0 && !$this->subscriptions->renewalNoticeRaised(
+            RenewalNotice::keyFor($subscription->id, $endingTerm),
+            $noticeDays,
+        )) {
+            throw new ConflictException(
+                'TERM_RENEWAL_NOT_NOTICED',
+                'The customer has not yet been told this term renews, or not long enough ago.',
+                ['term_ends_at' => $endingTerm->format(DATE_ATOM), 'notice_days' => $noticeDays],
+            );
+        }
+
+        return $next;
     }
 
     /**

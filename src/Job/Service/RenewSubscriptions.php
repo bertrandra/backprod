@@ -23,17 +23,16 @@ use Throwable;
  * said. ADR-067 started the sweep that moves the column to `EXPIRED`, which did
  * not create that problem but does display it.
  *
- * **A period, never a term.** Rolling period 7 of a 24-month commitment into
- * period 8 is the agreed contract running; rolling the term into a second 24
- * months is a fresh commitment, which consumer law requires be preceded by a
- * notice whose deadline {@see SendRenewalNotices} says is unconfirmed. So this
- * stops at the term and the term stays a decision somebody takes — the refusals
- * live in `renew()`, where the subscription is, and this pass counts them.
+ * **A period, and at the term the term** (ADR-071). Rolling period 7 of a
+ * 24-month commitment into period 8 is the agreed contract running; at the end
+ * of the term, an offer sold `AUTO_RENEW` rolls into the next term with its
+ * first period, once the notice {@see SendRenewalNotices} raised is at least
+ * `notice_days` old. The refusals live in `renew()`, where the subscription
+ * is, and this pass counts them — `TERM_RENEWAL_NOT_NOTICED` among them.
  *
- * **Off unless the operator chose it** ({@see RenewalPolicy}, read per product
- * on every pass, like the dunning schedule). A deployment upgrading into this
- * changes nothing until somebody says so, because what silence would cost here
- * is a customer billed for a period nobody decided to sell them.
+ * **On unless the operator switched it off** ({@see RenewalPolicy}, read per
+ * product on every pass, like the dunning schedule). The operator's baseline
+ * since 2026-10-29: a subscription is sold as continuing.
  *
  * **Before the period ends, never after.** Selecting what has already lapsed
  * would race `sweep.subscriptions` over the same rows — both daily, and whichever

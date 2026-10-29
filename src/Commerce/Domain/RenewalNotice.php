@@ -41,6 +41,16 @@ final class RenewalNotice
      */
     public function dedupKey(): string
     {
-        return $this->subscriptionId . ':' . $this->termEndsAt->format('Y-m-d');
+        return self::keyFor($this->subscriptionId, $this->termEndsAt);
+    }
+
+    /**
+     * The same key, for the renewal that has to find this notice before it
+     * may roll the term (ADR-071). One function, so the two cannot come to
+     * spell it differently.
+     */
+    public static function keyFor(string $subscriptionId, DateTimeImmutable $termEndsAt): string
+    {
+        return $subscriptionId . ':' . $termEndsAt->format('Y-m-d');
     }
 }

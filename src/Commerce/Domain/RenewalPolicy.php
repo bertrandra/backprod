@@ -8,8 +8,8 @@ namespace App\Commerce\Domain;
  * Whether a product's subscriptions roll into their next paid period by
  * themselves, and how early (ADR-068).
  *
- * **What this is not.** It is not tacit renewal of a *term*. Those are two
- * different renewals and conflating them is the expensive mistake:
+ * **Two renewals, and this switches both.** They are different renewals and
+ * conflating them is the expensive mistake:
  *
  * ```text
  * current_period_end   the paid period rolls      the contract running
@@ -18,19 +18,19 @@ namespace App\Commerce\Domain;
  *
  * A 24-month subscription billed monthly is one commitment billed 24 times
  * (§13.1). Rolling period 7 into period 8 is the agreed contract doing what it
- * says; rolling the *term* into a second 24 months is a fresh commitment, which
- * consumer law requires be preceded by a notice whose deadline
- * {@see \App\Job\Service\SendRenewalNotices} says is unconfirmed, especially
- * toward consumers where it varies by member state. So this rolls periods
- * **inside** a term and stops at it, and the term stays a decision somebody
- * takes.
+ * says; rolling the *term* into a second 24 months is the contract agreed
+ * again by not refusing it, which is only fair once the customer was told. So
+ * the term rolls too, since ADR-071, but only for an offer sold `AUTO_RENEW`
+ * and only once the pre-renewal notice went out at least `notice_days` before
+ * ({@see \App\Commerce\Domain\TermRenewal}).
  *
- * **Off unless the operator says otherwise.** Absent configuration means no
- * automatic renewal, which is exactly today's behaviour — a deployment upgrading
- * into this changes nothing until somebody chooses. The reason is this setting's
- * own, as ADR-063's was: what silence would cost here is a customer billed for a
- * period nobody decided to sell them, so the absence of a decision is the
- * absence of the charge.
+ * **On unless the operator switches it off** (ADR-071, 2026-10-29). This was
+ * off by default, on the reasoning that silence should not bill anybody. The
+ * operator chose the other baseline: a subscription is sold as continuing, so
+ * the absence of a decision is the subscription continuing, and stopping that
+ * for a product is the decision. Only `"automatic": false`, strictly, switches
+ * it off; a document nobody can read is no decision, so it leaves the
+ * baseline.
  *
  * **It renews before the period ends, not after.** The first design renewed what
  * had already lapsed, and that puts this job in a race with `sweep.subscriptions`
@@ -84,12 +84,12 @@ final class RenewalPolicy
     }
 
     /**
-     * This product's policy, or none at all when it has said nothing.
+     * This product's policy, or the baseline when it has said nothing.
      *
-     * An unusable document — not an object, a lead outside the bounds, a flag
-     * that is not a flag — is treated exactly as no document. The alternative is
-     * to bill on a value nobody can read, and that is not a decision an
-     * operator made.
+     * An unusable part of the document — a flag that is not a flag, a lead
+     * outside the bounds — is treated as that part unsaid, and so as the
+     * baseline: renewing, seven days ahead. Only a strict `false` is the
+     * operator switching it off (ADR-071).
      *
      * @param array<string, mixed> $configuration every setting of the product, decoded
      */
@@ -98,22 +98,22 @@ final class RenewalPolicy
         $document = $configuration[self::CONFIGURATION_KEY] ?? null;
 
         if (!is_array($document)) {
-            return self::off();
-        }
-
-        // Strictly true. A string "false" is what a hand-edited document
-        // produces, and reading it as truthy would turn a typo into money.
-        if (($document['automatic'] ?? null) !== true) {
-            return self::off();
+            return self::baseline();
         }
 
         $lead = $document['lead_days'] ?? self::DEFAULT_LEAD_DAYS;
 
         if (!is_int($lead) || $lead < 1 || $lead > self::LONGEST_LEAD) {
-            return self::off();
+            $lead = self::DEFAULT_LEAD_DAYS;
         }
 
-        return new self(true, $lead);
+        return new self(($document['automatic'] ?? null) !== false, $lead);
+    }
+
+    /** What a product that has said nothing does: it renews, a week ahead. */
+    public static function baseline(): self
+    {
+        return new self(true, self::DEFAULT_LEAD_DAYS);
     }
 
     public static function off(): self
