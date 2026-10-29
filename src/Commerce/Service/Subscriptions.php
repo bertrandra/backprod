@@ -922,7 +922,7 @@ final class Subscriptions
         // terms the subscription snapshotted (ADR-071) — once the customer was
         // told and had the time the offer promised to refuse.
         $term = $subscription->hasReachedTermAt($from) ? $this->nextTerm($subscription) : null;
-        $termEndsAt = $term?->termEndsAt ?? $subscription->termEndsAt;
+        $termEndsAt = $term->termEndsAt ?? $subscription->termEndsAt;
 
         $periodEnd = $subscription->offer->version->periodEndFrom($from);
 
