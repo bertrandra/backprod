@@ -464,7 +464,10 @@ final class DemoResetTest extends DatabaseApiTestCase
         $world = $this->decode($response)['world'] ?? null;
         self::assertIsArray($world);
 
-        $everybody = array_column($this->listIn($world, 'people'), 'email');
+        $everybody = array_values(array_filter(
+            array_column($this->listIn($world, 'people'), 'email'),
+            'is_string',
+        ));
         self::assertSame(
             array_values(array_diff($everybody, [$admin])),
             $world['with_public_password'] ?? null,
