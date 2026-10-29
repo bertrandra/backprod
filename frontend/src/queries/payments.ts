@@ -227,6 +227,8 @@ export function useRefundPayment() {
       paymentId: string;
       reason: string;
       amount_minor_units?: number;
+      /** The invoice the payment settled, so its screen is asked again. Not sent. */
+      invoiceId?: string | null;
     }): Promise<Refund> => {
       const ambient = ambientParams(sessionSnapshot);
 
@@ -253,6 +255,12 @@ export function useRefundPayment() {
         queryClient.invalidateQueries({ queryKey: keys.billing.payment(input.paymentId) }),
         // A refund may produce a credit note.
         queryClient.invalidateQueries({ queryKey: keys.billing.creditNoteLists }),
+        // And a full one moves the invoice to CREDITED — the server's answer,
+        // so asked again rather than written in here.
+        queryClient.invalidateQueries({ queryKey: keys.billing.invoiceLists }),
+        ...(input.invoiceId === undefined || input.invoiceId === null
+          ? []
+          : [queryClient.invalidateQueries({ queryKey: keys.billing.invoice(input.invoiceId) })]),
       ]);
     },
   });

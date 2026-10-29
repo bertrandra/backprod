@@ -275,6 +275,10 @@ async function refreshSubscription(
     // administrator who cancelled their own seat and opened the register saw
     // it still live for as long as the default staleness lasted.
     queryClient.invalidateQueries({ queryKey: keys.subscription.organisation }),
+    // And the people it covers (2026-10-29): a change of offer changes the
+    // `users` quota the list is bounded by, and a cancellation or a new seat
+    // changes whether there is a list at all.
+    queryClient.invalidateQueries({ queryKey: keys.subscription.peopleAll }),
     // And every preview of what another change would cost (2026-09-27): a move
     // up resets the period, so the unconsumed share the next one would credit
     // has changed for *all* of them, not only the offer just moved to.
