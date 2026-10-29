@@ -907,11 +907,11 @@ final class Subscriptions
                     $subscription->offer->plan->rank,
                     $subscription->pending->plan->rank,
                 ),
-                fn (Subscription $changed, DateTimeImmutable $periodEnd): ?string => $this->billPeriod(
-                    $changed,
-                    $from,
-                    $periodEnd,
-                ),
+                // A period with no length (the free period's `CUSTOM`) has no
+                // end to bill to, and nothing to price: no document.
+                fn (Subscription $changed, ?DateTimeImmutable $periodEnd): ?string => $periodEnd === null
+                    ? null
+                    : $this->billPeriod($changed, $from, $periodEnd),
             );
         }
 
