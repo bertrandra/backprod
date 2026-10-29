@@ -120,6 +120,28 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
         self::assertSame('RESET_LINK_INVALID', $this->errorOf($again)['code'] ?? null);
     }
 
+    /**
+     * A second request is a second mail, with a link that works (2026-10-29).
+     *
+     * The notice was keyed per account, so the dedup index swallowed the
+     * second one while the token row it carried was replaced: the person
+     * got nothing, and the first link they did get stopped working too.
+     */
+    public function testASecondResetSendsASecondLinkAndThatOneWorks(): void
+    {
+        $this->request('POST', '/api/v1/auth/password/forgot', [], $this->json(['email' => 'uma@acme.test']));
+        $first = $this->linkTokenFor($this->uma);
+
+        $this->request('POST', '/api/v1/auth/password/forgot', [], $this->json(['email' => 'uma@acme.test']));
+        $second = $this->linkTokenFor($this->uma);
+
+        self::assertNotSame($first, $second);
+        self::assertSame(2, $this->connection->fetchOne("SELECT count(*) FROM notifications WHERE type = 'account.password_reset' AND recipient_user_id = :u", ['u' => $this->uma]));
+
+        $reset = $this->request('POST', '/api/v1/auth/password/reset', [], $this->json(['token' => $second, 'password' => 'a brand new passphrase']));
+        self::assertSame(200, $reset->getStatusCode());
+    }
+
     // --- The people a subscription covers -----------------------------------------
 
     public function testTheOwnerAddsPeopleWithinTheQuotaAndTheyAreEntitledByIt(): void

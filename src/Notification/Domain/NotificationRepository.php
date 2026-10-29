@@ -94,7 +94,20 @@ interface NotificationRepository
 
     public function recordSent(string $deliveryId, ?string $providerMessageId, ?string $renderedBody): void;
 
-    public function recordFailure(string $deliveryId, string $failureReason): void;
+    /**
+     * A send that failed. With `$retryInSeconds`, the delivery goes back to
+     * PENDING and is not claimed again before that delay; with null its
+     * attempts are spent and it is FAILED for good.
+     */
+    public function recordFailure(string $deliveryId, string $failureReason, ?int $retryInSeconds): void;
+
+    /**
+     * Removes the credential-bearing link from every notice whose mail is
+     * done with it — sent, failed for good or suppressed (2026-10-29).
+     *
+     * @return int how many payloads were scrubbed
+     */
+    public function scrubSpentCredentials(): int;
 
     public function recordSuppressed(string $deliveryId, string $reason): void;
 

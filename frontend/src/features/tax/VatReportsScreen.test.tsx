@@ -216,6 +216,24 @@ describe('an open period', () => {
 
     await waitFor(() => expect(screen.getByTestId('mixed-currencies')).toBeTruthy());
     expect(screen.getByTestId('mixed-currencies').textContent).toMatch(/EUR, CHF/);
+    // And it has no total: a sum of two currencies labelled in one is a
+    // figure on no return. Each stays in its own row of the breakdown.
+    expect(screen.getByTestId('running-base').textContent).toBe('—');
+    expect(screen.getByTestId('running-vat').textContent).toBe('—');
+  });
+
+  it('shows the running totals when the period holds one currency', async () => {
+    renderAtRoute(
+      <VatReportsScreen />,
+      clientFor([ENDED], {
+        'GET /api/v1/tax/reports/{periodId}': { data: { period: ENDED, totals: RUNNING_TOTALS, declaration: null } },
+      }),
+      at(ENDED.id),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('running-base')).toBeTruthy());
+    expect(screen.getByTestId('running-base').textContent).not.toBe('—');
+    expect(screen.getByTestId('running-base').textContent).toMatch(/400/);
   });
 });
 

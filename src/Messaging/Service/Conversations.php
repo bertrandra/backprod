@@ -172,7 +172,7 @@ final class Conversations
 
         $participant = $this->conversations->participant($conversation->id, $userId);
 
-        if ($participant === null) {
+        if ($participant === null || $participant->hasLeft()) {
             throw new NotFoundException('Conversation not found.', [], 'CONVERSATION_NOT_FOUND');
         }
 
@@ -212,7 +212,7 @@ final class Conversations
 
         $participant = $this->conversations->participant($conversation->id, $removedUserId);
 
-        if ($participant === null) {
+        if ($participant === null || $participant->hasLeft()) {
             throw new NotFoundException('That person is not in this conversation.', [], 'PARTICIPANT_NOT_FOUND');
         }
 
@@ -281,7 +281,12 @@ final class Conversations
     ): Conversation {
         $conversation = $this->conversations->find($tenantId, $productId, $conversationId);
 
-        if ($conversation === null || $this->conversations->participant($conversationId, $userId) === null) {
+        // Somebody removed from a thread keeps their row — their messages
+        // keep their author — but not their place: they read, post and act
+        // on it no more than somebody never in it, and are told the same.
+        $participant = $conversation === null ? null : $this->conversations->participant($conversationId, $userId);
+
+        if ($conversation === null || $participant === null || $participant->hasLeft()) {
             throw new NotFoundException('Conversation not found.', [], 'CONVERSATION_NOT_FOUND');
         }
 

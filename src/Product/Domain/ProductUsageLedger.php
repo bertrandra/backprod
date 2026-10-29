@@ -14,6 +14,26 @@ use DateTimeImmutable;
 interface ProductUsageLedger
 {
     /**
+     * Runs `$work` in one transaction, holding the one lock every report
+     * for this tenant, product and feature takes — so the quota read and the
+     * insert it allows cannot be split by a concurrent report that read the
+     * same level.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    public function exclusively(string $tenantId, string $productId, string $feature, callable $work): mixed;
+
+    /**
+     * Whether this idempotency key was already recorded: a retry, answered
+     * as one, before any quota is asked about.
+     */
+    public function isRecorded(string $tenantId, string $productId, string $feature, string $idempotencyKey): bool;
+
+    /**
      * Records the delta. False when this key was already recorded, in which
      * case nothing was written — the earlier row stands.
      */

@@ -64,6 +64,10 @@ try {
 
     if ($refused->errorCode() === DemoSeeder::ALREADY_SEEDED) {
         fwrite(STDERR, "Pass --reset to wipe the business tables first.\n");
+    } elseif ($refused->errorCode() === DemoSeeder::FOREIGN_DOCUMENTS) {
+        $tenants = $refused->details()['tenants'] ?? [];
+        fwrite(STDERR, 'Organisations holding legal documents: ' . implode(', ', is_array($tenants) ? array_filter($tenants, is_string(...)) : []) . "\n");
+        fwrite(STDERR, "Those invoices, credit notes and VAT facts must be kept; seed into a database of their own.\n");
     } else {
         $products = $refused->details()['products'] ?? [];
         fwrite(STDERR, 'Products that are not the demonstration\'s: ' . implode(', ', is_array($products) ? array_filter($products, is_string(...)) : []) . "\n");

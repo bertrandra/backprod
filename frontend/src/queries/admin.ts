@@ -81,6 +81,9 @@ export function useMetrics(productId: string | null, months = 12, month: string 
 export const QUEUE_POLL_MS = 15_000;
 export const DEFAULT_STALE_AFTER_SECONDS = 300;
 
+/** The liveness signal, as the contract declares it — never restated by hand. */
+export type QueueHealth = Operations['showQueue']['responses'][200]['content']['application/json'];
+
 export function useQueueHealth(staleAfterSeconds = DEFAULT_STALE_AFTER_SECONDS) {
   const client = useApiClient();
 

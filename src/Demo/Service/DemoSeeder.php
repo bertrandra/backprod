@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Demo\Service;
 
+use App\Auth\Domain\PasswordHashing;
 use App\Billing\Domain\Invoice;
 use App\Billing\Service\Invoicing;
 use App\Commerce\Service\Freemium;
@@ -69,6 +70,7 @@ final class DemoSeeder
 {
     public const NOT_A_DEMO_DEPLOYMENT = 'NOT_A_DEMO_DEPLOYMENT';
     public const ALREADY_SEEDED = 'DEMO_ALREADY_SEEDED';
+    public const FOREIGN_DOCUMENTS = 'DEMO_RESET_WOULD_DESTROY_DOCUMENTS';
 
     public function __construct(
         private readonly DemoFixtures $fixtures,
@@ -118,12 +120,30 @@ final class DemoSeeder
      * the widest destructive act this platform can perform, behind one
      * button. The rule is on what *exists*, not on what the caller says.
      *
-     * Everybody is signed out by it, the caller included: the people are
-     * rows, and the rows are gone. The answer says who to sign in as.
+     * **And refused while a legal document is not the demonstration's**
+     * (2026-10-29). A product code is the demonstration's by name only: a
+     * deployment whose real customers bought on `plan` passed the product
+     * check and lost its invoices, credit notes and VAT facts to the
+     * truncate. Leftovers a walk through the demo makes — a sign-up, a
+     * tenant with nothing issued — still go; a numbered document an
+     * organisation outside the world issued or received does not.
      *
-     * @throws ConflictException NOT_A_DEMO_DEPLOYMENT
+     * **One transaction**, the wipe and the rebuild together: a world that
+     * fails to build — or builds and does not hold — leaves the one before
+     * it standing rather than an empty database. The pictures are the
+     * exception, deleted before it through their own door, because their
+     * bytes live outside the database and no rollback brings them back.
+     *
+     * Everybody is signed out by it, the caller included: the people are
+     * rows, and the rows are gone. The answer says who to sign in as — and
+     * the caller, named by `$caller`, keeps the password they had when
+     * their address is one the world makes again, so the account that
+     * administers the platform is not handed the public password by the
+     * person who just proved they know a better one.
+     *
+     * @throws ConflictException NOT_A_DEMO_DEPLOYMENT, DEMO_RESET_WOULD_DESTROY_DOCUMENTS
      */
-    public function reset(): SeededWorld
+    public function reset(?string $caller = null): SeededWorld
     {
         $foreign = $this->fixtures->foreignProducts();
 
@@ -135,6 +155,18 @@ final class DemoSeeder
             );
         }
 
+        $documented = $this->fixtures->foreignDocuments();
+
+        if ($documented !== []) {
+            throw new ConflictException(
+                self::FOREIGN_DOCUMENTS,
+                'Organisations that are not the demonstration\'s hold legal documents here; resetting would destroy them.',
+                ['tenants' => $documented],
+            );
+        }
+
+        $credential = $caller === null ? null : $this->fixtures->credentialOf($caller);
+
         // The pictures first, through the door that put them there: they
         // are bytes in storage, and a truncate would leave them behind with
         // no row naming them (2026-10-08).
@@ -144,9 +176,24 @@ final class DemoSeeder
             }
         }
 
-        $this->fixtures->wipe();
+        return $this->fixtures->atomically(function () use ($credential): SeededWorld {
+            $this->fixtures->wipe();
+            $world = $this->build();
 
-        return $this->build();
+            if (!$world->holds()) {
+                // Thrown inside, so the world before this one is still there.
+                throw new RuntimeException(
+                    'The demonstration world was rebuilt but a check failed, so nothing was changed: '
+                    . implode(', ', $world->failures()) . '.',
+                );
+            }
+
+            $kept = $credential === null
+                ? null
+                : $this->fixtures->restoreCredential($credential['email'], $credential['hash']);
+
+            return $world->keepingOwnPassword($kept === null ? [] : [$kept]);
+        });
     }
 
     private function build(): SeededWorld
@@ -154,7 +201,7 @@ final class DemoSeeder
         // Hashed here rather than handed down as a literal: the fixtures
         // store what they are given, and what they are given must never be
         // the plaintext.
-        $structure = $this->fixtures->write(password_hash(DemoWorld::PASSWORD, PASSWORD_BCRYPT));
+        $structure = $this->fixtures->write(PasswordHashing::hash(DemoWorld::PASSWORD));
 
         // The pictures on Plan's page (2026-10-08): real screenshots of the
         // product, shipped with the platform and uploaded through the same

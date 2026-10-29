@@ -68,6 +68,37 @@ final class PostgresRateLimiter implements RateLimiter
         );
     }
 
+    public function peek(string $bucket, int $windowSeconds, int $limit): RateLimitDecision
+    {
+        // The same window arithmetic as hit(), read rather than written; an
+        // absent counter is a window nobody has spent anything in yet.
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT coalesce(max(c.hits), 0) AS hits,
+                       ceil(extract(epoch FROM
+                           (to_timestamp(floor(extract(epoch FROM now()) / :width) * :width)
+                               + make_interval(secs => :width)) - now()
+                       ))::int AS retry_after
+                  FROM (SELECT 1) AS one
+                  LEFT JOIN rate_limit_counters c
+                    ON c.bucket = :bucket
+                   AND c.window_start = to_timestamp(floor(extract(epoch FROM now()) / :width) * :width)
+                SQL,
+            ['bucket' => $bucket, 'width' => $windowSeconds],
+        );
+
+        if ($row === false) {
+            throw new RuntimeException('The rate limiter returned no counter.');
+        }
+
+        return new RateLimitDecision(
+            Row::integer($row, 'hits') + 1,
+            $limit,
+            $windowSeconds,
+            max(1, min($windowSeconds, Row::integer($row, 'retry_after'))),
+        );
+    }
+
     public function forgetClosedWindows(int $windowSeconds): int
     {
         // Strictly older than one window, so the window in progress is never

@@ -504,15 +504,26 @@ on a button:
    upload the new one, move `.env` and `var/` into it from the old, and
    replace the five entries in `public_html/` (`index.php`, `index.html`,
    `.htaccess`, `assets/`, `setup.php`).
-3. **Open `https://example.com/setup.php`.** It shows the code's build
-   (`backprod-app/BUILD`) and the newest migration it carries, the database's
-   newest applied migration, and the list waiting between them, with each
-   one's description.
-4. **Approve**: type a platform administrator's email and password and press
+3. **Open `https://example.com/setup.php`.** To anybody it says only where
+   the database stands: up to date, *N migrations waiting*, or ahead of the
+   code. Type a platform administrator's email and password and press *Show
+   the migrations*: it then shows the code's build (`backprod-app/BUILD`) and
+   the newest migration it carries, the database's newest applied migration,
+   and the list waiting between them, with each one's description.
+4. **Approve**: type the administrator's email and password again and press
    *Apply*. The migrations run in one transaction — all, or none and the
    database as it was. Only the list that was shown runs: if the code changed
    between the page and the click, it refuses and asks for a reload.
 5. **Flush the cache**, sign in, look.
+
+**Ten refused credentials from one address in fifteen minutes** — an
+administrator's password here, or the database's on the *Change a password*
+form — and the page answers 429 until the window passes. The count is kept in
+`backprod-app/var/setup-throttle.json`, because this page runs without the
+application's own rate limiter; deleting that file clears it. The *Change a
+password* form asks only for the database username and password, compares them
+with `DATABASE_DSN` in `backprod-app/.env`, and changes the password on that
+database and no other; it also ends every sign-in the account held.
 
 **Forward only.** No migration is undone, from this page or anywhere else. A
 database *ahead* of the code — migrations applied that the uploaded code does

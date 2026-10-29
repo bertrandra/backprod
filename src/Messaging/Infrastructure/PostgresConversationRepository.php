@@ -70,6 +70,9 @@ final class PostgresConversationRepository implements ConversationRepository
                  WHERE c.tenant_id = :tenant
                    AND c.product_id = :product
                    AND p.user_id = :user
+                   -- Removed from a thread is out of it: not listed, as
+                   -- not readable (the page and its total say the same).
+                   AND p.left_at IS NULL
                  ORDER BY c.updated_at DESC, c.id
                  LIMIT :limit OFFSET :offset
                 SQL,
@@ -98,6 +101,7 @@ final class PostgresConversationRepository implements ConversationRepository
                   FROM conversations c
                   JOIN conversation_participants p ON p.conversation_id = c.id
                  WHERE c.tenant_id = :tenant AND c.product_id = :product AND p.user_id = :user
+                   AND p.left_at IS NULL
                 SQL,
             ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],
         );

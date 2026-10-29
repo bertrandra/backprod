@@ -21,13 +21,40 @@ final class SeededWorld
      * @param list<Subscription>  $subscriptions
      * @param list<Invoice>       $invoices
      * @param array<string, bool> $checks        check => holds
+     * @param list<string>        $ownPassword   the accounts a reset left
+     *                                           with the password they had
+     *                                           before it — the caller's
      */
     public function __construct(
         public readonly DemoStructure $structure,
         public readonly array $subscriptions,
         public readonly array $invoices,
         public readonly array $checks,
+        public readonly array $ownPassword = [],
     ) {
+    }
+
+    /** @param list<string> $emails */
+    public function keepingOwnPassword(array $emails): self
+    {
+        return new self($this->structure, $this->subscriptions, $this->invoices, $this->checks, $emails);
+    }
+
+    /**
+     * The accounts that sign in with {@see DemoWorld::PASSWORD}, which is in
+     * this platform's source: everybody the world made, except whoever kept
+     * their own.
+     *
+     * @return list<string>
+     */
+    public function withPublicPassword(): array
+    {
+        $kept = array_map(strtolower(...), $this->ownPassword);
+
+        return array_values(array_filter(
+            array_column($this->people(), 'email'),
+            static fn (string $email): bool => !in_array(strtolower($email), $kept, true),
+        ));
     }
 
     public function holds(): bool

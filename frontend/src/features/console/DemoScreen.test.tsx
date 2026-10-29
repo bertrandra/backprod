@@ -31,6 +31,8 @@ describe('the demonstration world', () => {
       { email: 'sam@demo.test', name: 'Sam Staff', scope: 'platform', role: 'PLATFORM_ADMIN', tenants: [] },
     ],
     password: 'demo-password-1234',
+    // Sam pressed the button and kept the password they had (2026-10-29).
+    with_public_password: ['ada@demo.test'],
     invoices: ['2026-000001'],
   };
 
@@ -86,6 +88,9 @@ describe('the demonstration world', () => {
     expect(requests.filter((r) => r.method === 'POST').map((r) => r.path)).toEqual(['/api/v1/staff/demo/reset']);
     expect(screen.getByTestId('demo-world-people').textContent).toContain('sam@demo.test');
     expect(screen.getByTestId('demo-world-done').textContent).toContain('demo-password-1234');
+    // Who kept their own password is said, on their line and nobody else's.
+    const lines = Array.from(screen.getByTestId('demo-world-people').querySelectorAll('li'), (li) => li.textContent ?? '');
+    expect(lines.filter((line) => line.includes('kept its own password'))).toEqual([expect.stringContaining('sam@demo.test')]);
     // Nothing was refetched: every row the cache described is gone, and a
     // refetch would 401 and sign out under the person reading the answer.
     expect(requests.filter((r) => r.method === 'GET' && r.path !== '/api/v1/staff/me' && r.path !== '/api/v1/staff/demo/page')).toHaveLength(0);

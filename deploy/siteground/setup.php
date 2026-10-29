@@ -43,7 +43,27 @@ declare(strict_types=1);
  * credentials Site Tools gave you — because the seeded accounts' password is
  * public knowledge and this platform has no password-reset flow yet
  * (ADR-038) to change it any other way. Change at least the platform
- * administrator's and confirm you can sign in with the new one.
+ * administrator's and confirm you can sign in with the new one. It ends
+ * every sign-in that account holds, in the same transaction: somebody who
+ * signed in with the public password would otherwise keep a refresh token
+ * for up to ninety days.
+ *
+ * **Neither is a guessing service** (2026-10-29). Past the marker the
+ * database credentials typed here are *compared* with the ones in `.env` and
+ * never used to connect — so this page cannot be pointed at another host —
+ * and the only connection it opens is `.env`'s. Every refused credential,
+ * the database's or an administrator's, counts against the address it came
+ * from in `backprod-app/var/setup-throttle.json`: ten in fifteen minutes and
+ * the page answers 429 until the window passes. A file and not the app's
+ * rate limiter, because this page runs without the app's middleware. And
+ * an unknown administrator address costs the same bcrypt as a wrong
+ * password, so the time of the answer does not say which addresses are
+ * administrators.
+ *
+ * **What anybody sees** is the summary: up to date, N migrations waiting, or
+ * the database ahead. The build, the versions and the list of migrations
+ * are shown to a platform administrator, after their password — and no
+ * error message from the database reaches a page nobody signed in to.
  *
  * Neither writes `.env` and neither seeds anything, so the page stays on the
  * server after setup: it is how the next version goes in.
@@ -61,6 +81,18 @@ declare(strict_types=1);
 const BACKPROD_APP = __DIR__ . '/../backprod-app';
 const MARKER_PATH = BACKPROD_APP . '/var/.setup-complete';
 const ENV_PATH = BACKPROD_APP . '/.env';
+const THROTTLE_PATH = BACKPROD_APP . '/var/setup-throttle.json';
+
+/** Ten refused credentials from one address in fifteen minutes, then 429 until the window passes. */
+const THROTTLE_LIMIT = 10;
+const THROTTLE_WINDOW = 900;
+
+/**
+ * A bcrypt hash of nothing anybody types, at the cost the app hashes with,
+ * so an address with no administrator behind it is checked as slowly as one
+ * with a wrong password — the same reasoning as `Sessions::TIMING_EQUALISER`.
+ */
+const TIMING_EQUALISER = '$2y$12$m8V9wm3aCIzZ.UxGQd/z.eOIw04NV0jrqAyAQV9iO98cPwfdOxVTG';
 
 
 if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
@@ -69,6 +101,7 @@ if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
 
 require BACKPROD_APP . '/vendor/autoload.php';
 
+use App\Auth\Domain\PasswordHashing;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
 use App\Demo\Service\DemoSeeder;
@@ -107,6 +140,89 @@ function field(array $data, string $key): string
 function generateSecret(): string
 {
     return bin2hex(random_bytes(32));
+}
+
+// --- Refused credentials, counted per address ----------------------------------
+//
+// This page runs without the app's middleware, so its rate limiter never sees
+// it. A small JSON file under var/ does the same job: {address: [unix times of
+// refusals]}, pruned to the window on every write. Locked, because two
+// requests at once must not both read nine and both write ten.
+
+function clientAddress(): string
+{
+    $address = $_SERVER['REMOTE_ADDR'] ?? '';
+
+    return is_string($address) && $address !== '' ? $address : 'unknown';
+}
+
+/**
+ * Reads, changes and writes the counter under one lock.
+ *
+ * Fails closed: a counter that cannot be kept is a page that cannot be
+ * guarded, and the remedy — making var/ writable — is the operator's.
+ *
+ * @param callable(array<string, list<int>>): array<string, list<int>> $change
+ *
+ * @return array<string, list<int>> what was written
+ */
+function withThrottle(callable $change): array
+{
+    $handle = @fopen(THROTTLE_PATH, 'c+');
+
+    if ($handle === false || !flock($handle, LOCK_EX)) {
+        fail(503, 'This page cannot count refused attempts. Check backprod-app/var/ is writable.');
+    }
+
+    $raw = stream_get_contents($handle);
+    $decoded = is_string($raw) && $raw !== '' ? json_decode($raw, true) : [];
+    $since = time() - THROTTLE_WINDOW;
+    $counts = [];
+
+    foreach (is_array($decoded) ? $decoded : [] as $address => $times) {
+        $recent = is_array($times) ? array_values(array_filter($times, static fn ($t): bool => is_int($t) && $t > $since)) : [];
+
+        if (is_string($address) && $recent !== []) {
+            $counts[$address] = $recent;
+        }
+    }
+
+    $counts = $change($counts);
+
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite($handle, (string) json_encode($counts));
+    fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+
+    return $counts;
+}
+
+/** Answers 429 when this address has been refused too often lately. Checked before any credential is. */
+function refuseIfThrottled(): void
+{
+    $counts = withThrottle(static fn (array $counts): array => $counts);
+
+    if (count($counts[clientAddress()] ?? []) >= THROTTLE_LIMIT) {
+        header('Retry-After: ' . THROTTLE_WINDOW);
+        fail(429, 'Too many refused attempts from this address. Wait fifteen minutes and try again.');
+    }
+}
+
+/** Counts one refusal against this address, then refuses — slowly, as before. */
+function refuseCredentials(int $status, string $message): never
+{
+    $address = clientAddress();
+
+    withThrottle(static function (array $counts) use ($address): array {
+        $counts[$address] = [...($counts[$address] ?? []), time()];
+
+        return $counts;
+    });
+
+    sleep(1);
+    fail($status, $message);
 }
 
 /**
@@ -194,12 +310,12 @@ const STYLE_BLOCK = '<style>'
 $alreadySetUp = is_file(MARKER_PATH);
 $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
 
-if ($alreadySetUp && !in_array($action, ['reset-password', 'upgrade-database'], true)) {
+if ($alreadySetUp && !in_array($action, ['reset-password', 'upgrade-database', 'show-versions'], true)) {
     $body = STYLE_BLOCK . '<p class="ok">This deployment is set up.</p>'
         . '<p>Setup ran on ' . htmlspecialchars((string) file_get_contents(MARKER_PATH)) . ' and will not run again '
         . 'while <code>backprod-app/var/.setup-complete</code> exists. This page is now where a new version of the '
         . 'code moves the database forward.</p>'
-        . versionsPanel();
+        . versionsSummary();
 
     $body .= '<h2>Change a password</h2>'
         . '<p class="hint">Only for whoever can also type the real database credentials. The seeded accounts all '
@@ -223,6 +339,11 @@ if ($action === 'reset-password') {
 
 if ($action === 'upgrade-database') {
     handleUpgradeDatabase();
+    exit;
+}
+
+if ($action === 'show-versions') {
+    handleShowVersions();
     exit;
 }
 
@@ -315,15 +436,54 @@ function migrationStatus(Connection $connection): array
     ];
 }
 
-function versionsPanel(): string
+/**
+ * What anybody who opens the page sees (2026-10-29): where the database
+ * stands against the code in one sentence, and the door to the details. The
+ * build, the versions and the migrations' names are for a platform
+ * administrator — they describe the deployment to whoever is probing it.
+ */
+function versionsSummary(): string
 {
     try {
         $status = migrationStatus(connectFromEnv());
-    } catch (\Throwable $e) {
-        return '<h2>Versions</h2><p class="error">The migration status could not be read: '
-            . htmlspecialchars($e->getMessage()) . '</p>';
+    } catch (\Throwable) {
+        // Nothing from the exception: it can carry SQL, and this page is
+        // open to anybody who finds it.
+        return '<h2>Versions</h2><p class="error">The migration status could not be read. Check the database '
+            . 'named in <code>backprod-app/.env</code> answers, then reload.</p>';
     }
 
+    if ($status['ahead'] !== []) {
+        return '<h2>Versions</h2><p class="error"><strong>The database is ahead of this code.</strong> Nothing is '
+            . 'undone here: deploy the code that matches the database (or a newer one).</p>';
+    }
+
+    if ($status['pending'] === []) {
+        return '<h2>Versions</h2><p class="ok">The database is up to date with the code. Nothing to apply.</p>';
+    }
+
+    $count = count($status['pending']);
+
+    return '<h2>Versions</h2><p><strong>' . $count . ' migration' . ($count > 1 ? 's' : '') . ' waiting.</strong> '
+        . 'A platform administrator sees which, and approves them, on the next page.</p>'
+        . '<form method="post">'
+        . '<input type="hidden" name="action" value="show-versions">'
+        . '<fieldset><legend>Review, as a platform administrator</legend>'
+        . inputRow('Email', 'admin_email', 'email', 'backprod@example.org')
+        . inputRow('Password', 'admin_password', 'password')
+        . '</fieldset>'
+        . '<button type="submit">Show the migrations</button>'
+        . '</form>';
+}
+
+/**
+ * The full panel: the build, both versions, and the button between them.
+ * Shown only past {@see requirePlatformAdmin()}.
+ *
+ * @param array{latest: string, current: string, pending: list<array{version: string, description: string}>, ahead: list<string>} $status
+ */
+function versionsPanel(array $status): string
+{
     $html = '<h2>Versions</h2><table class="versions">'
         . '<tr><th>Code</th><td>build <code>' . htmlspecialchars(buildStamp()) . '</code><br>schema up to <code>'
         . htmlspecialchars(versionLabel($status['latest'])) . '</code></td></tr>'
@@ -365,20 +525,23 @@ function versionsPanel(): string
         . '</form>';
 }
 
-function handleUpgradeDatabase(): void
+/**
+ * A platform administrator, proved by their own password — or a refusal
+ * counted against the address it came from.
+ *
+ * Not the database credentials: approving a change to the schema is an act
+ * of the platform's operator, and the one who should be able to say who did.
+ * `password_verify` runs whether or not the address is an administrator's,
+ * against {@see TIMING_EQUALISER} when it is not, so the answer takes the
+ * same time either way.
+ */
+function requirePlatformAdmin(Connection $connection): void
 {
-    if (!is_file(MARKER_PATH)) {
-        fail(409, 'This deployment is not set up yet. Set it up first; this button moves an installed database forward.');
-    }
+    refuseIfThrottled();
 
     $email = field($_POST, 'admin_email');
     $password = is_string($_POST['admin_password'] ?? null) ? $_POST['admin_password'] : '';
-    $target = field($_POST, 'target');
-    $connection = connectFromEnv();
 
-    // A platform administrator, proved by their own password. Not the
-    // database credentials: approving a change to the schema is an act of
-    // the platform's operator, and the one who should be able to say who did.
     $hash = $connection->fetchOne(
         <<<'SQL'
         SELECT lc.password_hash
@@ -391,10 +554,43 @@ function handleUpgradeDatabase(): void
         ['email' => $email],
     );
 
-    if (!is_string($hash) || $password === '' || !password_verify($password, $hash)) {
-        sleep(1);
-        fail(403, 'Only a platform administrator may apply migrations, and that email and password are not one.');
+    $verified = password_verify($password, is_string($hash) ? $hash : TIMING_EQUALISER);
+
+    if (!is_string($hash) || $password === '' || !$verified) {
+        refuseCredentials(403, 'Only a platform administrator may see and apply migrations, and that email and password are not one.');
     }
+}
+
+function handleShowVersions(): void
+{
+    if (!is_file(MARKER_PATH)) {
+        fail(409, 'This deployment is not set up yet. Set it up first; this page moves an installed database forward.');
+    }
+
+    $connection = connectFromEnv();
+    requirePlatformAdmin($connection);
+
+    try {
+        $status = migrationStatus($connection);
+    } catch (\Throwable $e) {
+        // Past the password, so the reason is shown: the administrator is
+        // the person who has to fix it.
+        fail(500, 'The migration status could not be read: ' . $e->getMessage());
+    }
+
+    render('Backprod — versions', STYLE_BLOCK . versionsPanel($status)
+        . '<p><a href="' . htmlspecialchars(basename(__FILE__)) . '">Back</a></p>');
+}
+
+function handleUpgradeDatabase(): void
+{
+    if (!is_file(MARKER_PATH)) {
+        fail(409, 'This deployment is not set up yet. Set it up first; this button moves an installed database forward.');
+    }
+
+    $target = field($_POST, 'target');
+    $connection = connectFromEnv();
+    requirePlatformAdmin($connection);
 
     $status = migrationStatus($connection);
 
@@ -445,12 +641,12 @@ function handleUpgradeDatabase(): void
 
 function resetPasswordForm(): string
 {
+    // No host, port or database name (2026-10-29): the only database this
+    // form ever touches is the one in .env, so asking where it is would only
+    // be a way to make this server connect somewhere else.
     return '<form method="post" action="">'
         . '<input type="hidden" name="action" value="reset-password">'
-        . '<fieldset><legend>Database</legend>'
-        . inputRow('Host (the value your host gave you — often the Site IP, sometimes localhost)', 'db_host')
-        . inputRow('Port', 'db_port', 'text', '5432', '5432')
-        . inputRow('Database name', 'db_name')
+        . '<fieldset><legend>Database credentials, as in <code>backprod-app/.env</code></legend>'
         . inputRow('Username', 'db_user')
         . inputRow('Password', 'db_pass', 'password')
         . '</fieldset>'
@@ -463,9 +659,51 @@ function resetPasswordForm(): string
         . '</form>';
 }
 
+/**
+ * The database credentials typed into the form, compared with the ones in
+ * `.env` — never used to connect. Both comparisons always run, so neither
+ * half answers faster than the other. A refusal counts against the address.
+ */
+function requireDatabaseCredentials(): void
+{
+    refuseIfThrottled();
+
+    $env = Dotenv::createArrayBacked(BACKPROD_APP)->safeLoad();
+    $dsn = $env['DATABASE_DSN'] ?? '';
+
+    if (!is_string($dsn) || $dsn === '') {
+        fail(500, 'backprod-app/.env sets no DATABASE_DSN.');
+    }
+
+    try {
+        $params = ConnectionFactory::paramsFromDsn($dsn);
+    } catch (\Throwable) {
+        fail(500, 'The DATABASE_DSN in backprod-app/.env could not be read.');
+    }
+
+    $user = is_string($params['user'] ?? null) ? $params['user'] : '';
+    $pass = is_string($params['password'] ?? null) ? $params['password'] : '';
+    $typedUser = field($_POST, 'db_user');
+    $typedPass = is_string($_POST['db_pass'] ?? null) ? $_POST['db_pass'] : '';
+
+    $userMatches = hash_equals($user, $typedUser);
+    $passMatches = hash_equals($pass, $typedPass);
+
+    if ($user === '' || !$userMatches || !$passMatches) {
+        refuseCredentials(403, 'Those are not the database credentials in backprod-app/.env.');
+    }
+}
+
 function handleResetPassword(): void
 {
-    $connection = connectOrFail($_POST);
+    if (!is_file(MARKER_PATH)) {
+        // Before setup there is no .env to check the credentials against,
+        // and no account to reset: the setup form is the page's only job.
+        fail(409, 'This deployment is not set up yet. Set it up first.');
+    }
+
+    requireDatabaseCredentials();
+    $connection = connectFromEnv();
 
     $email = field($_POST, 'reset_email');
     $password = is_string($_POST['reset_password'] ?? null) ? $_POST['reset_password'] : '';
@@ -486,20 +724,44 @@ function handleResetPassword(): void
         fail(422, 'The two passwords do not match.');
     }
 
-    $updated = $connection->executeStatement(
-        <<<'SQL'
-            UPDATE local_credentials
-            SET password_hash = :hash, updated_at = now()
-            WHERE lower(email) = lower(:email)
-            SQL,
-        ['email' => $email, 'hash' => password_hash($password, PASSWORD_BCRYPT)],
-    );
+    // The new password and the end of every sign-in the old one opened, in
+    // one transaction — the same pair `Sessions` writes on a reset. Without
+    // the second half, whoever signed in with the public demo password keeps
+    // a refresh token for up to ninety days. Cost 12, as the app hashes.
+    $hash = PasswordHashing::hash($password);
 
-    if ($updated === 0) {
+    $result = $connection->transactional(static function (Connection $connection) use ($email, $hash): ?int {
+        $userId = $connection->fetchOne(
+            <<<'SQL'
+                UPDATE local_credentials
+                SET password_hash = :hash, updated_at = now()
+                WHERE lower(email) = lower(:email)
+                RETURNING user_id
+                SQL,
+            ['email' => $email, 'hash' => $hash],
+        );
+
+        if (!is_string($userId)) {
+            return null;
+        }
+
+        return (int) $connection->executeStatement(
+            <<<'SQL'
+                UPDATE auth_refresh_tokens
+                   SET revoked_at = now()
+                 WHERE user_id = :user_id
+                   AND revoked_at IS NULL
+                SQL,
+            ['user_id' => $userId],
+        );
+    });
+
+    if ($result === null) {
         fail(404, 'No account with that email address has a password to reset.');
     }
 
-    render('Password reset', STYLE_BLOCK . '<p class="ok">Password updated. Sign in with the new one.</p>');
+    render('Password reset', STYLE_BLOCK . '<p class="ok">Password updated, and ' . $result . ' sign-in'
+        . ($result === 1 ? '' : 's') . ' it held ended. Sign in with the new one.</p>');
 }
 
 // --- The setup form and its handler ---------------------------------------------
