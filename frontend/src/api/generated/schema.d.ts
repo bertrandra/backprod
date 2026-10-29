@@ -4961,6 +4961,8 @@ export interface components {
             status: "DRAFT" | "ISSUED" | "READY_FOR_EINVOICE" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "PAID" | "CANCELLED" | "CREDITED";
             /** @description Whether it can still change. A final invoice is corrected by a credit note, never edited. */
             final: boolean;
+            /** @description Whether a payment may be taken against it: issued and not yet paid, cancelled or credited, whatever its e-invoicing state. Derived by the server, so a screen offers payment exactly where the server would accept it. */
+            payable: boolean;
             /** Format: uuid */
             subscription_id: string | null;
             net: components["schemas"]["Money"];

@@ -1975,6 +1975,7 @@
           "number",
           "status",
           "final",
+          "payable",
           "subscription_id",
           "net",
           "vat",
@@ -2020,6 +2021,10 @@
           "final": {
             "type": "boolean",
             "description": "Whether it can still change. A final invoice is corrected by a credit note, never edited."
+          },
+          "payable": {
+            "type": "boolean",
+            "description": "Whether a payment may be taken against it: issued and not yet paid, cancelled or credited, whatever its e-invoicing state. Derived by the server, so a screen offers payment exactly where the server would accept it."
           },
           "subscription_id": {
             "type": [

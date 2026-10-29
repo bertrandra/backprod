@@ -7,6 +7,7 @@ namespace App\Billing\Controller;
 use App\Billing\Domain\BillingProfile;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
+use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\TaxRecord;
 use App\Shared\Money\Money;
 use DateTimeImmutable;
@@ -39,6 +40,9 @@ final class InvoicePresenter
             'number' => $invoice->number,
             'status' => $invoice->status,
             'final' => $invoice->isFinal(),
+            // Derived here, from the one table `Payments::start` reads, so a
+            // screen offers payment exactly where it would be accepted.
+            'payable' => InvoiceStatus::isPayable($invoice->status),
             'subscription_id' => $invoice->subscriptionId,
             'net' => self::money($invoice->net),
             'vat' => self::money($invoice->vat),

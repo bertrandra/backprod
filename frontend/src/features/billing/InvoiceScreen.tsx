@@ -203,7 +203,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           {startPayment.error !== null && <ErrorSurface error={startPayment.error} />}
 
           <div className="flex flex-wrap gap-2">
-            {current.status === 'ISSUED' && mayManage && (
+            {current.payable && mayManage && (
               <Button
                 type="button"
                 variant="secondary"
@@ -213,7 +213,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                 {t("Mark paid")}</Button>
             )}
 
-            {current.status === 'ISSUED' && mayPay && started === null && (
+            {current.payable && mayPay && started === null && (
               <Button
                 type="button"
                 pending={startPayment.isPending}

@@ -40,6 +40,7 @@ function invoice(overrides: Record<string, unknown> = {}) {
     number: NUMBER,
     status: 'ISSUED',
     final: true,
+    payable: true,
     subscription_id: null,
     // Whom it concerns (2026-09-27): the organisation's own here.
     person: null,

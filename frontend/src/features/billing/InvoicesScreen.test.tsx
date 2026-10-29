@@ -25,6 +25,7 @@ function invoice(overrides: Record<string, unknown> = {}) {
     number: null,
     status: 'DRAFT',
     final: false,
+    payable: false,
     subscription_id: null,
     // Whom it concerns (2026-09-27): the server's answer, on every list row.
     person: { user_id: 'u-ada', name: 'Ada Lovelace', email: 'ada@acme.test' },

@@ -57,7 +57,8 @@ final class PostgresAdminDirectory implements AdminDirectory
                        (SELECT count(*) FROM subscriptions s
                          WHERE s.tenant_id = t.id AND s.status = 'ACTIVE') AS active_subscriptions,
                        (SELECT count(*) FROM invoices i
-                         WHERE i.tenant_id = t.id AND i.status = 'ISSUED') AS unpaid_invoices
+                         WHERE i.tenant_id = t.id
+                           AND i.status IN ('ISSUED', 'READY_FOR_EINVOICE', 'SUBMITTED', 'ACCEPTED', 'REJECTED')) AS unpaid_invoices
                   FROM tenants t
                  WHERE {$where}
                  ORDER BY t.created_at DESC, t.id

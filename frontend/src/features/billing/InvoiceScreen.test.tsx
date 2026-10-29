@@ -60,6 +60,7 @@ function invoice(overrides: Record<string, unknown> = {}) {
     number: '2026-000042',
     status: 'ISSUED',
     final: true,
+    payable: true,
     subscription_id: null,
     // Deliberately not the sum of the lines below.
     net: { minor_units: 2900, currency: 'EUR' },
@@ -276,6 +277,22 @@ describe('what can be done to it', () => {
     fireEvent.click(screen.getByRole('button', { name: /^issue the credit note$/i }));
 
     await waitFor(() => expect(credited).toBe(1));
+  });
+
+  // Whether it can be paid is the server's answer (`payable`), so an invoice
+  // being transmitted is still offered for payment, and a paid one is not.
+  it('offers a payment wherever the server says the invoice is payable', async () => {
+    render(clientFor({}, invoice({ status: 'SUBMITTED', payable: true })));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /take a payment/i })).toBeTruthy());
+  });
+
+  it('offers no payment on an invoice the server says is not payable', async () => {
+    render(clientFor({}, invoice({ status: 'PAID', payable: false })));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /issue a credit note/i })).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /take a payment/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /mark paid/i })).toBeNull();
   });
 
   it('takes a payment and offers the card form right there, for the invoice\'s gross', async () => {
