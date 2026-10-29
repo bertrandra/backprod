@@ -16,12 +16,14 @@ use App\Demo\Domain\SeededWorld;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
+use App\Product\Domain\ProductAsset;
 use App\Product\Service\ShowcasePictures;
 use App\Project\Service\ProjectWorkspace;
 use App\Sales\Service\Sales;
 use App\Shared\Exceptions\ConflictException;
 use RuntimeException;
 use stdClass;
+use Throwable;
 
 /**
  * Builds the demonstration world, and rebuilds it.
@@ -130,9 +132,15 @@ final class DemoSeeder
      *
      * **One transaction**, the wipe and the rebuild together: a world that
      * fails to build — or builds and does not hold — leaves the one before
-     * it standing rather than an empty database. The pictures are the
-     * exception, deleted before it through their own door, because their
-     * bytes live outside the database and no rollback brings them back.
+     * it standing rather than an empty database.
+     *
+     * **The pictures' bytes live outside it**, and no rollback reaches them,
+     * so storage is ordered around the transaction instead (2026-10-29):
+     * the new pictures are written under new keys inside it, the old ones'
+     * bytes are deleted only once it has committed, and a reset that fails
+     * deletes what it wrote. Deleting the old bytes first — as this did —
+     * left a failed reset's restored world with broken pictures, and the
+     * new bytes orphaned beside them.
      *
      * Everybody is signed out by it, the caller included: the people are
      * rows, and the rows are gone. The answer says who to sign in as — and
@@ -167,36 +175,59 @@ final class DemoSeeder
 
         $credential = $caller === null ? null : $this->fixtures->credentialOf($caller);
 
-        // The pictures first, through the door that put them there: they
-        // are bytes in storage, and a truncate would leave them behind with
-        // no row naming them (2026-10-08).
+        // The pictures there are now: the truncate takes their rows, and
+        // their bytes are deleted once it has committed (2026-10-08, and
+        // after the commit since 2026-10-29).
+        $previous = [];
+
         foreach ($this->fixtures->productIds() as $productId) {
             foreach ($this->pictures->of($productId) as $asset) {
-                $this->pictures->delete($productId, $asset->id);
+                $previous[] = $asset;
             }
         }
 
-        return $this->fixtures->atomically(function () use ($credential): SeededWorld {
-            $this->fixtures->wipe();
-            $world = $this->build();
+        /** @var list<ProductAsset> $written what this reset put in storage */
+        $written = [];
 
-            if (!$world->holds()) {
-                // Thrown inside, so the world before this one is still there.
-                throw new RuntimeException(
-                    'The demonstration world was rebuilt but a check failed, so nothing was changed: '
-                    . implode(', ', $world->failures()) . '.',
-                );
-            }
+        try {
+            $world = $this->fixtures->atomically(function () use ($credential, &$written): SeededWorld {
+                $this->fixtures->wipe();
+                $world = $this->build($written);
 
-            $kept = $credential === null
-                ? null
-                : $this->fixtures->restoreCredential($credential['email'], $credential['hash']);
+                if (!$world->holds()) {
+                    // Thrown inside, so the world before this one is still there.
+                    throw new RuntimeException(
+                        'The demonstration world was rebuilt but a check failed, so nothing was changed: '
+                        . implode(', ', $world->failures()) . '.',
+                    );
+                }
 
-            return $world->keepingOwnPassword($kept === null ? [] : [$kept]);
-        });
+                $kept = $credential === null
+                    ? null
+                    : $this->fixtures->restoreCredential($credential['email'], $credential['hash']);
+
+                return $world->keepingOwnPassword($kept === null ? [] : [$kept]);
+            });
+        } catch (Throwable $failure) {
+            // Rolled back: the previous world and its rows are back, so its
+            // bytes stay, and what this attempt wrote is nobody's.
+            $this->pictures->discardContentsOf($written);
+
+            throw $failure;
+        }
+
+        $this->pictures->discardContentsOf($previous);
+
+        return $world;
     }
 
-    private function build(): SeededWorld
+    /**
+     * @param list<ProductAsset> $written collects every picture put in
+     *                                    storage, so a caller whose
+     *                                    transaction fails can delete the
+     *                                    bytes it no longer names
+     */
+    private function build(array &$written = []): SeededWorld
     {
         // Hashed here rather than handed down as a literal: the fixtures
         // store what they are given, and what they are given must never be
@@ -219,6 +250,7 @@ final class DemoSeeder
             }
 
             $asset = $this->pictures->upload($structure->product(DemoWorld::PICTURED_PRODUCT), $contents, $file, $structure->user(DemoWorld::STAFF_ADMIN));
+            $written[] = $asset;
             $this->fixtures->attachPicture($blockId, $asset->id);
             ++$pictured;
         }
