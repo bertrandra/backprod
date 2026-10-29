@@ -870,8 +870,21 @@ final class Subscriptions
      */
     public function renew(string $tenantId, string $productId, string $holderUserId): Subscription
     {
-        $subscription = $this->requireCurrent($tenantId, $productId, $holderUserId);
+        $subscription = $this->renewable($tenantId, $productId, $holderUserId);
         $from = $subscription->currentPeriodEnd ?? new DateTimeImmutable();
+
+        // Arrears are renewed only under a commitment (ADR-072). Outside one
+        // they are the collection pass's, and a further invoice against a
+        // suspended service the customer is free to leave compounds a debt
+        // somebody is already being chased for. The pass never selects such a
+        // row; this says why to anybody who asks by hand.
+        if ($subscription->isPastDue() && !$subscription->keepsRenewingInArrears()) {
+            throw new ConflictException(
+                'RENEWAL_IN_ARREARS',
+                'This subscription is in arrears and no longer committed, so it is not renewed.',
+                ['past_due_invoice_id' => $subscription->pastDueInvoiceId],
+            );
+        }
 
         // A cancellation already due is not something renewal may roll past.
         // Renewing here would extend a subscription beyond the date the
@@ -1096,6 +1109,26 @@ final class Subscriptions
         }
 
         return $toRank < $fromRank ? self::DOWNGRADE : self::LATERAL;
+    }
+
+    /**
+     * The subscription a renewal acts on: the current one, or one in arrears
+     * under a commitment whose period has already lapsed (ADR-072).
+     *
+     * The second is not current — {@see Subscription::isHeldAt()} reads the
+     * clock — but the sweep leaves it alone because it is still owed, so the
+     * renewal is what catches it up. Refusing it here would leave it suspended
+     * for ever, renewed by nothing and expired by nothing.
+     */
+    private function renewable(string $tenantId, string $productId, string $userId): Subscription
+    {
+        $seat = $this->seatOf($tenantId, $productId, $userId);
+
+        if ($seat !== null && $seat->keepsRenewingInArrears()) {
+            return $seat;
+        }
+
+        return $this->requireCurrent($tenantId, $productId, $userId);
     }
 
     /**

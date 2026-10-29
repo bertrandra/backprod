@@ -365,10 +365,15 @@ interface SubscriptionRepository
      * customer kept their subscription. A subscription still inside its period
      * is not lapsed, so the sweep never sees it.
      *
-     * `ACTIVE` only, deliberately. A `PAST_DUE` subscription owes for the period
-     * it already had and is in the dunning pass's hands; raising a second
-     * invoice against a suspended service would compound a debt somebody is
-     * already being chased for.
+     * `ACTIVE`, and `PAST_DUE` **only under a commitment** (ADR-072): arrears
+     * are not an exit from a contract the customer is bound to, so a
+     * subscription in arrears whose commitment runs past its period end is
+     * renewed and billed like any other, and stays suspended. Those rows are
+     * returned even once their period has lapsed — the sweep never touches
+     * them, so this is what catches up a period cron missed. Without a
+     * commitment a `PAST_DUE` subscription is the dunning pass's: a further
+     * invoice against a suspended service the customer is free to leave
+     * compounds a debt somebody is already being chased for.
      *
      * At the term: a period ending *at* `term_ends_at` is the last one of the
      * term, and it is offered only when the subscription was sold `AUTO_RENEW`
@@ -411,6 +416,11 @@ interface SubscriptionRepository
      * Entitlements already ask the clock, so this changes nothing a customer
      * can do — it makes the column agree with reality for the people reading
      * it. A subscription with no period end has no end to be past.
+     *
+     * Not a subscription in arrears under a commitment that runs past its
+     * period end (ADR-072): that one is still owed and the renewal pass rolls
+     * it, lapsed or not. Ending it here would make one unpaid invoice an exit
+     * from the commitment.
      */
 
     public function expireLapsed(): int;
@@ -493,6 +503,17 @@ interface SubscriptionRepository
      * the workshop reopening are one fact, and a payment collected with the
      * product still shut is the state that ordering exists to make
      * unobservable.
+     *
+     * **Not while another debt holds it** (ADR-072). A subscription in arrears
+     * under commitment keeps renewing, so it can owe several invoices. If
+     * another of them is unpaid `$graceDays` or more after falling due — the
+     * product's grace, the first step of its {@see DunningSchedule} — the
+     * suspension is handed to the oldest such invoice (its date kept, an
+     * `ARREARS_DECLARED` event naming both) and nothing reopens. A debt still
+     * inside the grace does not hold it: that one is not arrears yet, and the
+     * collection pass declares it when it is.
+     *
+     * True when at least one subscription reopened.
      */
-    public function clearArrears(string $invoiceId): bool;
+    public function clearArrears(string $invoiceId, int $graceDays): bool;
 }

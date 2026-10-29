@@ -7738,7 +7738,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description The amount exceeds what remains. */
+            /** @description `PAYMENT_PROVIDER_REFUSED` — the provider would not make this refund; `details.provider_code` carries its reason, written for operators. Or `PAYMENT_ATTEMPT_COLLIDED` — the provider already knew this request under different terms; asking again is a new request. Nothing was recorded and no credit note was written. An amount more than is left is a 409 (`REFUND_EXCEEDS_PAYMENT`), not this. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7749,6 +7749,15 @@ export interface operations {
             };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
+            /** @description `PAYMENT_PROVIDER_REJECTED_KEY` or `PAYMENT_PROVIDER_UNREACHABLE` — this deployment’s provider credentials were refused, or the provider could not be reached. Configuration, not the caller’s doing; nothing was recorded. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     showBillingProfile: {

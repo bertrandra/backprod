@@ -6,7 +6,9 @@ namespace App\Commerce\Service;
 
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoicePaid;
+use App\Commerce\Domain\DunningSchedule;
 use App\Commerce\Domain\SubscriptionRepository;
+use App\Product\Domain\ProductSettings;
 
 /**
  * An invoice reaching PAID lifts the suspension it caused (2026-09-27,
@@ -25,6 +27,15 @@ use App\Commerce\Domain\SubscriptionRepository;
  * which debt shut it, and that is the one that lifts it. Any-payment-reopens
  * would let a €0 correction undo a suspension the customer never paid.
  *
+ * **Not while another debt holds it** (ADR-072). Arrears under commitment
+ * keep renewing, so a suspended subscription can owe several invoices; paying
+ * the one that shut it while another is unpaid past the product's grace hands
+ * the suspension to that one instead of reopening — otherwise the next
+ * collection pass would shut it again, and the customer would have had the
+ * workshop back for a night by paying a third of what they owe. The grace is
+ * the product's own ({@see DunningSchedule}), read here as the collection pass
+ * reads it.
+ *
  * Finding nothing is the ordinary case, not a failure. Most invoices suspend
  * nothing at all — a first sale, a proration paid the same minute, a document
  * raised by hand — and the repository answers false rather than raising.
@@ -35,8 +46,10 @@ use App\Commerce\Domain\SubscriptionRepository;
  */
 final class ClearArrearsOnPayment implements InvoicePaid
 {
-    public function __construct(private readonly SubscriptionRepository $subscriptions)
-    {
+    public function __construct(
+        private readonly SubscriptionRepository $subscriptions,
+        private readonly ProductSettings $settings,
+    ) {
     }
 
     public function paid(Invoice $invoice): void
@@ -47,6 +60,9 @@ final class ClearArrearsOnPayment implements InvoicePaid
             return;
         }
 
-        $this->subscriptions->clearArrears($invoice->id);
+        $this->subscriptions->clearArrears(
+            $invoice->id,
+            DunningSchedule::fromConfiguration($this->settings->all($invoice->productId))->graceDays(),
+        );
     }
 }

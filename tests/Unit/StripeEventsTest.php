@@ -148,6 +148,23 @@ final class StripeEventsTest extends TestCase
         self::assertSame('canceled', $event->failureCode);
     }
 
+    /**
+     * A refund Stripe had settled and then reports failed — the bank sent the
+     * money back (2026-10-29). The same word as a refund that never settled:
+     * which one it was is the repository's to read from the refund row.
+     */
+    public function testARefundFailingAfterItSettledIsSaidToHaveFailed(): void
+    {
+        $event = self::parse('refund.updated.failed');
+
+        self::assertSame(ProviderEvent::REFUND_FAILED, $event->type);
+        self::assertSame(self::INTENT, $event->providerPaymentId);
+        self::assertSame('re_3Q2RxX0000000000000001', $event->providerRefundId);
+        self::assertSame('lost_or_stolen_card', $event->failureCode);
+        self::assertSame(1900, $event->amountMinorUnits);
+        self::assertNull($event->requestedStatus());
+    }
+
     public function testADisputeIsAChargebackOnTheIntent(): void
     {
         $event = self::parse('charge.dispute.created');

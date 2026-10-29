@@ -305,6 +305,34 @@ final class StripeWebhookTest extends DatabaseApiTestCase
     }
 
     /**
+     * Stripe settles a refund at once and later reports it failed: the money
+     * came back from the customer's bank (2026-10-29). The refund fails, the
+     * payment returns to what the refunds still standing justify, and the
+     * ledger says which way it moved.
+     */
+    public function testARefundStripeSettledAndThenFailedGivesThePaymentBack(): void
+    {
+        $this->started();
+        $this->deliver('payment_intent.succeeded');
+        $this->stripe->answer(['id' => 're_3Q2RxX0000000000000001', 'object' => 'refund', 'status' => 'succeeded']);
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1900, 'reason' => 'REQUESTED'])->getStatusCode());
+
+        $settled = $this->statusOfPayment();
+        self::assertSame('PARTIALLY_REFUNDED', $settled);
+
+        self::assertSame(200, $this->deliver('refund.updated.failed')->getStatusCode());
+
+        self::assertSame('FAILED', $this->connection->fetchOne('SELECT status FROM refunds'));
+        $reversed = $this->statusOfPayment();
+        self::assertSame('SUCCEEDED', $reversed);
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM financial_events WHERE type = 'REFUND_FAILED'"
+            . " AND detail ->> 'refund_was' = 'SUCCEEDED'"
+            . " AND detail ->> 'failure_code' = 'lost_or_stolen_card'",
+        ));
+    }
+
+    /**
      * A second start abandons the first intent at Stripe before creating
      * another (2026-10-29): two live intents for one invoice is one invoice
      * collectable twice.

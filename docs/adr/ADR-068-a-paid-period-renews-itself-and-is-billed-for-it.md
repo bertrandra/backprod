@@ -92,9 +92,12 @@ the customer asked for, an offer sold as ending at its term, the term itself, a
 period with no price. Deciding any of that in the handler would be a second place
 it could be decided from.
 
-**Arrears are not renewed.** A `PAST_DUE` subscription owes for the period it
-already had and is in the dunning pass's hands (ADR-060); a second invoice against
-a suspended service compounds a debt somebody is already being chased for.
+**Arrears are not renewed** — *outside a commitment* since ADR-072. A `PAST_DUE`
+subscription owes for the period it already had and is in the dunning pass's
+hands (ADR-060); a second invoice against a suspended service the customer is
+free to leave compounds a debt somebody is already being chased for. Under a
+commitment, arrears are not an exit: the subscription renews, is billed, stays
+`PAST_DUE`, and the sweep leaves it alone (ADR-072).
 
 **A period that would run past the term is refused, not shortened.** Billing a
 whole period for part of one overcharges; capping the end would sell service past

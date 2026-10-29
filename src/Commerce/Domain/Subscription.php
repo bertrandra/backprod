@@ -132,6 +132,28 @@ final class Subscription
     }
 
     /**
+     * In arrears, and still committed past the end of the period being
+     * renewed (ADR-072, 2026-10-29).
+     *
+     * **Arrears are not an exit.** One unpaid invoice must not end a
+     * twenty-four-month commitment, so such a subscription keeps renewing and
+     * being billed like an `ACTIVE` one, and stays `PAST_DUE` — suspended —
+     * while it does; the sweep leaves it alone. Without a commitment, or once
+     * it has run out, arrears are not renewed: there is nothing binding the
+     * customer to a next period, and billing one would compound a debt.
+     *
+     * Asked at the period end and not now, because that is the boundary a
+     * renewal crosses. The SQL twin is `PostgresSubscriptionRepository`'s
+     * `COMMITTED_ARREARS`, and the two say the same thing.
+     */
+    public function keepsRenewingInArrears(): bool
+    {
+        return $this->status === self::PAST_DUE
+            && $this->currentPeriodEnd !== null
+            && $this->isUnderCommitmentAt($this->currentPeriodEnd);
+    }
+
+    /**
      * Whether a commitment still binds at this moment.
      *
      * The clock decides, as it does for offers, entitlements, quote expiry,

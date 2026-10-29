@@ -519,6 +519,17 @@ the due second would suspend a customer mid-payment. Each step is one notice
 the dedup index rather than by a check. A pass never cancels: resiliation is a
 decision, not something cron does.
 
+**Arrears under a commitment are not an exit** (ADR-072, 2026-10-29). A
+`PAST_DUE` subscription whose `commitment_ends_at` is after the period end being
+renewed renews like an `ACTIVE` one — rolled, billed through `RenewalCharge`, due
+the day the period starts — and **stays `PAST_DUE`**: renewing is the contract
+running, not the debt paid. Without a commitment, or once it has ended, arrears
+are not renewed and the sweep expires the row when its period lapses. The sweep
+never ends committed arrears; the renewal catches up a period cron missed, so the
+two jobs never hold the same row. Paying the invoice the column names reopens
+only when no other invoice of that subscription is unpaid past the grace;
+otherwise the suspension moves to the oldest such debt, keeping its date.
+
 A subscription **always names a tenant and a product**, even when the
 subscriber is a person — the tenant is the isolation context, the subscriber
 is the contracting party. The subscriber must be a member of that tenant.
@@ -620,7 +631,9 @@ path.
 constant; only a strict `"automatic": false` is off) and it renews **before**
 the period ends, not after. Renewing what has
 lapsed races `sweep.subscriptions` over the same rows, and whichever won would
-decide whether somebody kept their subscription. One period is billed once by the
+decide whether somebody kept their subscription — which is why the one lapsed
+row it does read, arrears under a commitment, is one the sweep never touches
+(ADR-072). One period is billed once by the
 statement that moves it — conditioned on the period it was asked about — never by
 a check two overlapping passes would both pass.
 
