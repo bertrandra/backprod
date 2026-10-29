@@ -59,6 +59,12 @@ final class DemoResetTest extends DatabaseApiTestCase
 
         // What the answer says: who to sign in as, and with what.
         self::assertSame(DemoWorld::PASSWORD, $world['password'] ?? null);
+        // Ola is not somebody the world makes again, so nobody kept a
+        // password of their own and everybody has the public one.
+        self::assertSame(
+            array_column($this->listIn($world, 'people'), 'email'),
+            $world['with_public_password'] ?? null,
+        );
         // In the order the world gives them, not the alphabet's (2026-09-23):
         // Plan first, because it is the product deployed beside the platform
         // and the first option is what somebody with no default lands on.
@@ -393,6 +399,89 @@ final class DemoResetTest extends DatabaseApiTestCase
         // Nothing was touched: the real product, and the caller, are still there.
         self::assertSame(1, $this->rowCount("SELECT count(*) FROM products WHERE code = 'real-thing'"));
         self::assertSame(1, $this->rowCount('SELECT count(*) FROM users WHERE id = :id', ['id' => $this->admin]));
+    }
+
+    /**
+     * A product code is the demonstration's by name only (2026-10-29). A
+     * deployment whose real customers bought on `plan` passed the product
+     * check, and the truncate took their invoices, credit notes and VAT
+     * facts — documents the law requires be kept. Simulated here by an
+     * organisation the world does not make holding Initech's documents.
+     */
+    public function testResettingIsRefusedWhileAnOrganisationOutsideTheWorldHoldsLegalDocuments(): void
+    {
+        self::assertSame(200, $this->reset('ola-token')->getStatusCode());
+        $this->connection->executeStatement("UPDATE tenants SET slug = 'real-customer' WHERE slug = 'initech'");
+        $invoices = $this->rowCount('SELECT count(*) FROM invoices');
+        $vat = $this->rowCount('SELECT count(*) FROM vat_transactions');
+        self::assertGreaterThan(0, $this->rowCount(
+            "SELECT count(*) FROM invoices i JOIN tenants t ON t.id = i.tenant_id WHERE t.slug = 'real-customer' AND i.number IS NOT NULL",
+        ), 'the organisation holds an issued invoice');
+
+        $this->appoint(
+            $this->id("INSERT INTO users (auth_subject, email) VALUES ('sub-ola', 'ola@platform.test') RETURNING id"),
+            'PLATFORM_ADMIN',
+        );
+
+        $response = $this->reset('ola-token');
+
+        self::assertSame(409, $response->getStatusCode());
+        $error = $this->decode($response)['error'] ?? null;
+        self::assertIsArray($error);
+        self::assertSame(DemoSeeder::FOREIGN_DOCUMENTS, $error['code'] ?? null);
+        $details = $error['details'] ?? null;
+        self::assertIsArray($details);
+        self::assertSame(['real-customer'], $details['tenants'] ?? null);
+        // Nothing was touched.
+        self::assertSame($invoices, $this->rowCount('SELECT count(*) FROM invoices'));
+        self::assertSame($vat, $this->rowCount('SELECT count(*) FROM vat_transactions'));
+        self::assertSame(1, $this->rowCount("SELECT count(*) FROM tenants WHERE slug = 'real-customer'"));
+    }
+
+    /**
+     * The administrator who presses the button keeps their password
+     * (2026-10-29). A reset put the public one back on every account,
+     * PLATFORM_ADMIN included, which handed the platform to anybody who
+     * reads its source until somebody changed it again. Everybody else
+     * gets the public one, and the answer says who.
+     */
+    public function testTheCallerKeepsTheirOwnPasswordAndTheAnswerSaysWhoHasThePublicOne(): void
+    {
+        self::assertSame(200, $this->reset('ola-token')->getStatusCode());
+
+        $admin = DemoWorld::email(DemoWorld::STAFF_ADMIN);
+        $own = password_hash('a better password than the demo', PASSWORD_BCRYPT);
+        $this->connection->executeStatement(
+            'UPDATE local_credentials SET password_hash = :hash WHERE email = :email',
+            ['hash' => $own, 'email' => $admin],
+        );
+        $adminId = $this->id('SELECT id FROM users WHERE email = :email', ['email' => $admin]);
+        $this->override([AuthProvider::class => new FakeAuthProvider(['admin-token' => 'local:' . $adminId])]);
+
+        $response = $this->reset('admin-token');
+
+        self::assertSame(200, $response->getStatusCode());
+        $world = $this->decode($response)['world'] ?? null;
+        self::assertIsArray($world);
+
+        $everybody = array_column($this->listIn($world, 'people'), 'email');
+        self::assertSame(
+            array_values(array_diff($everybody, [$admin])),
+            $world['with_public_password'] ?? null,
+        );
+
+        // The row is new — the reset made the person again — and its
+        // credential is the one they had.
+        self::assertSame($own, $this->connection->fetchOne(
+            'SELECT password_hash FROM local_credentials WHERE email = :email',
+            ['email' => $admin],
+        ));
+        $public = $this->connection->fetchOne(
+            'SELECT password_hash FROM local_credentials WHERE email = :email',
+            ['email' => DemoWorld::email('acme-admin')],
+        );
+        self::assertIsString($public);
+        self::assertTrue(password_verify(DemoWorld::PASSWORD, $public));
     }
 
     public function testAnEmptyDatabaseCanBeReset(): void
