@@ -597,14 +597,15 @@ term_ends_at         the term rolls             a new contract, tacitly
 offer sold `AUTO_RENEW` rolls into its next term with that term's first period —
 the term and the commitment re-armed from the end of the one ending, never from
 now, on the same transaction as the invoice. It never re-arms a commitment
-silently: the term rolls only once `subscription.renewal_notice` for **that**
-term was raised at least `notice_days` earlier, read from the notification row
-itself, so "did we tell them?" and "may we renew?" are one fact. Not told, or
-not long enough ago: `TERM_RENEWAL_NOT_NOTICED`, and the next pass asks again.
-Terms that commit the customer but promise no notice never roll by themselves.
-The notice goes out `notice_days` plus the longest renewal lead before the term
-ends, so whichever lead a product chose, the renewal finds the notice old
-enough. R11 records only what is still unverified: the `notice_days` figures
+silently: the notice names `renews_on` and `cancel_by` (a renewal lead before
+it, the day the renewal is decided), and the term rolls only once that notice
+was **mailed** — sent, not merely raised — at least `notice_days` before
+`cancel_by`, and `cancel_by` has come. Read from the notice and its deliveries,
+so "did we tell them?" and "may we renew?" are one fact. Otherwise
+`TERM_RENEWAL_NOT_NOTICED`, and at the end of its last period it ends. Terms
+that commit the customer but promise no notice never roll by themselves. An
+`ENDS_AT_TERM` offer ends at its last period, by the sweep, never early by the
+pass. R11 records only what is still unverified: the `notice_days` figures
 themselves, never checked per member state against an official source.
 
 **Renewing bills, and billing is a required argument of it.** `renew()` moved the

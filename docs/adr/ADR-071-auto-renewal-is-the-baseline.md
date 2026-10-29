@@ -34,22 +34,44 @@ in one statement, on the same transaction as the invoice. Both dates are counted
 from the end of the term that is ending. The price is still the version the
 subscription snapshotted (ADR-033). An offer sold `ENDS_AT_TERM` still ends.
 
-**The notice is the precondition, not a courtesy.** The term rolls only once
-`subscription.renewal_notice` for that term was raised at least `notice_days`
-before. The check reads the notification row itself, with its rendered body
-kept, so "did we tell them?" and "may we renew?" are one fact. If the notice is
-missing or too recent, the answer is `TERM_RENEWAL_NOT_NOTICED`, and the next
-pass asks again.
+**The notice is the precondition, not a courtesy.** The notice names two
+days: `renews_on`, when the next term starts (the end of the term's last
+period), and `cancel_by`, a renewal lead before it, when the renewal is
+decided. The term rolls only once:
+- the notice for that term was **sent** by mail, not merely raised; a notice
+  whose deliveries were suppressed or failed told nobody;
+- it was sent at least `notice_days` before `cancel_by`;
+- `cancel_by` has come.
+
+The check reads the notice and its delivery rows, so "did we tell them?" and
+"may we renew?" are one fact. Otherwise the answer is
+`TERM_RENEWAL_NOT_NOTICED`, the next pass asks again, and at the end of its
+last period an unrenewed subscription ends: the safe side.
 
 **A commitment is never re-armed without a notice.** If the terms commit the
 customer but promise no notice (`notice_days = 0`), the term never rolls by
 itself. If the terms commit to nothing, the term rolls freely, because the
 customer can leave the next day.
 
-**The notice goes out early enough for the renewal to find it.** A term rolls
-with its last period, up to a product's renewal lead before it ends. So the
-notice window opens `notice_days` plus the longest lead (30 days) before the
-term end. Telling the customer early is the direction a notice may err in.
+**The notice goes out when it is due, and only for a renewal that will
+happen.** The job sends it `notice_days` (plus two days of slack for the mail
+queue) before `cancel_by`, never for a product whose renewal is switched off,
+and never twice for one term: a subscription already told this term is not
+read again.
+
+**The audit of 2026-10-29 found what the baseline would have made live**, and
+this decision ships with those fixed:
+- an offer sold `ENDS_AT_TERM` ends at its **last** period, by the sweep at its
+  end, never by the pass days before (every free period was ending early);
+- a cancellation deferred to a commitment renews until its date, instead of
+  letting the customer out at the period end they asked in;
+- a scheduled change is billed at the boundary, keeps the paid plan to its
+  end, and is conditioned on the period like any renewal;
+- a free plan renews without a €0 document;
+- the last period of a term is the one whose successor would pass the term,
+  not one ending exactly on it;
+- a cancellation is conditioned on the period it was priced on;
+- the renewal and notice passes page through their whole window.
 
 **The notice has words of its own**, in every language: the date, that the term
 renews on the same conditions unless cancelled, and how to stop it. Before this,

@@ -288,8 +288,13 @@ interface SubscriptionRepository
      * $direction is the caller's, computed from the plan ranks, because the
      * word that goes in the audit trail is an application decision and this
      * layer must not reach for it.
+     *
+     * `$alsoBill` is required, as on `renew()` (2026-10-29): it is handed the
+     * changed subscription and the end of the period it moved into, and runs
+     * on this method's transaction. The plan already paid for stays granted
+     * to the end of its period, and the arriving one starts there.
      */
-    public function applyPendingChange(Subscription $subscription, string $direction): Subscription;
+    public function applyPendingChange(Subscription $subscription, string $direction, callable $alsoBill): Subscription;
 
     /**
      * Withdraws a scheduled cancellation. Only meaningful while the
@@ -338,15 +343,18 @@ interface SubscriptionRepository
     ): Subscription;
 
     /**
-     * Whether this term's pre-renewal notice was raised at least `$daysAgo`
-     * days ago (ADR-071).
+     * Whether this term's pre-renewal notice was **sent** off the platform
+     * (mail, or another outbound channel) at least `$noticeDays` days before
+     * the day it named to cancel by, and that day has come (ADR-071).
      *
      * The precondition of rolling a term: the customer was told, and had the
-     * time the offer promised to refuse. Read from the notification itself —
-     * the row `SendRenewalNotices` writes, with its rendered body kept — so
-     * "did we tell them?" and "may we renew?" are one fact, never two.
+     * time the offer promised to refuse. Read from the notification's own
+     * delivery rows — the attempt, its outcome and the rendered body kept —
+     * so "did we tell them?" and "may we renew?" are one fact, never two. A
+     * notice raised and then suppressed or failed told nobody, and does not
+     * count.
      */
-    public function renewalNoticeRaised(string $dedupKey, int $daysAgo): bool;
+    public function renewalNoticeHonoured(string $dedupKey, int $noticeDays): bool;
 
     /**
      * Subscriptions whose paid period ends within `$leadDays` (ADR-068).
@@ -374,7 +382,7 @@ interface SubscriptionRepository
      *
      * @return list<DueRenewal>
      */
-    public function dueForRenewal(int $limit, int $leadDays): array;
+    public function dueForRenewal(int $limit, int $leadDays, int $offset = 0): array;
 
     /**
      * Ends one subscription whose period is up and which nothing renews
@@ -429,7 +437,7 @@ interface SubscriptionRepository
      *
      * @return list<RenewalNotice>
      */
-    public function dueForRenewalNotice(int $limit, int $aheadDays): array;
+    public function dueForRenewalNotice(int $limit, int $aheadDays, int $offset = 0): array;
 
     /**
      * Subscriptions with an unpaid invoice against them, and who to chase

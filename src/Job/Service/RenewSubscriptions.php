@@ -65,6 +65,15 @@ final class RenewSubscriptions implements JobHandler
      */
     private const BATCH = 50;
 
+    /**
+     * Pages per pass (2026-10-29). One page of fifty was the whole day's
+     * renewing, and rows the pass skips — another product's lead, renewal
+     * switched off, a refusal — kept their place at its head, so the rest
+     * lapsed. Bounded still, because a cron run has to finish; whatever is
+     * left is inside the lead window tomorrow.
+     */
+    private const PAGES = 20;
+
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly Subscriptions $service,
@@ -95,48 +104,56 @@ final class RenewSubscriptions implements JobHandler
         // The longest lead any product could have chosen bounds the read; each
         // product's own answer decides. The query cannot do it: the lead is a
         // product's and the query is not.
-        foreach ($this->subscriptions->dueForRenewal(self::BATCH, RenewalPolicy::LONGEST_LEAD) as $due) {
-            $policy = $policies[$due->productId]
-                ??= RenewalPolicy::fromConfiguration($this->settings->all($due->productId));
+        for ($page = 0; $page < self::PAGES; $page++) {
+            $batch = $this->subscriptions->dueForRenewal(self::BATCH, RenewalPolicy::LONGEST_LEAD, $page * self::BATCH);
 
-            if (!$policy->automatic) {
-                // This product does not renew by itself. Counted rather than
-                // skipped silently: "nothing to renew" and "nobody asked me to"
-                // are different answers, and an operator who switched this on
-                // for one product of five needs to see the other four.
-                $switchedOff++;
+            foreach ($batch as $due) {
+                $policy = $policies[$due->productId]
+                    ??= RenewalPolicy::fromConfiguration($this->settings->all($due->productId));
 
-                continue;
+                if (!$policy->automatic) {
+                    // This product does not renew by itself. Counted rather than
+                    // skipped silently: "nothing to renew" and "nobody asked me to"
+                    // are different answers, and an operator who switched this on
+                    // for one product of five needs to see the other four.
+                    $switchedOff++;
+
+                    continue;
+                }
+
+                if ($due->daysUntilEnd > $policy->leadDays) {
+                    // Inside the read's bound but outside this product's lead.
+                    $notYet++;
+
+                    continue;
+                }
+
+                try {
+                    $this->service->renew($due->tenantId, $due->productId, $due->subscriberUserId);
+                    $renewed++;
+                } catch (HttpException $refusal) {
+                    // A rule said no, and which rule is the whole of the answer: a
+                    // term reached, a cancellation already due, a period with no
+                    // price, or another pass that got there first. Counted by code
+                    // so a pass that renews nothing says why rather than looking
+                    // broken.
+                    $code = $refusal->errorCode();
+                    $refused[$code] = ($refused[$code] ?? 0) + 1;
+                } catch (Throwable $error) {
+                    // Not a refusal: something broke. The class and never the
+                    // message (§31), and the pass carries on — one subscription's
+                    // billing chain failing must not cost the rest theirs.
+                    $failed++;
+
+                    $this->logger->error('A subscription could not be renewed', [
+                        'subscription_id' => $due->subscriptionId,
+                        'error' => $error::class,
+                    ]);
+                }
             }
 
-            if ($due->daysUntilEnd > $policy->leadDays) {
-                // Inside the read's bound but outside this product's lead.
-                $notYet++;
-
-                continue;
-            }
-
-            try {
-                $this->service->renew($due->tenantId, $due->productId, $due->subscriberUserId);
-                $renewed++;
-            } catch (HttpException $refusal) {
-                // A rule said no, and which rule is the whole of the answer: a
-                // term reached, a cancellation already due, a period with no
-                // price, or another pass that got there first. Counted by code
-                // so a pass that renews nothing says why rather than looking
-                // broken.
-                $code = $refusal->errorCode();
-                $refused[$code] = ($refused[$code] ?? 0) + 1;
-            } catch (Throwable $error) {
-                // Not a refusal: something broke. The class and never the
-                // message (§31), and the pass carries on — one subscription's
-                // billing chain failing must not cost the rest theirs.
-                $failed++;
-
-                $this->logger->error('A subscription could not be renewed', [
-                    'subscription_id' => $due->subscriptionId,
-                    'error' => $error::class,
-                ]);
+            if (count($batch) < self::BATCH) {
+                break;
             }
         }
 

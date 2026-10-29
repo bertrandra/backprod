@@ -12,6 +12,8 @@ use App\Job\Domain\JobHandler;
 use App\Notification\Domain\Category;
 use App\Notification\Domain\Notification;
 use App\Notification\Service\Notifications;
+use App\Product\Domain\ProductSettings;
+use DateTimeImmutable;
 
 /**
  * Tells people their subscription is about to renew itself (§13.1, R11).
@@ -59,9 +61,26 @@ final class SendRenewalNotices implements JobHandler
      */
     private const BATCH = 200;
 
+    /**
+     * How far past `notice_days` the read reaches before a term's end: the
+     * longest renewal lead, plus the month a term's last period can end short
+     * of it. The handler decides the day; the read only has to hold it.
+     */
+    private const AHEAD = RenewalPolicy::LONGEST_LEAD + 31;
+
+    /**
+     * Days of slack before the notice is strictly due, so a nightly pass and
+     * the mail queue behind it still deliver it `notice_days` ahead.
+     */
+    private const SLACK_DAYS = 2;
+
+    /** Pages per pass, so a pass finishes; whatever is left is read tomorrow. */
+    private const PAGES = 10;
+
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly Notifications $notifications,
+        private readonly ProductSettings $settings,
     ) {
     }
 
@@ -78,46 +97,95 @@ final class SendRenewalNotices implements JobHandler
         $raised = 0;
         $alreadyNoticed = 0;
         $unaddressed = 0;
+        $notYet = 0;
+        $switchedOff = 0;
+        $unpriceable = 0;
 
-        // Ahead by the longest lead any product may renew with, so that the
-        // renewal finds `notice_days` behind it whichever lead its product
-        // chose (ADR-071). Earlier than strictly needed for most products,
-        // which is the direction a notice may err in.
-        foreach ($this->subscriptions->dueForRenewalNotice(self::BATCH, RenewalPolicy::LONGEST_LEAD) as $notice) {
-            $recipient = $notice->recipientUserId;
+        /** @var array<string, RenewalPolicy> $policies */
+        $policies = [];
+        $today = new DateTimeImmutable('today');
 
-            if ($recipient === null) {
-                // A tenant subscription whose tenant has no administrator.
-                // Counted rather than skipped: an obligation that reaches
-                // nobody is the failure this job exists to prevent, and it
-                // must not look like a quiet success.
-                $unaddressed++;
+        for ($page = 0; $page < self::PAGES; $page++) {
+            $batch = $this->subscriptions->dueForRenewalNotice(self::BATCH, self::AHEAD, $page * self::BATCH);
 
-                continue;
+            foreach ($batch as $notice) {
+                $policy = $policies[$notice->productId]
+                    ??= RenewalPolicy::fromConfiguration($this->settings->all($notice->productId));
+
+                if (!$policy->automatic) {
+                    // Nothing will renew it, so there is nothing to warn
+                    // about, and a notice would promise what will not happen.
+                    $switchedOff++;
+
+                    continue;
+                }
+
+                $renewsOn = $notice->renewsOn();
+
+                if ($renewsOn === null) {
+                    // No period length, so no renewal can be priced.
+                    $unpriceable++;
+
+                    continue;
+                }
+
+                // The renewal is decided a lead before the next term starts;
+                // that is the day the customer must refuse by, and the notice
+                // must reach them `notice_days` before it (ADR-071).
+                $cancelBy = $renewsOn->modify(sprintf('-%d days', $policy->leadDays))->setTime(0, 0);
+
+                if ($today < $cancelBy->modify(sprintf('-%d days', $notice->noticeDays + self::SLACK_DAYS))) {
+                    $notYet++;
+
+                    continue;
+                }
+
+                $recipient = $notice->recipientUserId;
+
+                if ($recipient === null) {
+                    // A subscription with nobody to tell. Counted rather than
+                    // skipped: an obligation that reaches nobody is the
+                    // failure this job exists to prevent, and it must not look
+                    // like a quiet success.
+                    $unaddressed++;
+
+                    continue;
+                }
+
+                if ($this->raise($notice, $recipient, $renewsOn, $cancelBy) === null) {
+                    // The index refused it: this term's notice already exists.
+                    $alreadyNoticed++;
+
+                    continue;
+                }
+
+                $raised++;
             }
 
-            if ($this->raise($notice, $recipient) === null) {
-                // The index refused it: this term's notice already exists.
-                $alreadyNoticed++;
-
-                continue;
+            if (count($batch) < self::BATCH) {
+                break;
             }
-
-            $raised++;
         }
 
         return [
             'raised' => $raised,
             'already_noticed' => $alreadyNoticed,
             'unaddressed' => $unaddressed,
+            'not_yet' => $notYet,
+            'switched_off' => $switchedOff,
+            'unpriceable' => $unpriceable,
         ];
     }
 
     /**
      * Null when the index refused it — this term's notice already exists.
      */
-    private function raise(RenewalNotice $notice, string $recipient): ?Notification
-    {
+    private function raise(
+        RenewalNotice $notice,
+        string $recipient,
+        DateTimeImmutable $renewsOn,
+        DateTimeImmutable $cancelBy,
+    ): ?Notification {
         return $this->notifications->raise(
             $notice->tenantId,
             $notice->productId,
@@ -126,7 +194,11 @@ final class SendRenewalNotices implements JobHandler
             Category::BILLING,
             [
                 'subscription_id' => $notice->subscriptionId,
-                'renews_on' => $notice->termEndsAt->format('Y-m-d'),
+                // The day the next term starts, and the day to refuse by.
+                // The renewal reads `cancel_by` back as its precondition, so
+                // what the customer was told and what is enforced are one date.
+                'renews_on' => $renewsOn->format('Y-m-d'),
+                'cancel_by' => $cancelBy->format('Y-m-d'),
                 'notice_days' => $notice->noticeDays,
             ],
             $notice->dedupKey(),

@@ -111,11 +111,11 @@ final class MailWording
         // of a tacit renewal a contract is judged on.
         'subscription.renewal_notice' => [
             'about' => 'A subscription’s term renews by itself on a date, on the same conditions, unless it is cancelled first. Sent before the term ends; the term only renews once this has gone out the offer’s notice days before. Kept as sent because it has legal effect.',
-            'placeholders' => ['renews_on', 'notice_days'],
+            'placeholders' => ['renews_on', 'cancel_by', 'notice_days'],
             'subject' => 'Your subscription renews on {renews_on}',
-            'body' => "Your subscription reaches the end of its term on {renews_on}. Unless you cancel it before that date, it renews by itself for a new term, on the same conditions.\n\n"
-                . "Nothing is needed to keep it. To stop it, cancel it from the subscription screen before {renews_on}.\n\n"
-                . 'You are told {notice_days} days or more ahead, as your offer provides.',
+            'body' => "Your subscription reaches the end of its term, and on {renews_on} it renews by itself for a new term, on the same conditions.\n\n"
+                . "Nothing is needed to keep it. To stop it, cancel it from the subscription screen before {cancel_by}: that is the day the renewal is decided.\n\n"
+                . 'You are told {notice_days} days or more before that day, as your offer provides.',
         ],
     ];
 
@@ -174,9 +174,9 @@ final class MailWording
             ],
             'subscription.renewal_notice' => [
                 'subject' => 'Votre abonnement est reconduit le {renews_on}',
-                'body' => "Votre abonnement arrive au terme de sa durée le {renews_on}. Sauf résiliation avant cette date, il est reconduit automatiquement pour une nouvelle durée, aux mêmes conditions.\n\n"
-                    . "Il n'y a rien à faire pour le garder. Pour l'arrêter, résiliez-le depuis l'écran d'abonnement avant le {renews_on}.\n\n"
-                    . 'Vous êtes prévenu au moins {notice_days} jours à l’avance, comme le prévoit votre offre.',
+                'body' => "Votre abonnement arrive au terme de sa durée : le {renews_on}, il est reconduit automatiquement pour une nouvelle durée, aux mêmes conditions.\n\n"
+                    . "Il n'y a rien à faire pour le garder. Pour l'arrêter, résiliez-le depuis l'écran d'abonnement avant le {cancel_by} : c'est le jour où la reconduction est décidée.\n\n"
+                    . 'Vous êtes prévenu au moins {notice_days} jours avant cette date, comme le prévoit votre offre.',
             ],
         ],
         'es' => [
@@ -225,9 +225,9 @@ final class MailWording
             ],
             'subscription.renewal_notice' => [
                 'subject' => 'Su suscripción se renueva el {renews_on}',
-                'body' => "Su suscripción llega al final de su duración el {renews_on}. Salvo que la cancele antes de esa fecha, se renueva automáticamente por una nueva duración, en las mismas condiciones.\n\n"
-                    . "No necesita hacer nada para conservarla. Para detenerla, cancélela desde la pantalla de suscripción antes del {renews_on}.\n\n"
-                    . 'Se le avisa con al menos {notice_days} días de antelación, como prevé su oferta.',
+                'body' => "Su suscripción llega al final de su duración: el {renews_on} se renueva automáticamente por una nueva duración, en las mismas condiciones.\n\n"
+                    . "No necesita hacer nada para conservarla. Para detenerla, cancélela desde la pantalla de suscripción antes del {cancel_by}: ese día se decide la renovación.\n\n"
+                    . 'Se le avisa con al menos {notice_days} días de antelación respecto a esa fecha, como prevé su oferta.',
             ],
         ],
         'de' => [
@@ -276,9 +276,9 @@ final class MailWording
             ],
             'subscription.renewal_notice' => [
                 'subject' => 'Ihr Abonnement verlängert sich am {renews_on}',
-                'body' => "Ihr Abonnement erreicht am {renews_on} das Ende seiner Laufzeit. Wenn Sie es nicht vorher kündigen, verlängert es sich automatisch um eine neue Laufzeit, zu denselben Bedingungen.\n\n"
-                    . "Um es zu behalten, ist nichts zu tun. Um es zu beenden, kündigen Sie es vor dem {renews_on} über die Abonnementseite.\n\n"
-                    . 'Sie werden mindestens {notice_days} Tage im Voraus benachrichtigt, wie es Ihr Angebot vorsieht.',
+                'body' => "Ihr Abonnement erreicht das Ende seiner Laufzeit: Am {renews_on} verlängert es sich automatisch um eine neue Laufzeit, zu denselben Bedingungen.\n\n"
+                    . "Um es zu behalten, ist nichts zu tun. Um es zu beenden, kündigen Sie es vor dem {cancel_by} über die Abonnementseite: An diesem Tag wird über die Verlängerung entschieden.\n\n"
+                    . 'Sie werden mindestens {notice_days} Tage vor diesem Datum benachrichtigt, wie es Ihr Angebot vorsieht.',
             ],
         ],
         'it' => [
@@ -327,9 +327,9 @@ final class MailWording
             ],
             'subscription.renewal_notice' => [
                 'subject' => 'Il tuo abbonamento si rinnova il {renews_on}',
-                'body' => "Il tuo abbonamento arriva alla fine della sua durata il {renews_on}. Se non lo disdici prima di quella data, si rinnova automaticamente per una nuova durata, alle stesse condizioni.\n\n"
-                    . "Non serve fare nulla per mantenerlo. Per fermarlo, disdicilo dalla schermata dell'abbonamento prima del {renews_on}.\n\n"
-                    . 'Sei avvisato con almeno {notice_days} giorni di anticipo, come prevede la tua offerta.',
+                'body' => "Il tuo abbonamento arriva alla fine della sua durata: il {renews_on} si rinnova automaticamente per una nuova durata, alle stesse condizioni.\n\n"
+                    . "Non serve fare nulla per mantenerlo. Per fermarlo, disdicilo dalla schermata dell'abbonamento prima del {cancel_by}: è il giorno in cui si decide il rinnovo.\n\n"
+                    . 'Sei avvisato con almeno {notice_days} giorni di anticipo rispetto a quella data, come prevede la tua offerta.',
             ],
         ],
     ];
@@ -452,7 +452,7 @@ final class MailWording
     public static function sample(string $type, string $email, string $appUrl): array
     {
         if ($type === 'subscription.renewal_notice') {
-            return ['email' => $email, 'renews_on' => '2027-01-31', 'notice_days' => 30, 'subscription_id' => 'SAMPLE'];
+            return ['email' => $email, 'renews_on' => '2027-01-31', 'cancel_by' => '2027-01-24', 'notice_days' => 30, 'subscription_id' => 'SAMPLE'];
         }
 
         if ($type === 'subscription.renewal_payment_request') {
