@@ -28,6 +28,25 @@ final class PostgresNotificationRepository implements NotificationRepository
 
     private const CONSENT_COLUMNS = 'id, user_id, channel, purpose, granted_at, revoked_at, source, evidence';
 
+    /**
+     * What makes a notification part of the inbox (2026-10-29): a SCREEN
+     * delivery, and one the recipient has not muted.
+     *
+     * Without it the inbox read `notifications` whole, so an EMAIL-only notice
+     * — a password reset, with its token in the payload — was readable by
+     * anybody holding the person's access token, and muting a category on the
+     * screen hid nothing. A PENDING screen delivery is shown: the row is the
+     * delivery, and the dispatcher only records what the gate decided.
+     */
+    private const ON_SCREEN = <<<'SQL'
+        EXISTS (
+            SELECT 1 FROM notification_deliveries screen
+             WHERE screen.notification_id = notifications.id
+               AND screen.channel = 'SCREEN'
+               AND screen.status <> 'SUPPRESSED'
+        )
+        SQL;
+
     public function __construct(private readonly Connection $connection)
     {
     }
@@ -118,6 +137,9 @@ final class PostgresNotificationRepository implements NotificationRepository
              WHERE recipient_user_id = :recipient
                AND product_id = :productId
                AND (NOT CAST(:unreadOnly AS BOOLEAN) OR read_at IS NULL)
+               AND
+            SQL . ' ' . self::ON_SCREEN . <<<'SQL'
+
              ORDER BY created_at DESC
              LIMIT :limit OFFSET :offset
             SQL,
@@ -135,7 +157,8 @@ final class PostgresNotificationRepository implements NotificationRepository
             SELECT count(*) FROM notifications
              WHERE recipient_user_id = :recipient AND product_id = :productId
                AND (NOT CAST(:unreadOnly AS BOOLEAN) OR read_at IS NULL)
-            SQL,
+               AND
+            SQL . ' ' . self::ON_SCREEN,
             [
                 'recipient' => $recipientUserId,
                 'productId' => $productId,
@@ -182,8 +205,8 @@ final class PostgresNotificationRepository implements NotificationRepository
             UPDATE notifications
                SET read_at = coalesce(read_at, now())
              WHERE id = :id AND recipient_user_id = :recipient AND product_id = :productId
-            RETURNING
-            SQL . ' ' . self::COLUMNS,
+               AND
+            SQL . ' ' . self::ON_SCREEN . ' RETURNING ' . self::COLUMNS,
             ['id' => $notificationId, 'recipient' => $recipientUserId, 'productId' => $productId],
         );
 
@@ -200,7 +223,8 @@ final class PostgresNotificationRepository implements NotificationRepository
             <<<'SQL'
             UPDATE notifications SET read_at = now()
              WHERE recipient_user_id = :recipient AND product_id = :productId AND read_at IS NULL
-            SQL,
+               AND
+            SQL . ' ' . self::ON_SCREEN,
             ['recipient' => $recipientUserId, 'productId' => $productId],
         );
 
@@ -218,7 +242,8 @@ final class PostgresNotificationRepository implements NotificationRepository
             <<<'SQL'
             SELECT count(*) FROM notifications
              WHERE recipient_user_id = :recipient AND product_id = :productId AND read_at IS NULL
-            SQL,
+               AND
+            SQL . ' ' . self::ON_SCREEN,
             ['recipient' => $recipientUserId, 'productId' => $productId],
         );
 
@@ -269,7 +294,8 @@ final class PostgresNotificationRepository implements NotificationRepository
                    updated_at = now()
              WHERE d.id IN (
                    SELECT id FROM notification_deliveries
-                    WHERE (status = 'PENDING'
+                    WHERE ((status = 'PENDING'
+                            AND (next_attempt_at IS NULL OR next_attempt_at <= now()))
                            OR (status = 'SENDING' AND leased_until < now()))
                       AND attempts < :maxAttempts
                     ORDER BY created_at
@@ -313,26 +339,59 @@ final class PostgresNotificationRepository implements NotificationRepository
             UPDATE notification_deliveries
                SET status = 'SENT', sent_at = now(), provider_message_id = :providerId,
                    rendered_body = :body, failure_reason = NULL,
-                   leased_until = NULL, updated_at = now()
+                   leased_until = NULL, next_attempt_at = NULL, updated_at = now()
              WHERE id = :id AND status = 'SENDING'
             SQL,
             ['id' => $deliveryId, 'providerId' => $providerMessageId, 'body' => $renderedBody],
         );
     }
 
-    public function recordFailure(string $deliveryId, string $failureReason): void
+    public function recordFailure(string $deliveryId, string $failureReason, ?int $retryInSeconds): void
     {
         // The class of the error, never its message (§31). A provider's
         // message can carry a token or an endpoint, and this field is served
         // over the API.
+        //
+        // With a retry, back to PENDING and not claimable before its time
+        // (2026-10-29): one refused connection used to end a delivery for
+        // ever, and a notice lost to a provider's bad minute is a notice
+        // nobody receives. Without one, FAILED: the attempts are spent.
         $this->connection->executeStatement(
             <<<'SQL'
             UPDATE notification_deliveries
-               SET status = 'FAILED', failure_reason = :reason,
+               SET status = CASE WHEN CAST(:retry AS INTEGER) IS NULL THEN 'FAILED' ELSE 'PENDING' END,
+                   next_attempt_at = CASE WHEN CAST(:retry AS INTEGER) IS NULL THEN NULL
+                                          ELSE now() + make_interval(secs => CAST(:retry AS INTEGER)) END,
+                   failure_reason = :reason,
                    leased_until = NULL, updated_at = now()
              WHERE id = :id AND status = 'SENDING'
             SQL,
-            ['id' => $deliveryId, 'reason' => $failureReason],
+            ['id' => $deliveryId, 'reason' => $failureReason, 'retry' => $retryInSeconds],
+        );
+    }
+
+    public function scrubSpentCredentials(): int
+    {
+        // Once the mail is sent, failed for good or suppressed, nothing will
+        // render the link again: the body was rendered at send time from the
+        // payload. Removing it then means no raw token rests in the database
+        // after the one use it had. The type list and the shape of the
+        // condition match `notifications_credential_link_idx`.
+        $types = "'" . implode("', '", Notification::CREDENTIAL_TYPES) . "'";
+
+        return (int) $this->connection->executeStatement(
+            <<<SQL
+            UPDATE notifications
+               SET payload = payload - 'link'
+             WHERE type IN ({$types})
+               AND (payload -> 'link') IS NOT NULL
+               AND EXISTS (
+                   SELECT 1 FROM notification_deliveries email
+                    WHERE email.notification_id = notifications.id
+                      AND email.channel = 'EMAIL'
+                      AND email.status IN ('SENT', 'DELIVERED', 'FAILED', 'SUPPRESSED')
+               )
+            SQL,
         );
     }
 
@@ -342,7 +401,7 @@ final class PostgresNotificationRepository implements NotificationRepository
             <<<'SQL'
             UPDATE notification_deliveries
                SET status = 'SUPPRESSED', suppression_reason = :reason,
-                   leased_until = NULL, updated_at = now()
+                   leased_until = NULL, next_attempt_at = NULL, updated_at = now()
              WHERE id = :id AND status = 'SENDING'
             SQL,
             ['id' => $deliveryId, 'reason' => $reason],

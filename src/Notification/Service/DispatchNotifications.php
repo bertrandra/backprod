@@ -75,6 +75,14 @@ final class DispatchNotifications implements JobHandler
     private const MAX_ATTEMPTS = 3;
 
     /**
+     * How long a failed send waits before it is tried again, per attempt
+     * already spent: five minutes after the first, ten after the second. A
+     * provider's bad minute is the usual failure, and retrying in the same
+     * pass would only meet it again.
+     */
+    private const RETRY_BACKOFF_SECONDS = 300;
+
+    /**
      * @var array<string, Notifier>
      */
     private readonly array $channels;
@@ -133,11 +141,17 @@ final class DispatchNotifications implements JobHandler
             };
         }
 
+        // After every outcome is recorded, including the abandoned: a
+        // credential link whose mail is done with it does not stay in the
+        // database (2026-10-29).
+        $scrubbed = $this->notifications->scrubSpentCredentials();
+
         return [
             'sent' => $sent,
             'suppressed' => $suppressed,
             'failed' => $failed,
             'abandoned' => $abandoned,
+            'scrubbed' => $scrubbed,
         ];
     }
 
@@ -185,7 +199,13 @@ final class DispatchNotifications implements JobHandler
             // The class of the error, never its message (§31): a provider's
             // message can carry an endpoint or a token, and this field is
             // served over the API. The message goes to the log.
-            $this->notifications->recordFailure($delivery->id, $error::class);
+            // Back to the queue while attempts remain, later each time; FAILED
+            // only once they are spent. The attempt was counted at claim.
+            $this->notifications->recordFailure(
+                $delivery->id,
+                $error::class,
+                $delivery->attempts < self::MAX_ATTEMPTS ? self::RETRY_BACKOFF_SECONDS * $delivery->attempts : null,
+            );
 
             return Delivery::FAILED;
         }

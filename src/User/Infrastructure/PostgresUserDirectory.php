@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\User\Infrastructure;
 
 use App\Auth\Domain\AuthenticatedIdentity;
+use App\Shared\Database\Uuid;
+use App\Shared\Exceptions\UnauthenticatedException;
 use App\User\Domain\PlatformUser;
 use App\User\Domain\UserDirectory;
 use Doctrine\DBAL\Connection;
@@ -25,10 +27,23 @@ final class PostgresUserDirectory implements UserDirectory
         // DO UPDATE rather than DO NOTHING because DO NOTHING returns no row
         // on conflict, which would leave the common path — an existing user —
         // needing a second query.
+        //
+        // A subject this platform issued (`local:<id>`) names a row, and
+        // never provisions one (2026-10-29). Erasure renames that row's
+        // subject to `erased:<id>`, so an access token still in its hour of
+        // life no longer matched it — and was answered with a brand new user
+        // carrying the erased address. Insert nothing when the id it names is
+        // erased; no row back means no such person, and the request is
+        // unauthenticated.
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
                 INSERT INTO users (auth_subject, email)
-                VALUES (:subject, :email)
+                SELECT CAST(:subject AS TEXT), CAST(:email AS TEXT)
+                 WHERE NOT EXISTS (
+                       SELECT 1 FROM users erased
+                        WHERE erased.id = CAST(:localId AS uuid)
+                          AND erased.erased_at IS NOT NULL
+                 )
                 ON CONFLICT (auth_subject) DO UPDATE
                     SET email = EXCLUDED.email,
                         updated_at = now()
@@ -39,11 +54,13 @@ final class PostgresUserDirectory implements UserDirectory
             [
                 'subject' => $identity->userId,
                 'email' => $identity->email,
+                'localId' => self::localIdOf($identity->userId),
             ],
         );
 
         if ($row === false) {
-            throw new RuntimeException('Provisioning the platform user returned no row.');
+            // Only the erased guard can leave the statement without a row.
+            throw new UnauthenticatedException();
         }
 
         $id = $row['id'] ?? null;
@@ -73,5 +90,17 @@ final class PostgresUserDirectory implements UserDirectory
             // deadline costs no query of its own (ADR-061).
             (bool) ($row['address_overdue'] ?? false),
         );
+    }
+
+    /** The user id a subject of this platform's own names, or null for any other. */
+    private static function localIdOf(string $subject): ?string
+    {
+        if (!str_starts_with($subject, 'local:')) {
+            return null;
+        }
+
+        $id = substr($subject, strlen('local:'));
+
+        return Uuid::isValid($id) ? $id : null;
     }
 }

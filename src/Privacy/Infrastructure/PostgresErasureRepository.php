@@ -157,6 +157,26 @@ final class PostgresErasureRepository implements ErasureRepository
             ['id' => $userId],
         );
 
+        // Their way in (2026-10-29). The credential held the address and the
+        // password hash, so erasure that left it erased neither; and every
+        // sign-in still live could be refreshed into a new access token. The
+        // credential goes, and the sessions end — revoked rather than
+        // deleted, the shape every other ending of a sign-in takes.
+        $credentials = (int) $this->connection->executeStatement(
+            'DELETE FROM local_credentials WHERE user_id = CAST(:id AS uuid)',
+            ['id' => $userId],
+        );
+
+        $sessions = (int) $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE auth_refresh_tokens
+                   SET revoked_at = now()
+                 WHERE user_id = CAST(:id AS uuid)
+                   AND revoked_at IS NULL
+                SQL,
+            ['id' => $userId],
+        );
+
         // And the identity itself. The tombstone is the person's own id, so
         // it is unique without a second thought and can never be presented by
         // a token: a real subject is the identity provider's, never ours.
@@ -186,6 +206,8 @@ final class PostgresErasureRepository implements ErasureRepository
             'identity' => $identity,
             'message_bodies' => $messages,
             'audit_actors' => $auditActors,
+            'credentials' => $credentials,
+            'sessions' => $sessions,
         ];
     }
 

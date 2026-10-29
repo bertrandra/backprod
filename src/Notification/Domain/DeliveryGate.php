@@ -9,9 +9,13 @@ namespace App\Notification\Domain;
  *
  * Three questions, in an order that matters:
  *
- *   1. Is this a security notice? Then it goes, whatever anyone set.
- *   2. Has the recipient muted this category on this channel?
- *   3. Does this channel need consent, and is there any?
+ *   1. Has the recipient muted this category on this channel? A security
+ *      notice skips this one question, whatever anyone set.
+ *   2. Does this delivery need consent, and is there any? A security notice
+ *      does not skip this: an SMS nobody agreed to receive is not made lawful
+ *      by being important, and marketing needs its own consent on any
+ *      channel that leaves the platform.
+ *   3. Is there an address?
  *
  * The default is **closed** for a channel that needs consent. No consent
  * recorded means no attempt — not "try and see", and not a silent drop. The
@@ -40,18 +44,19 @@ final class DeliveryGate
      */
     public function refuse(string $category, string $channel, bool $hasConsent, bool $hasAddress): ?string
     {
-        // Security first, and unconditionally. A notice the recipient can
-        // mute is one an attacker can mute, and an attacker with the account
-        // can change preferences (non-negotiable #24).
-        if (!Category::isMutable($category)) {
-            return $hasAddress ? null : Delivery::NO_ADDRESS;
-        }
-
-        if (!$this->allows($category, $channel)) {
+        // A security notice ignores the preference. A notice the recipient
+        // can mute is one an attacker can mute, and an attacker with the
+        // account can change preferences (non-negotiable #24).
+        if (Category::isMutable($category) && !$this->allows($category, $channel)) {
             return Delivery::OPTED_OUT;
         }
 
-        if (Channel::requiresConsent($channel) && !$hasConsent) {
+        // Consent is not a preference, and security does not bypass it: a
+        // channel that needs consent still needs it for a security notice.
+        // Marketing needs a MARKETING consent on every channel that leaves the
+        // platform — the inbox has nobody to consent to, and is gated by the
+        // preference alone, which is off until chosen.
+        if (self::needsConsent($category, $channel) && !$hasConsent) {
             return Delivery::NO_CONSENT;
         }
 
@@ -60,6 +65,12 @@ final class DeliveryGate
         }
 
         return null;
+    }
+
+    private static function needsConsent(string $category, string $channel): bool
+    {
+        return Channel::requiresConsent($channel)
+            || ($category === Category::MARKETING && !Channel::isInternal($channel));
     }
 
     /**

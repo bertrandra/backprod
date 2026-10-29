@@ -7,11 +7,13 @@ namespace App\Tests\Integration;
 use App\Auth\Controller\RefreshCookie;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalTokens;
+use App\Auth\Domain\PasswordHashing;
 use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use App\Auth\Service\Sessions;
+use App\Privacy\Domain\ErasureRepository;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Tests\Support\TestDatabase;
 use Laminas\Diactoros\Response\EmptyResponse;
@@ -301,6 +303,93 @@ final class SignInTest extends DatabaseApiTestCase
         self::assertSame(401, $this->signIn('nobody@acme.test', 'wrong password')->getStatusCode());
     }
 
+    /**
+     * Only a failure spends the bound (2026-10-29). Counting every attempt
+     * meant a person who signs in often — or a script signing in for them —
+     * used up their own address's allowance with the right password.
+     */
+    public function testSigningInSuccessfullySpendsNothing(): void
+    {
+        for ($i = 0; $i <= Sessions::SIGN_IN_LIMIT; ++$i) {
+            self::assertSame(200, $this->signIn()->getStatusCode());
+        }
+
+        // And the failures still count from zero.
+        for ($i = 0; $i < Sessions::SIGN_IN_LIMIT; ++$i) {
+            self::assertSame(401, $this->signIn('ada@acme.test', 'wrong password')->getStatusCode());
+        }
+
+        self::assertSame(429, $this->signIn()->getStatusCode());
+    }
+
+    /**
+     * One cost for every hash (2026-10-29): sign-up wrote cost 10 while the
+     * equaliser a miss is verified against was cost 12, so a wrong password
+     * on a real account answered faster than one on no account. A hash
+     * written at another cost is brought to the platform's on sign-in.
+     */
+    public function testASignInRehashesAPasswordWrittenAtAnotherCost(): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE local_credentials SET password_hash = :hash WHERE user_id = :id',
+            ['id' => $this->userId, 'hash' => password_hash(self::PASSWORD, PASSWORD_BCRYPT, ['cost' => 10])],
+        );
+
+        self::assertSame(200, $this->signIn()->getStatusCode());
+
+        $hash = $this->connection->fetchOne('SELECT password_hash FROM local_credentials WHERE user_id = :id', ['id' => $this->userId]);
+        self::assertIsString($hash);
+        self::assertSame(PasswordHashing::OPTIONS, password_get_info($hash)['options']);
+        self::assertSame(200, $this->signIn()->getStatusCode());
+    }
+
+    public function testTheTimingEqualiserCostsWhatARealHashCosts(): void
+    {
+        $equaliser = PasswordHashing::equaliser();
+
+        self::assertSame('bcrypt', password_get_info($equaliser)['algoName']);
+        self::assertSame(PasswordHashing::OPTIONS, password_get_info($equaliser)['options']);
+        self::assertSame(
+            password_get_info(PasswordHashing::hash('anything'))['options'],
+            password_get_info($equaliser)['options'],
+        );
+        self::assertFalse(PasswordHashing::needsRehash($equaliser));
+    }
+
+    /**
+     * Erasure ends the way in (2026-10-29): the credential and every live
+     * sign-in go with the identity, and an access token still in its hour
+     * of life provisions nobody. It used to resolve to a brand new user row
+     * carrying the erased address, because erasure renamed the subject the
+     * token names.
+     */
+    public function testAnErasedPersonsLiveTokenProvisionsNobody(): void
+    {
+        $response = $this->signIn();
+        $body = $this->decode($response);
+        $token = is_string($body['access_token'] ?? null) ? $body['access_token'] : '';
+        $cookie = $this->cookieFrom($response);
+        self::assertNotSame('', $token);
+
+        $operator = $this->connection->fetchOne(
+            "INSERT INTO users (auth_subject, email) VALUES ('sub-ops', 'ops@platform.test') RETURNING id",
+        );
+        self::assertIsString($operator);
+
+        $erasure = $this->container()->get(ErasureRepository::class);
+        self::assertInstanceOf(ErasureRepository::class, $erasure);
+        $erasure->erase($this->userId, $operator, null);
+
+        self::assertSame(401, $this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token])->getStatusCode());
+        self::assertSame(0, $this->rowCount("SELECT count(*) FROM users WHERE email = 'ada@acme.test'"));
+        self::assertSame(2, $this->rowCount('SELECT count(*) FROM users'));
+
+        // Neither the credential nor a session survives.
+        self::assertSame(0, $this->rowCount('SELECT count(*) FROM local_credentials WHERE user_id = :id', ['id' => $this->userId]));
+        self::assertSame([], $this->liveTokens());
+        self::assertSame(401, $this->refresh($cookie)->getStatusCode());
+    }
+
     public function testASignedInPersonStaysSignedInThroughTheCookie(): void
     {
         $cookie = $this->cookieFrom($this->signIn());
@@ -321,6 +410,18 @@ final class SignInTest extends DatabaseApiTestCase
     public function testRefreshingWithNoCookieIsRefused(): void
     {
         self::assertSame(401, $this->request('POST', '/api/v1/auth/refresh')->getStatusCode());
+    }
+
+    /**
+     * @param array<string, string> $parameters
+     */
+    private function rowCount(string $sql, array $parameters = []): int
+    {
+        $count = $this->connection->fetchOne($sql, $parameters);
+
+        self::assertIsNumeric($count);
+
+        return (int) $count;
     }
 
     private function refresh(string $cookie): ResponseInterface

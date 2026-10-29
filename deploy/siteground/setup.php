@@ -101,6 +101,7 @@ if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
 
 require BACKPROD_APP . '/vendor/autoload.php';
 
+use App\Auth\Domain\PasswordHashing;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
 use App\Demo\Service\DemoSeeder;
@@ -727,7 +728,7 @@ function handleResetPassword(): void
     // one transaction — the same pair `Sessions` writes on a reset. Without
     // the second half, whoever signed in with the public demo password keeps
     // a refresh token for up to ninety days. Cost 12, as the app hashes.
-    $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+    $hash = PasswordHashing::hash($password);
 
     $result = $connection->transactional(static function (Connection $connection) use ($email, $hash): ?int {
         $userId = $connection->fetchOne(

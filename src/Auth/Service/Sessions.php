@@ -6,6 +6,7 @@ namespace App\Auth\Service;
 
 use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Domain\LocalCredentialRepository;
+use App\Auth\Domain\PasswordHashing;
 use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\RegisteredAccount;
@@ -70,14 +71,16 @@ final class Sessions
     public const RESEND_INTERVAL = 60;
 
     /**
-     * Sign-in attempts one address may make in a window (2026-10-26).
+     * Failed sign-ins one address may have in a window (2026-10-26).
      *
      * The per-IP bucket of the middleware was the only brake, and guessing at
      * one account from many addresses went through it untouched. Generous on
      * purpose — a person mistyping does not reach it — and counted per
-     * address rather than per failure, because the limiter answers and counts
-     * in one statement and a "did it fail?" read beside it would be a gap two
-     * attempts race through.
+     * failure since 2026-10-29: counting every attempt let anybody sending
+     * sign-ins for an address — the right password included — use up its
+     * bound. The bound is read before the password is checked and a failure
+     * counted after, a gap the limiter's `peek()` explains and bounds. Past
+     * the bound even the right password is refused, as before.
      */
     public const SIGN_IN_LIMIT = 20;
     public const SIGN_IN_WINDOW = 900;
@@ -95,17 +98,6 @@ final class Sessions
     /** What {@see exchange()} says when it has no token to give. */
     private const STOLEN = 'stolen';
     private const REFUSED = 'refused';
-
-    /**
-     * A hash of nothing, for the timing of a miss.
-     *
-     * When no account matches, `password_verify` still runs — against this. A
-     * function that returns early for an unknown address answers measurably
-     * faster than one that checks a password, and that difference is a way to
-     * enumerate who has an account. bcrypt at the same cost as a real hash makes
-     * the two paths take the same time.
-     */
-    private const TIMING_EQUALISER = '$2y$12$C6UzMDM.H6dfI/f/IKcEe.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
     /** Two days to click a link in an email. Long enough for a weekend, short enough to matter. */
     public const VERIFICATION_LIFETIME = 172_800;
@@ -172,7 +164,7 @@ final class Sessions
      * downstream needs to act on it.
      *
      * **The address being taken is answered plainly**, unlike signing in,
-     * where `TIMING_EQUALISER` exists precisely so that "no such account"
+     * where `PasswordHashing::equaliser()` exists precisely so that "no such account"
      * cannot be told from "wrong password". The asymmetry is not an oversight:
      * a person who cannot be told their address is already registered cannot
      * complete the purchase they came for, and the sign-in form is one click
@@ -197,7 +189,7 @@ final class Sessions
 
         $account = $this->registrar->join(
             $email,
-            password_hash($password, PASSWORD_BCRYPT),
+            PasswordHashing::hash($password),
             $displayName,
             $tenantSlug,
             $productCode,
@@ -391,7 +383,7 @@ final class Sessions
             return false;
         }
 
-        $this->credentials->save($userId, $email, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]));
+        $this->credentials->save($userId, $email, PasswordHashing::hash($password));
         $revoked = $this->refreshTokens->revokeAllFor($userId);
         $this->logger->info('Password reset; every session revoked', ['user_id' => $userId, 'revoked' => $revoked]);
 
@@ -454,7 +446,11 @@ final class Sessions
                 'email' => $email,
                 'purpose' => $purpose,
             ],
-            'password-link:' . $userId,
+            // One notice per token, as a confirmation is keyed (2026-10-29): a
+            // per-account key let the dedup index swallow a second reset or
+            // re-invitation while the token row was replaced, so the person
+            // got no mail and the first link stopped working too.
+            'password-link:' . $userId . ':' . substr($this->hash($raw), 0, 16),
             false,
             [Channel::EMAIL],
         );
@@ -465,7 +461,8 @@ final class Sessions
      */
     public function signIn(string $email, #[SensitiveParameter] string $password, ?string $productCode = null): Session
     {
-        $over = $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT);
+        // Read, not counted: only a failure spends the bound (2026-10-29).
+        $over = $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT, false);
 
         if ($over !== null) {
             // The same refusal whether the address has an account or not.
@@ -474,19 +471,31 @@ final class Sessions
 
         $credential = $this->credentials->findByEmail($email);
 
-        // Verified even when there is no account, and the result thrown away. See
-        // TIMING_EQUALISER: returning early here is what makes "no such user" and
-        // "wrong password" distinguishable by a stopwatch.
-        $against = $credential === null ? self::TIMING_EQUALISER : $credential->passwordHash;
+        // Verified even when there is no account, and the result thrown away,
+        // against a hash at the cost every real one is written at: returning
+        // early here is what makes "no such user" and "wrong password"
+        // distinguishable by a stopwatch.
+        $against = $credential === null ? PasswordHashing::equaliser() : $credential->passwordHash;
         $matches = password_verify($password, $against);
 
         if ($credential === null || !$matches) {
+            // Counted after the check, so only a failure spends the bound —
+            // for an unknown address as for a known one, or the count would
+            // say which is which.
+            $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT);
+
             // One event, one shape. The log says which address was tried because
             // that is what makes a brute-force attempt visible; the *response*
             // says only that it failed.
             $this->logger->info('Sign-in refused', ['email' => $email, 'reason' => $credential === null ? 'no account' : 'wrong password']);
 
             throw new UnauthenticatedException();
+        }
+
+        // A hash written at another cost — sign-up's, before 2026-10-29 — is
+        // brought to the platform's while the password is in hand.
+        if (PasswordHashing::needsRehash($credential->passwordHash)) {
+            $this->credentials->save($credential->userId, $credential->email, PasswordHashing::hash($password));
         }
 
         return $this->start($credential->userId, $credential->authSubject, $credential->email, $productCode)[0];
@@ -810,22 +819,22 @@ final class Sessions
     }
 
     /**
-     * Counts one attempt for an address, and returns the decision when the
-     * attempt is past its bound — null while it is within it. The address is
-     * hashed, lowercased, before it becomes a bucket: the counter table is
+     * Counts one attempt for an address — or, with `$count` false, only
+     * reads where the next one would land — and returns the decision when
+     * the attempt is past its bound, null while it is within it. The address
+     * is hashed, lowercased, before it becomes a bucket: the counter table is
      * not a list of who tried to sign in.
      */
-    private function overBound(string $what, string $email, int $window, int $limit): ?RateLimitDecision
+    private function overBound(string $what, string $email, int $window, int $limit, bool $count = true): ?RateLimitDecision
     {
         if ($this->attempts === null) {
             return null;
         }
 
-        $decision = $this->attempts->hit(
-            'auth:' . $what . ':' . hash('sha256', mb_strtolower(trim($email))),
-            $window,
-            $limit,
-        );
+        $bucket = 'auth:' . $what . ':' . hash('sha256', mb_strtolower(trim($email)));
+        $decision = $count
+            ? $this->attempts->hit($bucket, $window, $limit)
+            : $this->attempts->peek($bucket, $window, $limit);
 
         return $decision->allowed() ? null : $decision;
     }

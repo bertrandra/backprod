@@ -24,7 +24,7 @@ final class ReadAllNotificationsController implements RouteHandler
         $context = NotificationRoute::manageable($request);
 
         return new JsonResponse([
-            'marked_read' => $this->notifications->markAllRead($context->userId, $context->productId),
+            'marked' => $this->notifications->markAllRead($context->userId, $context->productId),
         ], 200);
     }
 }
