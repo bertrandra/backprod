@@ -31,6 +31,19 @@ interface RateLimiter
     public function hit(string $bucket, int $windowSeconds, int $limit): RateLimitDecision;
 
     /**
+     * The decision the next hit on a bucket would get, without counting it
+     * (2026-10-29).
+     *
+     * For a bucket that counts only some outcomes — failed sign-ins — the
+     * caller must ask before it knows the outcome and count after. That is
+     * the read-then-write gap {@see hit()} avoids, accepted here because what
+     * it costs is bounded: requests racing past the read are each still
+     * counted, so the limit is exceeded by at most the concurrency of one
+     * moment, never for the rest of the window.
+     */
+    public function peek(string $bucket, int $windowSeconds, int $limit): RateLimitDecision;
+
+    /**
      * Discards counters whose window has closed.
      *
      * Windows are short and every request writes one, so stale rows outnumber

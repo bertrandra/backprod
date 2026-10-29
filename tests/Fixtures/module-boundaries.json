@@ -37,6 +37,7 @@
             "Tenant"
         ],
         "Demo": [
+            "Auth",
             "Billing",
             "Commerce",
             "Entitlement",
@@ -173,7 +174,8 @@
             "Privacy"
         ],
         "auth_refresh_tokens": [
-            "Auth"
+            "Auth",
+            "Privacy"
         ],
         "billing_profiles": [
             "Billing",
@@ -241,7 +243,8 @@
         ],
         "local_credentials": [
             "Auth",
-            "Demo"
+            "Demo",
+            "Privacy"
         ],
         "messages": [
             "Messaging",

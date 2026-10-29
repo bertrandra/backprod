@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Infrastructure;
 
 use App\Auth\Domain\AccountRegistrar;
+use App\Auth\Domain\PasswordHashing;
 use App\Auth\Domain\RegisteredAccount;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
@@ -357,7 +358,7 @@ final class PostgresAccountRegistrar implements AccountRegistrar
                 // two invited accounts never share a hash.
                 $this->connection->executeStatement(
                     'INSERT INTO local_credentials (user_id, email, password_hash) VALUES (:id, :email, :hash)',
-                    ['id' => $userId, 'email' => $email, 'hash' => password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT, ['cost' => 12])],
+                    ['id' => $userId, 'email' => $email, 'hash' => PasswordHashing::hash(bin2hex(random_bytes(32)))],
                 );
                 $created = true;
             }

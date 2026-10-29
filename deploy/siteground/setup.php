@@ -69,6 +69,7 @@ if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
 
 require BACKPROD_APP . '/vendor/autoload.php';
 
+use App\Auth\Domain\PasswordHashing;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
 use App\Demo\Service\DemoSeeder;
@@ -492,7 +493,7 @@ function handleResetPassword(): void
             SET password_hash = :hash, updated_at = now()
             WHERE lower(email) = lower(:email)
             SQL,
-        ['email' => $email, 'hash' => password_hash($password, PASSWORD_BCRYPT)],
+        ['email' => $email, 'hash' => PasswordHashing::hash($password)],
     );
 
     if ($updated === 0) {

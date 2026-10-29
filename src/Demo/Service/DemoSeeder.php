@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Demo\Service;
 
+use App\Auth\Domain\PasswordHashing;
 use App\Billing\Domain\Invoice;
 use App\Billing\Service\Invoicing;
 use App\Commerce\Service\Freemium;
@@ -154,7 +155,7 @@ final class DemoSeeder
         // Hashed here rather than handed down as a literal: the fixtures
         // store what they are given, and what they are given must never be
         // the plaintext.
-        $structure = $this->fixtures->write(password_hash(DemoWorld::PASSWORD, PASSWORD_BCRYPT));
+        $structure = $this->fixtures->write(PasswordHashing::hash(DemoWorld::PASSWORD));
 
         // The pictures on Plan's page (2026-10-08): real screenshots of the
         // product, shipped with the platform and uploaded through the same
