@@ -89,9 +89,27 @@ final class DeliveryGateTest extends TestCase
         self::assertNull($gate->refuse(Category::SECURITY, Channel::EMAIL, false, true));
     }
 
-    public function testSecurityBeatsEvenAMissingConsent(): void
+    public function testSecurityDoesNotBeatAMissingConsent(): void
     {
-        self::assertNull($this->gate()->refuse(Category::SECURITY, Channel::SMS, false, true));
+        // Unmutable is about the preference, not about consent: an SMS nobody
+        // agreed to receive is not sent because it is important.
+        self::assertSame(
+            Delivery::NO_CONSENT,
+            $this->gate()->refuse(Category::SECURITY, Channel::SMS, false, true),
+        );
+        self::assertNull($this->gate()->refuse(Category::SECURITY, Channel::SMS, true, true));
+    }
+
+    public function testSecurityEmailNeedsNoConsent(): void
+    {
+        self::assertNull($this->gate()->refuse(Category::SECURITY, Channel::EMAIL, false, true));
+    }
+
+    public function testMarketingEmailNeedsAMarketingConsentEvenOnceChosen(): void
+    {
+        $gate = $this->gate([Category::MARKETING . ':' . Channel::EMAIL => true]);
+
+        self::assertSame(Delivery::NO_CONSENT, $gate->refuse(Category::MARKETING, Channel::EMAIL, false, true));
     }
 
     public function testSecurityStillNeedsSomewhereToSend(): void
@@ -119,7 +137,7 @@ final class DeliveryGateTest extends TestCase
     {
         $gate = $this->gate([Category::MARKETING . ':' . Channel::EMAIL => true]);
 
-        self::assertNull($gate->refuse(Category::MARKETING, Channel::EMAIL, false, true));
+        self::assertNull($gate->refuse(Category::MARKETING, Channel::EMAIL, true, true));
     }
 
     // --- the classification the gate rests on ----------------------------
