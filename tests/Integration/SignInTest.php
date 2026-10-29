@@ -381,11 +381,11 @@ final class SignInTest extends DatabaseApiTestCase
         $erasure->erase($this->userId, $operator, null);
 
         self::assertSame(401, $this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token])->getStatusCode());
-        self::assertSame(0, $this->countOf("SELECT count(*) FROM users WHERE email = 'ada@acme.test'"));
-        self::assertSame(2, $this->countOf('SELECT count(*) FROM users'));
+        self::assertSame(0, $this->rowCount("SELECT count(*) FROM users WHERE email = 'ada@acme.test'"));
+        self::assertSame(2, $this->rowCount('SELECT count(*) FROM users'));
 
         // Neither the credential nor a session survives.
-        self::assertSame(0, $this->countOf('SELECT count(*) FROM local_credentials WHERE user_id = :id', ['id' => $this->userId]));
+        self::assertSame(0, $this->rowCount('SELECT count(*) FROM local_credentials WHERE user_id = :id', ['id' => $this->userId]));
         self::assertSame([], $this->liveTokens());
         self::assertSame(401, $this->refresh($cookie)->getStatusCode());
     }
@@ -415,7 +415,7 @@ final class SignInTest extends DatabaseApiTestCase
     /**
      * @param array<string, string> $parameters
      */
-    private function countOf(string $sql, array $parameters = []): int
+    private function rowCount(string $sql, array $parameters = []): int
     {
         $count = $this->connection->fetchOne($sql, $parameters);
 
