@@ -6,6 +6,7 @@ namespace App\Tests\Unit;
 
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
+use App\Payment\Domain\Refund;
 use App\Payment\Infrastructure\Stripe\StripePaymentProvider;
 use App\Shared\Exceptions\NotConfiguredException;
 use App\Shared\Exceptions\UnauthenticatedException;
@@ -174,6 +175,64 @@ final class StripePaymentProviderTest extends TestCase
         self::assertSame('requested_by_customer', $params['reason']);
         self::assertSame(['reason' => 'REQUESTED'], $params['metadata']);
         self::assertNotNull($this->http->header(0, 'Idempotency-Key'));
+    }
+
+    /**
+     * Stripe's answer, not an assumption (2026-10-29): a card refund usually
+     * answers `succeeded` at once, and one Stripe refuses answers `failed`.
+     */
+    public function testRefundReportsStripesOwnStatus(): void
+    {
+        $this->http->answer(['id' => 're_4', 'object' => 'refund', 'status' => 'succeeded']);
+        $this->http->answer(['id' => 're_5', 'object' => 'refund', 'status' => 'failed']);
+        $this->http->answer(['id' => 're_6', 'object' => 'refund', 'status' => 'requires_action']);
+
+        self::assertSame(Refund::SUCCEEDED, $this->provider()->refund(self::payment('pi_1'), Money::of(100, 'EUR'), 'REQUESTED')->status);
+        self::assertSame(Refund::FAILED, $this->provider()->refund(self::payment('pi_1'), Money::of(100, 'EUR'), 'REQUESTED', 2)->status);
+        self::assertSame(Refund::PENDING, $this->provider()->refund(self::payment('pi_1'), Money::of(100, 'EUR'), 'REQUESTED', 3)->status);
+    }
+
+    /**
+     * Two identical partial refunds within Stripe's 24 hours are two refunds
+     * (2026-10-29). Keyed on the payment, the amount and the reason alone,
+     * the second was handed the first one's answer.
+     */
+    public function testTwoIdenticalRefundsAreTwoKeys(): void
+    {
+        $this->http->answer(['id' => 're_7', 'object' => 'refund', 'status' => 'pending']);
+        $this->http->answer(['id' => 're_8', 'object' => 'refund', 'status' => 'pending']);
+
+        $this->provider()->refund(self::payment('pi_1'), Money::of(100, 'EUR'), 'REQUESTED', 1);
+        $this->provider()->refund(self::payment('pi_1'), Money::of(100, 'EUR'), 'REQUESTED', 2);
+
+        self::assertNotSame($this->http->header(0, 'Idempotency-Key'), $this->http->header(1, 'Idempotency-Key'));
+    }
+
+    public function testCancellingAnAbandonedIntentLetsAnotherReplaceIt(): void
+    {
+        $this->http->answer(['id' => 'pi_1', 'object' => 'payment_intent', 'status' => 'canceled']);
+
+        self::assertTrue($this->provider()->cancel(self::payment('pi_1')));
+        self::assertStringEndsWith('/v1/payment_intents/pi_1/cancel', $this->http->requests[0]['url']);
+    }
+
+    /**
+     * Stripe refuses to cancel an intent that is processing or has succeeded.
+     * That is money in flight, and a second attempt beside it is one invoice
+     * paid twice.
+     */
+    public function testAnIntentPastCancellingIsNotReplaced(): void
+    {
+        $this->http->answer(['error' => ['type' => 'invalid_request_error', 'code' => 'payment_intent_unexpected_state', 'message' => 'This PaymentIntent could not be canceled.']], 400);
+        $this->http->answer(['id' => 'pi_1', 'object' => 'payment_intent', 'status' => 'processing']);
+
+        self::assertFalse($this->provider()->cancel(self::payment('pi_1')));
+
+        // Already cancelled is what was wanted.
+        $this->http->answer(['error' => ['type' => 'invalid_request_error', 'code' => 'payment_intent_unexpected_state', 'message' => 'This PaymentIntent could not be canceled.']], 400);
+        $this->http->answer(['id' => 'pi_1', 'object' => 'payment_intent', 'status' => 'canceled']);
+
+        self::assertTrue($this->provider()->cancel(self::payment('pi_1')));
     }
 
     public function testRefundKeepsStripesOwnReasonsAsTheyAre(): void

@@ -121,6 +121,30 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
         return is_numeric($credited) ? (int) $credited : 0;
     }
 
+    public function creditedPartsOn(string $invoiceId): array
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return ['net' => 0, 'vat' => 0];
+        }
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT coalesce(sum(net_minor_units), 0) AS net, coalesce(sum(vat_minor_units), 0) AS vat'
+            . ' FROM credit_notes WHERE invoice_id = :invoice',
+            ['invoice' => $invoiceId],
+        );
+
+        if ($row === false) {
+            return ['net' => 0, 'vat' => 0];
+        }
+
+        // sum() over a bigint is a string from PDO, as `creditedOn` says;
+        // Row reads either.
+        return [
+            'net' => Row::integer($row, 'net'),
+            'vat' => Row::integer($row, 'vat'),
+        ];
+    }
+
     public function issue(
         Invoice $invoice,
         array $lines,
@@ -165,6 +189,18 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
             $net = $net->plus($line->net);
             $vat = $vat->plus($line->vat);
         }
+
+        // The invoice first, then the series (2026-10-29). A refund takes this
+        // lock before it asks the provider for the money and holds it until
+        // its credit note is written here, so a credit issued meanwhile waits
+        // and then reads the refund's document below, rather than landing
+        // between the refund's plan and its write and making that write
+        // refuse after the money had left. Always this order — invoice, then
+        // numbering — or two of them would each hold what the other wants.
+        $this->connection->fetchOne(
+            'SELECT id FROM invoices WHERE id = :invoice FOR UPDATE',
+            ['invoice' => $invoice->id],
+        );
 
         // The issuer of the invoice, never a fresh decision: a credit note
         // corrects one company's document, so it belongs in that company's

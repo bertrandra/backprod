@@ -265,6 +265,67 @@ final class StripeWebhookTest extends DatabaseApiTestCase
         self::assertSame('PARTIALLY_REFUNDED', $this->statusOfPayment());
     }
 
+    /**
+     * Stripe usually settles a card refund on the spot and says so in its
+     * answer (2026-10-29). Recorded PENDING regardless, it stayed pending for
+     * ever: no `refund.updated` follows a refund that never was pending.
+     */
+    public function testARefundStripeSettlesAtOnceIsSettledAtOnce(): void
+    {
+        $this->started();
+        $this->deliver('payment_intent.succeeded');
+        $this->stripe->answer(['id' => 're_3Q2RxX0000000000000001', 'object' => 'refund', 'status' => 'succeeded']);
+
+        $asked = $this->refund(['amount_minor_units' => 1900, 'reason' => 'REQUESTED']);
+
+        self::assertSame(202, $asked->getStatusCode());
+        self::assertSame('SUCCEEDED', $this->decode($asked)['status'] ?? null);
+        self::assertSame('SUCCEEDED', $this->connection->fetchOne('SELECT status FROM refunds'));
+        self::assertSame('PARTIALLY_REFUNDED', $this->statusOfPayment());
+
+        // A later word about the same refund has nothing left to do.
+        $late = $this->deliver('refund.updated.succeeded');
+        self::assertSame(202, $late->getStatusCode());
+        self::assertSame('IGNORED_NOT_APPLICABLE', $this->decode($late)['outcome'] ?? null);
+        self::assertSame('PARTIALLY_REFUNDED', $this->statusOfPayment());
+    }
+
+    public function testARefundStripeFailsIsRecordedAsFailed(): void
+    {
+        $this->started();
+        $this->deliver('payment_intent.succeeded');
+        $this->stripe->answer(['id' => 're_3Q2RxX0000000000000001', 'object' => 'refund', 'status' => 'pending']);
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1900, 'reason' => 'REQUESTED'])->getStatusCode());
+
+        self::assertSame(200, $this->deliver('refund.failed')->getStatusCode());
+
+        self::assertSame('FAILED', $this->connection->fetchOne('SELECT status FROM refunds'));
+        self::assertSame('SUCCEEDED', $this->statusOfPayment());
+        self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM financial_events WHERE type = 'REFUND_FAILED'"));
+    }
+
+    /**
+     * A second start abandons the first intent at Stripe before creating
+     * another (2026-10-29): two live intents for one invoice is one invoice
+     * collectable twice.
+     */
+    public function testASecondStartCancelsTheFirstIntentFirst(): void
+    {
+        $this->started();
+        $this->stripe->answer(['id' => 'pi_3Q2RxX0000000000000001', 'object' => 'payment_intent', 'status' => 'canceled']);
+        $this->stripe->answer(['id' => 'pi_3Q2RxX0000000000000002', 'object' => 'payment_intent', 'client_secret' => 'pi_3Q2_secret_def']);
+
+        self::assertSame(201, $this->startPayment()->getStatusCode());
+
+        self::assertStringEndsWith('/v1/payment_intents/pi_3Q2RxX0000000000000001/cancel', $this->stripe->requests[1]['url']);
+        self::assertSame('CANCELLED', $this->connection->fetchOne(
+            "SELECT status FROM payments WHERE provider_payment_id = 'pi_3Q2RxX0000000000000001'",
+        ));
+        self::assertSame('PENDING', $this->connection->fetchOne(
+            "SELECT status FROM payments WHERE provider_payment_id = 'pi_3Q2RxX0000000000000002'",
+        ));
+    }
+
     public function testADisputeIsAChargebackAndTheInvoiceIsNotRewritten(): void
     {
         $this->started();

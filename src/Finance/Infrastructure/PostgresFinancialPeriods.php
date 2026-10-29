@@ -47,42 +47,61 @@ final class PostgresFinancialPeriods implements FinancialPeriods
     /**
      * Turnover: invoiced, excluding drafts and cancellations, with credits
      * reported beside it rather than netted into it.
+     *
+     * **Every month either happened in** (2026-10-29). Credits were LEFT
+     * JOINed onto the months that had invoices, so a credit note issued in a
+     * month with no invoice — January's sale corrected in February — was
+     * dropped from the rollup altogether. The months are now the union of
+     * both: a month with only a credit is a row with nothing invoiced and the
+     * credit beside it.
      */
     private function rollUpRevenue(string $since): int
     {
         return (int) $this->connection->executeStatement(
             <<<SQL
+                WITH invoiced AS (
+                    SELECT product_id,
+                           date_trunc('month', issued_at)::date AS month,
+                           currency,
+                           sum(net_minor_units) AS net,
+                           sum(vat_minor_units) AS vat,
+                           sum(gross_minor_units) AS gross,
+                           count(*) AS issued,
+                           count(*) FILTER (WHERE paid_at IS NOT NULL) AS paid
+                      FROM invoices
+                     WHERE issued_at IS NOT NULL
+                       AND issued_at >= {$since}
+                       AND status NOT IN ('DRAFT', 'CANCELLED')
+                     GROUP BY 1, 2, 3
+                ),
+                credited AS (
+                    SELECT product_id,
+                           date_trunc('month', issued_at)::date AS month,
+                           currency,
+                           sum(net_minor_units) AS credited
+                      FROM credit_notes
+                     WHERE issued_at >= {$since}
+                     GROUP BY 1, 2, 3
+                )
                 INSERT INTO revenue_periods
                     (product_id, period_start, currency, net_minor_units, vat_minor_units,
                      gross_minor_units, credited_minor_units, invoices_issued, invoices_paid,
                      computed_at)
-                SELECT i.product_id,
-                       date_trunc('month', i.issued_at)::date,
-                       i.currency,
-                       sum(i.net_minor_units),
-                       sum(i.vat_minor_units),
-                       sum(i.gross_minor_units),
-                       coalesce(cn.credited, 0),
-                       count(*),
-                       count(*) FILTER (WHERE i.paid_at IS NOT NULL),
+                SELECT coalesce(i.product_id, c.product_id),
+                       coalesce(i.month, c.month),
+                       coalesce(i.currency, c.currency),
+                       coalesce(i.net, 0),
+                       coalesce(i.vat, 0),
+                       coalesce(i.gross, 0),
+                       coalesce(c.credited, 0),
+                       coalesce(i.issued, 0),
+                       coalesce(i.paid, 0),
                        now()
-                  FROM invoices i
-                  LEFT JOIN (
-                        SELECT product_id, currency,
-                               date_trunc('month', issued_at)::date AS month,
-                               sum(net_minor_units) AS credited
-                          FROM credit_notes
-                         WHERE issued_at >= {$since}
-                         GROUP BY 1, 2, 3
-                       ) cn
-                    ON cn.product_id = i.product_id
-                   AND cn.currency = i.currency
-                   AND cn.month = date_trunc('month', i.issued_at)::date
-                 WHERE i.issued_at IS NOT NULL
-                   AND i.issued_at >= {$since}
-                   AND i.status NOT IN ('DRAFT', 'CANCELLED')
-                 GROUP BY i.product_id, date_trunc('month', i.issued_at)::date,
-                          i.currency, cn.credited
+                  FROM invoiced i
+                  FULL OUTER JOIN credited c
+                    ON c.product_id = i.product_id
+                   AND c.currency = i.currency
+                   AND c.month = i.month
                 ON CONFLICT (product_id, period_start, currency) DO UPDATE
                    SET net_minor_units = EXCLUDED.net_minor_units,
                        vat_minor_units = EXCLUDED.vat_minor_units,

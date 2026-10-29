@@ -156,7 +156,10 @@ final class PostgresTaxRepository implements TaxRepository
                 'id' => $identificationId,
                 'status' => $status,
                 'dated' => $dated ? 'true' : 'false',
-                'source' => $check->outcome === VatNumberCheck::UNAVAILABLE ? null : 'VIES',
+                // Whoever actually answered (2026-10-29). This wrote `VIES`
+                // whatever had answered, so a stub's verdict was stored as
+                // the audit evidence of a real one.
+                'source' => $check->outcome === VatNumberCheck::UNAVAILABLE ? null : $check->source,
                 'result' => json_encode([
                     'outcome' => $check->outcome,
                     'registered_name' => $check->registeredName,
@@ -293,6 +296,26 @@ final class PostgresTaxRepository implements TaxRepository
             'SELECT ' . self::TRANSACTION_COLUMNS . <<<'SQL'
                   FROM vat_transactions
                  WHERE invoice_id = CAST(:invoiceId AS uuid)
+                 ORDER BY created_at, id
+                SQL,
+            ['invoiceId' => $invoiceId],
+        );
+
+        return array_map(self::toTransaction(...), $rows);
+    }
+
+    public function reversalsOfInvoice(string $invoiceId): array
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::TRANSACTION_COLUMNS . <<<'SQL'
+                  FROM vat_transactions
+                 WHERE credit_note_id IN (
+                       SELECT id FROM credit_notes WHERE invoice_id = CAST(:invoiceId AS uuid)
+                 )
                  ORDER BY created_at, id
                 SQL,
             ['invoiceId' => $invoiceId],

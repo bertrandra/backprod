@@ -10,6 +10,13 @@ use App\Tax\Domain\VatNumberValidator;
 /**
  * A verification service that is honestly not VIES.
  *
+ * **For tests and the demonstration only** (2026-10-29). It was wired
+ * unconditionally until today, so a production deployment "verified" any
+ * number not ending in 0 or 9, recorded `VIES` as the source, and granted
+ * reverse charge on the strength of it. It is chosen now only by
+ * `VAT_NUMBER_VALIDATOR=stub`; anything else gets
+ * {@see UnavailableVatNumberValidator}, which verifies nothing.
+ *
  * It exists so the whole fiscal path — verify, record the evidence, grant or
  * refuse reverse charge — is exercised end to end without reaching the real
  * service, and so the first real adapter has a worked example.
@@ -49,6 +56,7 @@ final class StubVatNumberValidator implements VatNumberValidator
                 'queried' => $normalised,
                 'checked_at' => gmdate('c'),
             ],
+            self::NAME,
         );
     }
 }

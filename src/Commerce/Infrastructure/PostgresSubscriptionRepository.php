@@ -1060,7 +1060,9 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         -- people about somebody's unpaid bill.
                        ) r ON TRUE
                  WHERE s.status IN ('ACTIVE', 'PAST_DUE')
-                   AND i.status = 'ISSUED'
+                   -- Unpaid in any of its e-invoicing states too (2026-10-29):
+                   -- transmitting an invoice does not settle it.
+                   AND i.status IN ('ISSUED', 'READY_FOR_EINVOICE', 'SUBMITTED', 'ACCEPTED', 'REJECTED')
                    AND i.issued_at IS NOT NULL
                    AND coalesce(i.due_at, i.issued_at) < now()
                  ORDER BY coalesce(i.due_at, i.issued_at), i.id, r.user_id

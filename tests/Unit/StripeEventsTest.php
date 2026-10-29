@@ -122,6 +122,32 @@ final class StripeEventsTest extends TestCase
         self::assertNull(StripeEvents::parse(self::fixture('refund.updated.pending'), false));
     }
 
+    /**
+     * A refund Stripe could not make (2026-10-29). Mapped to nothing until
+     * today, so it stayed PENDING for ever and kept counting against what
+     * was still refundable.
+     */
+    public function testAFailedRefundIsSaidToHaveFailed(): void
+    {
+        $event = self::parse('refund.failed');
+
+        self::assertSame(ProviderEvent::REFUND_FAILED, $event->type);
+        self::assertSame(self::INTENT, $event->providerPaymentId);
+        self::assertSame('re_3Q2RxX0000000000000001', $event->providerRefundId);
+        self::assertSame('expired_or_canceled_card', $event->failureCode);
+        // It moves no payment: the money never left.
+        self::assertNull($event->requestedStatus());
+    }
+
+    public function testACancelledRefundIsAFailedOne(): void
+    {
+        $event = self::parse('refund.updated.canceled');
+
+        self::assertSame(ProviderEvent::REFUND_FAILED, $event->type);
+        self::assertSame('re_3Q2RxX0000000000000001', $event->providerRefundId);
+        self::assertSame('canceled', $event->failureCode);
+    }
+
     public function testADisputeIsAChargebackOnTheIntent(): void
     {
         $event = self::parse('charge.dispute.created');

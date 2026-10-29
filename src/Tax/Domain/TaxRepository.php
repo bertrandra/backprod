@@ -106,6 +106,16 @@ interface TaxRepository
      */
     public function transactionsOfInvoice(string $invoiceId): array;
 
+    /**
+     * The reversals already written against one invoice — the facts of every
+     * credit note that corrects it (2026-10-29) — so the credit that closes
+     * the invoice reverses exactly what is left, and not a recomputed share
+     * a minor unit away from it.
+     *
+     * @return list<VatTransaction>
+     */
+    public function reversalsOfInvoice(string $invoiceId): array;
+
     public function countTransactionsFor(
         string $tenantId,
         ?string $productCode,

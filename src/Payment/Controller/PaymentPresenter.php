@@ -140,6 +140,10 @@ final class PaymentPresenter
             // ordinary refund tells the customer the wrong story.
             'disputed' => $refund->isDisputed(),
             'status' => $refund->status,
+            // The credit note the refund carried, and whether its refund
+            // failed and left it for somebody to decide about (2026-10-29).
+            'credit_note_id' => $refund->creditNoteId,
+            'needs_decision' => $refund->needsADecision(),
             'settled_at' => self::nullableMoment($refund->settledAt),
             'created_at' => self::moment($refund->createdAt),
         ];

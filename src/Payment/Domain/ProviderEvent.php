@@ -30,6 +30,17 @@ final class ProviderEvent
     public const PAYMENT_FAILED = 'PAYMENT_FAILED';
     public const PAYMENT_CANCELLED = 'PAYMENT_CANCELLED';
     public const REFUND_SUCCEEDED = 'REFUND_SUCCEEDED';
+
+    /**
+     * The provider could not return the money it was asked to (2026-10-29).
+     *
+     * A refund that failed is not money given back, so it stops counting
+     * against what is still refundable. The credit note it carried stays —
+     * a numbered legal document is never deleted — and is left for a person
+     * to decide about, because both remedies (return the money another way,
+     * or invoice the sale again) are decisions and not arithmetic.
+     */
+    public const REFUND_FAILED = 'REFUND_FAILED';
     public const CHARGEBACK_OPENED = 'CHARGEBACK_OPENED';
 
     /**

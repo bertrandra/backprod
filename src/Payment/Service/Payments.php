@@ -109,16 +109,20 @@ final class Payments
     {
         $invoice = $this->requireInvoice($tenantId, $productId, $invoiceId);
 
-        if ($invoice->status !== InvoiceStatus::ISSUED) {
+        if (!InvoiceStatus::isPayable($invoice->status)) {
             // A draft has not been sent, a paid one is settled, and a
-            // cancelled one is a debt that no longer exists. None of the
-            // three should be collectable.
+            // cancelled or credited one is a debt that no longer exists. None
+            // of them is collectable. An invoice on its way through
+            // e-invoicing still is (2026-10-29): transmitting a document does
+            // not settle it, and refusing here left it owed with no way to pay.
             throw new ConflictException(
                 'INVOICE_NOT_PAYABLE',
-                'Only an issued invoice can be paid.',
+                'Only an issued, unpaid invoice can be paid.',
                 ['status' => $invoice->status],
             );
         }
+
+        $this->supersedeLiveAttempts($invoice, $actorUserId);
 
         $provider = $this->providers->default();
 
@@ -162,17 +166,54 @@ final class Payments
     }
 
     /**
+     * One attempt at a time per invoice (2026-10-29).
+     *
+     * Every call minted a new attempt beside whatever was still live, so a
+     * customer with two tabs — or a dunning step beside the page they had
+     * left open — could authorize one invoice twice and be collected twice.
+     * `payments_one_live_attempt_per_invoice` now refuses a second live
+     * attempt outright.
+     *
+     * Refusing alone would be worse than the bug: an attempt nobody completes
+     * stays PENDING for ever, so an abandoned page — or the dunning pass's own
+     * attempt, which nobody but the customer can complete — would leave the
+     * invoice unpayable. So the attempt still live is **abandoned at the
+     * provider first**, and only an attempt the provider confirms can no
+     * longer collect is replaced. One the provider says is past that point —
+     * a SEPA debit in flight, a card already charged — refuses the new one,
+     * because that money is coming.
+     */
+    private function supersedeLiveAttempts(Invoice $invoice, ?string $actorUserId): void
+    {
+        foreach ($this->payments->liveAttemptsForInvoice($invoice->id) as $live) {
+            $abandoned = $this->providers->named($live->provider)->cancel($live)
+                && $this->payments->supersede($live, $actorUserId);
+
+            if (!$abandoned) {
+                throw new ConflictException(
+                    'PAYMENT_STILL_IN_FLIGHT',
+                    'A payment of this invoice is still in progress. Wait for it to settle or fail.',
+                    ['payment_id' => $live->id, 'status' => $live->status],
+                );
+            }
+        }
+    }
+
+    /**
      * Asks the provider to return money, and raises the credit note that
      * makes it legal.
      *
-     * The refund is recorded as PENDING and settles when the provider says
-     * so, through the same webhook everything else arrives by. Marking it
-     * settled here would be this platform telling itself money moved.
+     * The refund is recorded with the provider's own answer — usually
+     * PENDING, settled later by the same webhook everything else arrives by;
+     * SUCCEEDED when the provider settled it on the spot; FAILED when it
+     * refused, in which case no document is written. Marking it settled here
+     * on our own say-so would be this platform telling itself money moved.
      *
      * **The document is not conditional on that settlement**, and the order
-     * of the three steps below is the whole of the reasoning:
+     * of the steps below is the whole of the reasoning:
      *
      * ```text
+     * lock the invoice       every other refund and credit note waits
      * plan the credit note   refusable, and costs nothing when refused
      * ask the provider       cannot be taken back
      * write both, together   one transaction, or neither
@@ -180,10 +221,14 @@ final class Payments
      *
      * Planning first is what makes a refusal — a multi-rate invoice, an
      * invoice already credited — a refusal rather than money gone with
-     * nothing to declare it. Writing both together is the rule the
-     * early-termination charge follows for the same reason: a release with
-     * the buy-out unbilled is revenue given away, and a refund with no
-     * credit note is VAT declared on a sale that was undone (ADR-057).
+     * nothing to declare it. The lock is what keeps the plan true until it is
+     * written (2026-10-29): the ceilings used to be read with nothing held,
+     * so a concurrent credit could land between the plan and the write, and
+     * the write then refused `CREDIT_EXCEEDS_INVOICE` after the money had
+     * left. Writing both together is the rule the early-termination charge
+     * follows for the same reason: a release with the buy-out unbilled is
+     * revenue given away, and a refund with no credit note is VAT declared on
+     * a sale that was undone (ADR-057).
      *
      * A chargeback is deliberately not this. It arrives as a webhook, it is
      * imposed rather than granted, and §25 says correcting the document is a
@@ -207,31 +252,53 @@ final class Payments
             );
         }
 
-        $amount = $amountMinorUnits === null
-            ? $payment->amount
-            : Money::of($amountMinorUnits, $payment->amount->currency);
-
-        $this->assertRefundable($payment, $amount);
-
-        // Before the provider is asked, because the provider cannot be
-        // unasked.
-        $invoice = $this->requireInvoice($tenantId, $productId, $payment->invoiceId);
-        $plan = $this->creditNotes->planFor($invoice, $amount);
-
         $provider = $this->providers->named($payment->provider);
 
         return $this->payments->recordRefund(
             $payment,
-            $provider->refund($payment, $amount, $reason),
-            $amount,
             $reason,
             $actorUserId,
-            function () use ($plan, $reason, $actorUserId): void {
-                $this->creditNotes->applyPlan(
-                    $plan,
-                    sprintf('Refund of payment (%s).', strtolower($reason)),
-                    $actorUserId,
+            function () use ($payment, $amountMinorUnits, $reason, $actorUserId, $provider, $tenantId, $productId): array {
+                // Read under the invoice's lock, so neither ceiling can move
+                // before the write.
+                $refunds = $this->payments->refundsOf($payment->id);
+                $returned = self::returned($refunds);
+
+                // Absent means everything still refundable, as the contract
+                // says (2026-10-29) — not the whole payment, which after a
+                // partial refund is more than is left.
+                $amount = Money::of(
+                    $amountMinorUnits ?? $payment->amount->minorUnits - $returned,
+                    $payment->amount->currency,
                 );
+
+                if ($amountMinorUnits === null && $amount->minorUnits <= 0) {
+                    throw new ConflictException(
+                        'PAYMENT_NOT_REFUNDABLE',
+                        'Everything this payment collected has already been given back, or is on its way back.',
+                        ['collected' => $payment->amount->minorUnits, 'already_returned' => $returned],
+                    );
+                }
+
+                self::assertRefundable($payment, $amount, $returned);
+
+                // Before the provider is asked, because the provider cannot be
+                // unasked — and read again here, under the lock, so the plan
+                // is made against the invoice as it stands.
+                $invoice = $this->requireInvoice($tenantId, $productId, $payment->invoiceId);
+                $plan = $this->creditNotes->planFor($invoice, $amount);
+
+                return [
+                    // The ordinal tells two identical partial refunds apart at
+                    // a provider that remembers requests (2026-10-29).
+                    'refund' => $provider->refund($payment, $amount, $reason, count($refunds) + 1),
+                    'amount' => $amount,
+                    'alsoRecord' => fn (Refund $refund): string => $this->creditNotes->applyPlan(
+                        $plan,
+                        sprintf('Refund of payment (%s).', strtolower($reason)),
+                        $actorUserId,
+                    )->id,
+                ];
             },
         );
     }
@@ -242,18 +309,10 @@ final class Payments
      * call that somebody has to interpret, and the answer "you cannot give
      * back more than you took" does not need a round trip.
      */
-    private function assertRefundable(Payment $payment, Money $amount): void
+    private static function assertRefundable(Payment $payment, Money $amount, int $alreadyReturned): void
     {
         if ($amount->minorUnits <= 0) {
             throw new ConflictException('REFUND_AMOUNT_INVALID', 'A refund must be for a positive amount.');
-        }
-
-        $alreadyReturned = 0;
-
-        foreach ($this->payments->refundsOf($payment->id) as $refund) {
-            if ($refund->status !== Refund::FAILED) {
-                $alreadyReturned += $refund->amount->minorUnits;
-            }
         }
 
         if ($alreadyReturned + $amount->minorUnits > $payment->amount->minorUnits) {
@@ -267,6 +326,26 @@ final class Payments
                 ],
             );
         }
+    }
+
+    /**
+     * What has gone back, or is on its way: every refund but a failed one. A
+     * failed refund is not money returned — the provider refused it — so it
+     * does not bound the next one.
+     *
+     * @param list<Refund> $refunds
+     */
+    private static function returned(array $refunds): int
+    {
+        $total = 0;
+
+        foreach ($refunds as $refund) {
+            if ($refund->status !== Refund::FAILED) {
+                $total += $refund->amount->minorUnits;
+            }
+        }
+
+        return $total;
     }
 
     private function requireInvoice(string $tenantId, string $productId, string $invoiceId): Invoice

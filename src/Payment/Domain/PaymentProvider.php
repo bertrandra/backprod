@@ -87,8 +87,28 @@ interface PaymentProvider
     public function parse(string $rawBody): ?ProviderEvent;
 
     /**
-     * Asks the provider to return money. The refund is not settled until the
-     * provider says so through a webhook — this only starts it.
+     * Asks the provider to return money.
+     *
+     * What comes back carries the provider's own answer as one of
+     * {@see Refund::PENDING}, {@see Refund::SUCCEEDED} or {@see Refund::FAILED}
+     * (2026-10-29) — never a constant the adapter assumed. A refund still
+     * pending settles later, through a webhook.
+     *
+     * `$attempt` is the ordinal of this refund on the payment — one more than
+     * the refunds already recorded against it. Two identical partial refunds
+     * are two refunds, and a provider that remembers requests must not hand
+     * the second one the first one's answer.
      */
-    public function refund(Payment $payment, Money $amount, string $reason): ProviderRefund;
+    public function refund(Payment $payment, Money $amount, string $reason, int $attempt = 1): ProviderRefund;
+
+    /**
+     * Abandons an attempt nobody completed, so another can replace it
+     * (2026-10-29).
+     *
+     * True when the attempt can no longer collect anything — cancelled now,
+     * or already cancelled. False when the provider says it is past that
+     * point: collecting, or collected. A caller that gets false must not
+     * start a second attempt, or one invoice is paid twice.
+     */
+    public function cancel(Payment $payment): bool;
 }

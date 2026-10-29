@@ -37,7 +37,23 @@ final class Refund
         public readonly string $status,
         public readonly ?DateTimeImmutable $settledAt,
         public readonly DateTimeImmutable $createdAt,
+        /**
+         * The credit note written with this refund, when there was one
+         * (2026-10-29). A FAILED refund that names one is a document whose
+         * money never moved — the case an operator has to decide about.
+         */
+        public readonly ?string $creditNoteId = null,
     ) {
+    }
+
+    /**
+     * A refund the provider failed, carrying a credit note: the document says
+     * the money went back and it did not. Not resolved here — see
+     * {@see ProviderEvent::REFUND_FAILED}.
+     */
+    public function needsADecision(): bool
+    {
+        return $this->status === self::FAILED && $this->creditNoteId !== null;
     }
 
     /**
