@@ -904,7 +904,10 @@ return static function (array $overrides = []): ContainerInterface {
         // set with: a sign-out that forgot the domain would leave the
         // credential in the browser (see `RefreshCookie::clear`).
         SignInController::class => autowire()
-            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
+            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN')))
+            // The rate limiter's list: failed sign-ins are counted per
+            // client, and the client is whoever the limiter believes it is.
+            ->constructorParameter('trustedProxies', $list($env('TRUSTED_PROXIES'))),
         SignUpController::class => autowire()
             ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
         SignOutController::class => autowire()
