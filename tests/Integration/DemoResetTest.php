@@ -7,6 +7,8 @@ namespace App\Tests\Integration;
 use App\Auth\Domain\AuthProvider;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Service\DemoSeeder;
+use App\Storage\Domain\StorageProvider;
+use App\Storage\Infrastructure\LocalStorageProvider;
 use App\Tests\Support\FakeAuthProvider;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
@@ -237,8 +239,8 @@ final class DemoResetTest extends DatabaseApiTestCase
      * Plan's page shows the product (2026-10-08): real screenshots, shipped
      * with the platform, uploaded through the showcase's own door on every
      * reset, and served to a stranger from the public route. A second reset
-     * leaves the same number behind — the previous ones are deleted through
-     * that door too, bytes included, rather than orphaned by the truncate.
+     * leaves the same number behind — the previous ones' bytes are deleted
+     * once it has committed, rather than orphaned by the truncate.
      */
     public function testPlansPageCarriesItsPicturesAndAResetDoesNotHoardThem(): void
     {
@@ -277,6 +279,114 @@ final class DemoResetTest extends DatabaseApiTestCase
 
         self::assertSame(200, $this->reset('ola-token')->getStatusCode());
         self::assertSame($expected, $this->connection->fetchOne('SELECT count(*) FROM product_assets'));
+    }
+
+    /**
+     * A reset that fails leaves the world before it standing — its pictures
+     * included (2026-10-29). Their bytes are outside the transaction: they
+     * were deleted before it, so a rolled-back reset restored rows naming
+     * bytes that were gone, and left the new attempt's bytes orphaned.
+     * Failed here by a constraint every subscription the rebuild writes
+     * breaks, which is after the pictures are uploaded.
+     */
+    public function testAResetThatFailsLeavesThePreviousPicturesStanding(): void
+    {
+        $root = sys_get_temp_dir() . '/backprod-demo-pictures-' . bin2hex(random_bytes(6));
+        $this->override([StorageProvider::class => new LocalStorageProvider($root)]);
+
+        try {
+            self::assertSame(200, $this->reset('ola-token')->getStatusCode());
+            $before = $this->picturesOnPlansPage();
+            self::assertNotSame([], $before);
+            $stored = self::filesUnder($root);
+            self::assertSame(count($before), $stored);
+
+            $this->appoint(
+                $this->id("INSERT INTO users (auth_subject, email) VALUES ('sub-ola', 'ola@platform.test') RETURNING id"),
+                'PLATFORM_ADMIN',
+            );
+
+            $this->connection->executeStatement(
+                'ALTER TABLE subscriptions ADD CONSTRAINT demo_reset_fails_here CHECK (false) NOT VALID',
+            );
+
+            try {
+                $failed = $this->reset('ola-token');
+            } finally {
+                $this->connection->executeStatement('ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS demo_reset_fails_here');
+            }
+
+            self::assertSame(500, $failed->getStatusCode());
+
+            // The same pictures, and every one of them still drawn.
+            self::assertSame($before, $this->picturesOnPlansPage());
+
+            foreach ($before as $url) {
+                $bytes = $this->request('GET', $url);
+                self::assertSame(200, $bytes->getStatusCode(), $url);
+                self::assertStringStartsWith('image/', $bytes->getHeaderLine('Content-Type'));
+            }
+
+            self::assertSame($stored, self::filesUnder($root), 'the failed attempt left no bytes of its own behind');
+        } finally {
+            self::removeTree($root);
+        }
+    }
+
+    /**
+     * @return list<string> the picture addresses Plan's public page draws
+     */
+    private function picturesOnPlansPage(): array
+    {
+        $page = $this->decode($this->request('GET', '/api/v1/public/products/plan/showcase'));
+        $showcase = $page['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        $blocks = $showcase['blocks'] ?? null;
+        self::assertIsArray($blocks);
+        $pictured = [];
+
+        foreach ($blocks as $row) {
+            if (is_array($row) && is_string($row['image'] ?? null)) {
+                $pictured[] = $row['image'];
+            }
+        }
+
+        return $pictured;
+    }
+
+    private static function filesUnder(string $directory): int
+    {
+        $files = 0;
+
+        foreach (is_dir($directory) ? scandir($directory) ?: [] : [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $directory . '/' . $entry;
+            $files += is_dir($path) ? self::filesUnder($path) : 1;
+        }
+
+        return $files;
+    }
+
+    private static function removeTree(string $directory): void
+    {
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        foreach (scandir($directory) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $directory . '/' . $entry;
+
+            is_dir($path) ? self::removeTree($path) : unlink($path);
+        }
+
+        rmdir($directory);
     }
 
     public function testTheWorldHasMoneyInItAndThePaymentsScreenCanReadIt(): void

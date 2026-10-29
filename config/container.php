@@ -208,6 +208,7 @@ use App\Tax\Domain\VatNumberValidator;
 use App\Tax\Infrastructure\PostgresTaxRepository;
 use App\Tax\Infrastructure\StubVatNumberValidator;
 use App\Tax\Infrastructure\UnavailableVatNumberValidator;
+use App\Tax\Infrastructure\ViesVatNumberValidator;
 use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\JoinRequests;
 use App\Tenant\Domain\TenantMemberRepository;
@@ -762,13 +763,16 @@ return static function (array $overrides = []): ContainerInterface {
         // ending in 0 or 9 and reverse-charged on it. `VAT_NUMBER_VALIDATOR=stub`
         // chooses the stub, for tests and the demonstration; anything else —
         // unset included — gets the validator that verifies nothing, so every
-        // number answers UNAVAILABLE and no sale is reverse-charged. A real
-        // VIES adapter is a third name here.
+        // number answers UNAVAILABLE and no sale is reverse-charged.
+        // `VAT_NUMBER_VALIDATOR=vies` asks the Commission's VIES service,
+        // and fails closed on anything but a clear answer.
         TaxRepository::class => autowire(PostgresTaxRepository::class),
         VatNumberValidator::class => factory(
-            static fn (): VatNumberValidator => $env('VAT_NUMBER_VALIDATOR') === StubVatNumberValidator::NAME
-                ? new StubVatNumberValidator()
-                : new UnavailableVatNumberValidator(),
+            static fn (): VatNumberValidator => match ($env('VAT_NUMBER_VALIDATOR')) {
+                ViesVatNumberValidator::NAME => new ViesVatNumberValidator(),
+                StubVatNumberValidator::NAME => new StubVatNumberValidator(),
+                default => new UnavailableVatNumberValidator(),
+            },
         ),
 
         StaffRepository::class => autowire(PostgresStaffRepository::class),
@@ -904,7 +908,10 @@ return static function (array $overrides = []): ContainerInterface {
         // set with: a sign-out that forgot the domain would leave the
         // credential in the browser (see `RefreshCookie::clear`).
         SignInController::class => autowire()
-            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
+            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN')))
+            // The rate limiter's list: failed sign-ins are counted per
+            // client, and the client is whoever the limiter believes it is.
+            ->constructorParameter('trustedProxies', $list($env('TRUSTED_PROXIES'))),
         SignUpController::class => autowire()
             ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
         SignOutController::class => autowire()

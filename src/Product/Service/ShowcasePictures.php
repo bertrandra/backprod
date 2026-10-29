@@ -104,6 +104,24 @@ final class ShowcasePictures
         return $this->storage->get($asset->storageKey);
     }
 
+    /**
+     * Deletes the bytes of pictures whose rows are already gone, or never
+     * committed — and leaves the rows alone (2026-10-29).
+     *
+     * For the demonstration's reset, which replaces every row in one
+     * transaction: the old pictures' bytes may go only once it has
+     * committed, and a failed one's new bytes as soon as it has not.
+     * {@see delete()} is the door for anybody else.
+     *
+     * @param list<ProductAsset> $assets
+     */
+    public function discardContentsOf(array $assets): void
+    {
+        foreach ($assets as $asset) {
+            $this->storage->delete($asset->storageKey);
+        }
+    }
+
     public function delete(string $productId, string $assetId): void
     {
         $asset = $this->assets->find($productId, $assetId);

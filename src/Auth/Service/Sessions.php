@@ -71,18 +71,32 @@ final class Sessions
     public const RESEND_INTERVAL = 60;
 
     /**
-     * Failed sign-ins one address may have in a window (2026-10-26).
+     * Failed sign-ins one address may have **from one client** in a window.
      *
      * The per-IP bucket of the middleware was the only brake, and guessing at
-     * one account from many addresses went through it untouched. Generous on
-     * purpose — a person mistyping does not reach it — and counted per
-     * failure since 2026-10-29: counting every attempt let anybody sending
+     * one account from many addresses went through it untouched (2026-10-26).
+     * Generous on purpose — a person mistyping does not reach it — and
+     * counted per failure: counting every attempt let anybody sending
      * sign-ins for an address — the right password included — use up its
      * bound. The bound is read before the password is checked and a failure
-     * counted after, a gap the limiter's `peek()` explains and bounds. Past
-     * the bound even the right password is refused, as before.
+     * counted after, a gap the limiter's `peek()` explains and bounds.
+     *
+     * Per (address, client) since 2026-10-29: counted per address alone, a
+     * stranger sending twenty wrong passwords locked the owner out of their
+     * own account for the rest of the window. Now the stranger's failures
+     * lock out the stranger. Past the bound even the right password is
+     * refused from that client, so the answer cannot say whether it was.
      */
     public const SIGN_IN_LIMIT = 20;
+
+    /**
+     * Failed sign-ins one address may have from **everywhere** in a window:
+     * the ceiling against guessing spread over many clients, each staying
+     * under {@see SIGN_IN_LIMIT}. Ten times as high, so reaching it takes a
+     * botnet rather than a grudge — and what it costs the owner then is the
+     * same lockout the per-address bound used to hand anybody.
+     */
+    public const SIGN_IN_CEILING = 200;
     public const SIGN_IN_WINDOW = 900;
 
     /**
@@ -144,6 +158,8 @@ final class Sessions
          * container always passes the platform's limiter.
          */
         private readonly ?RateLimiter $attempts = null,
+        /** {@see SIGN_IN_CEILING}; lowered only by a test that cannot afford two hundred hashes. */
+        private readonly int $signInCeiling = self::SIGN_IN_CEILING,
     ) {
     }
 
@@ -457,12 +473,18 @@ final class Sessions
     }
 
     /**
+     * @param string $from the client asking, as {@see \App\Shared\Context\ClientAddress}
+     *                     resolves it — whose failures are counted against
+     *                     whom ({@see SIGN_IN_LIMIT})
+     *
      * @throws UnauthenticatedException when the address or the password is wrong
      */
-    public function signIn(string $email, #[SensitiveParameter] string $password, ?string $productCode = null): Session
+    public function signIn(string $email, #[SensitiveParameter] string $password, string $from, ?string $productCode = null): Session
     {
-        // Read, not counted: only a failure spends the bound (2026-10-29).
-        $over = $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT, false);
+        // Read, not counted: only a failure spends a bound (2026-10-29). The
+        // client's own, then the address's ceiling across every client.
+        $over = $this->overBound('sign-in-from', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT, false, $from)
+            ?? $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, $this->signInCeiling, false);
 
         if ($over !== null) {
             // The same refusal whether the address has an account or not.
@@ -482,7 +504,8 @@ final class Sessions
             // Counted after the check, so only a failure spends the bound —
             // for an unknown address as for a known one, or the count would
             // say which is which.
-            $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT);
+            $this->overBound('sign-in-from', $email, self::SIGN_IN_WINDOW, self::SIGN_IN_LIMIT, true, $from);
+            $this->overBound('sign-in', $email, self::SIGN_IN_WINDOW, $this->signInCeiling);
 
             // One event, one shape. The log says which address was tried because
             // that is what makes a brute-force attempt visible; the *response*
@@ -823,15 +846,17 @@ final class Sessions
      * reads where the next one would land — and returns the decision when
      * the attempt is past its bound, null while it is within it. The address
      * is hashed, lowercased, before it becomes a bucket: the counter table is
-     * not a list of who tried to sign in.
+     * not a list of who tried to sign in. With `$from`, the bucket is that
+     * address from that client, the client hashed as well.
      */
-    private function overBound(string $what, string $email, int $window, int $limit, bool $count = true): ?RateLimitDecision
+    private function overBound(string $what, string $email, int $window, int $limit, bool $count = true, ?string $from = null): ?RateLimitDecision
     {
         if ($this->attempts === null) {
             return null;
         }
 
-        $bucket = 'auth:' . $what . ':' . hash('sha256', mb_strtolower(trim($email)));
+        $bucket = 'auth:' . $what . ':' . hash('sha256', mb_strtolower(trim($email)))
+            . ($from === null ? '' : ':' . hash('sha256', $from));
         $decision = $count
             ? $this->attempts->hit($bucket, $window, $limit)
             : $this->attempts->peek($bucket, $window, $limit);
