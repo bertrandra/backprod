@@ -212,6 +212,29 @@ function remember(productCode: string | null): void {
   }
 }
 
+/**
+ * What else has to go when a session does (2026-10-29).
+ *
+ * The store holds the token; the query cache holds everything that token was
+ * used to read — a name, roles, permissions, a staff identity, every list. A
+ * session ended by the transport (a refresh refused behind a 401) used to
+ * forget the first and keep the second, so the next person to sign in on the
+ * same tab was shown the previous one's data until each query refetched.
+ *
+ * The cache lives in React (`AppProviders`), the store does not, so the cache
+ * registers here rather than the store reaching for it. Every transition to
+ * `anonymous` runs these, whichever door it came through.
+ */
+const sessionEndListeners = new Set<() => void>();
+
+export function onSessionEnded(listener: () => void): () => void {
+  sessionEndListeners.add(listener);
+
+  return () => {
+    sessionEndListeners.delete(listener);
+  };
+}
+
 export const useSessionStore = create<SessionState>((set) => ({
   token: null,
   productCode: null,
@@ -241,6 +264,10 @@ export const useSessionStore = create<SessionState>((set) => ({
     remember(null);
     forgetLanding();
     set({ token: null, productCode: null, expiresAt: null, status: 'anonymous' });
+
+    for (const listener of [...sessionEndListeners]) {
+      listener();
+    }
   },
   unreachable: () => {
     set({ status: 'unreachable' });

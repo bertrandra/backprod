@@ -61,6 +61,7 @@ export class SignInFailed extends Error {
 
 export function useSignIn() {
   const client = useApiClient();
+  const queryClient = useQueryClient();
   const signIn = useSessionStore((state) => state.signIn);
 
   return useMutation({
@@ -79,6 +80,11 @@ export function useSignIn() {
       return data;
     },
     onSuccess: (session) => {
+      // A new person, or the same one again: either way nothing read under a
+      // previous token may be shown under this one. Cleared before the session
+      // is stored, so no screen renders with the new token and the old answers.
+      // Queries only: the mutation cache holds this very sign-in, still settling.
+      queryClient.removeQueries();
       signIn({ accessToken: session.access_token, expiresIn: session.expires_in });
     },
   });

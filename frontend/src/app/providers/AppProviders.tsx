@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { detectRoot } from '@/app/root';
 import { buildRouter, type AppRouter } from '@/app/router';
-import { useSessionStore } from '@/state/session';
+import { onSessionEnded, useSessionStore } from '@/state/session';
 import { useLocale } from '@/i18n/useLocale';
 import { SignInGate } from '@/features/auth/SignInGate';
 import { ApiError } from '@/queries/session';
@@ -53,6 +53,11 @@ export function AppProviders({
   queryClient?: QueryClient;
 }) {
   const [client] = useState(() => queryClient ?? createQueryClient());
+
+  // A session that ends takes its cache with it, however it ended — including
+  // a refresh refused inside the API client's middleware, which has no hook to
+  // reach React by itself.
+  useEffect(() => onSessionEnded(() => client.clear()), [client]);
 
   return (
     <QueryClientProvider client={client}>

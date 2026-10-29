@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { can } from '@/app/access/access';
 import { useMembers } from '@/queries/members';
-import { useSession } from '@/queries/session';
+import { ApiError, useSession } from '@/queries/session';
 import { useAddPerson, usePeople, useRemovePerson } from '@/queries/subscription';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -54,8 +54,15 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
   }
 
   if (people.error !== null) {
-    // No live subscription to manage is nothing to show, not an error.
-    return null;
+    // No live subscription to manage is nothing to show, not an error — and
+    // that is the one answer that is (the contract's 404, `NO_SUBSCRIPTION`).
+    // Anything else is a failure, said as one: a list that silently vanished
+    // reads as "nobody is covered".
+    if (people.error instanceof ApiError && people.error.code === 'NO_SUBSCRIPTION') {
+      return null;
+    }
+
+    return <ErrorSurface error={people.error} onRetry={() => void people.refetch()} />;
   }
 
   const current = people.data;

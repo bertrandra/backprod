@@ -1488,7 +1488,7 @@
   "Who {product} invoices as, and under which VAT regime. Both are configuration and neither is guessed: an invoice is a legal document with a permanent number, so a product that cannot name its issuer refuses to raise one rather than issuing a blank.": "Con quale identità {product} fattura, e sotto quale regime IVA. Entrambi sono configurazione e nessuno è indovinato: una fattura è un documento legale con un numero permanente, quindi un prodotto che non può indicare l'emittente rifiuta di generarne una anziché emetterne una vuota.",
   "Who holds what, with the places taken": "Chi possiede cosa, con i posti occupati",
   "Who it is for": "A chi si rivolge",
-  "Who may act across tenants, and under which role. A platform role never grants membership of anybody&rsquo;s tenant — it grants the console.": "Chi può agire tra organizzazioni, e con quale ruolo. Un ruolo di piattaforma non concede mai l'appartenenza all'organizzazione di nessuno — concede la console.",
+  "Who may act across tenants, and under which role. A platform role never grants membership of anybody’s tenant — it grants the console.": "Chi può agire tra organizzazioni, e con quale ruolo. Un ruolo di piattaforma non concede mai l'appartenenza all'organizzazione di nessuno — concede la console.",
   "Who may join": "Chi può unirsi",
   "Who said it": "Chi l’ha detto",
   "Who the invoices name": "Chi indicano le fatture",

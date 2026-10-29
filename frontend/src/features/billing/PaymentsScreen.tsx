@@ -279,7 +279,7 @@ export function PaymentsScreen() {
                       pending={refund.isPending}
                       onClick={() =>
                         refund.mutate(
-                          { paymentId: payment.id, reason },
+                          { paymentId: payment.id, reason, invoiceId: payment.invoice_id },
                           { onSettled: () => setRefunding(null) },
                         )
                       }

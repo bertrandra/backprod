@@ -5,6 +5,7 @@ import {
   useAdminJobs,
   useQueueHealth,
   type AdminJob,
+  type QueueHealth,
 } from '@/queries/admin';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -131,16 +132,6 @@ export function QueueScreen() {
   );
 }
 
-interface Health {
-  never_ran: boolean;
-  last_run: Record<string, unknown>;
-  unfinished_runs: number;
-  oldest_unfinished_seconds: number | null;
-  backlog: Record<string, unknown>;
-  stale_after_seconds?: number;
-  stale?: boolean;
-}
-
 function seconds(value: unknown): string {
   if (typeof value !== 'number') {
     return 'unknown';
@@ -157,7 +148,7 @@ function seconds(value: unknown): string {
   return `${String(Math.round(value / 3_600))} h`;
 }
 
-function Liveness({ health }: { health: Health }) {
+function Liveness({ health }: { health: QueueHealth }) {
   // `never_ran` first, and on its own: it is the state every counter below
   // reports as a calm zero.
   if (health.never_ran) {

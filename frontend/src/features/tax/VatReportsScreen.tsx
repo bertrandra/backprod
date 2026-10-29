@@ -351,6 +351,9 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
   const vat = typeof totals.total_vat === 'number' ? totals.total_vat : 0;
   const count = typeof totals.transaction_count === 'number' ? totals.transaction_count : 0;
   const currencies = Array.isArray(totals.currencies) ? totals.currencies : [];
+  // Two currencies have no total: a sum of euros and pounds labelled in one of
+  // them is a figure on no return. The rows below keep each in its own.
+  const mixed = currencies.length > 1;
 
   return (
     <section
@@ -365,13 +368,13 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
         <div>
           <dt className="text-xs uppercase tracking-wide text-subtle">{t("Taxable base")}</dt>
           <dd data-testid="running-base">
-            <Amount money={{ minor_units: base, currency }} />
+            {mixed ? '—' : <Amount money={{ minor_units: base, currency }} />}
           </dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-subtle">{t("VAT")}</dt>
           <dd data-testid="running-vat">
-            <Amount money={{ minor_units: vat, currency }} />
+            {mixed ? '—' : <Amount money={{ minor_units: vat, currency }} />}
           </dd>
         </div>
         <div>
@@ -382,7 +385,7 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
 
       {/* A declaration carries one currency, so a period holding two cannot be
           closed. Said here rather than discovered from a 409. */}
-      {currencies.length > 1 && (
+      {mixed && (
         <p data-testid="mixed-currencies" className="text-warning">
           {t("This period holds transactions in {currencies}. A declaration carries one currency, so it cannot be closed while that is true.", { currencies: currencies.join(', ') })}
         </p>

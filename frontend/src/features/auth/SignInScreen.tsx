@@ -82,7 +82,10 @@ export function SignInScreen() {
   // Read from the address bar rather than from the router: this screen renders
   // *instead of* the router when there is no session, so there are no route
   // params to read.
-  const token = new URLSearchParams(window.location.search).get('verify');
+  //
+  // Read once: the link is spent below and then taken out of the address, and
+  // the message about it must outlive the address that carried it.
+  const [token] = useState(() => new URLSearchParams(window.location.search).get('verify'));
   const resetToken = new URLSearchParams(window.location.search).get('reset');
   const [forgetting, setForgetting] = useState(false);
   const [resetDone, setResetDone] = useState(false);
@@ -95,7 +98,16 @@ export function SignInScreen() {
   useEffect(() => {
     if (token !== null && token !== '' && !attempted.current) {
       attempted.current = true;
-      verification.mutate(token);
+      verification.mutate(token, {
+        // Out of the address once spent, whatever the answer: otherwise signing
+        // in on this page carries `?verify=` into the router, which spends it
+        // a second time and reports a link that had just worked as invalid.
+        onSettled: () => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('verify');
+          window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+        },
+      });
     }
   }, [token, verification]);
 
