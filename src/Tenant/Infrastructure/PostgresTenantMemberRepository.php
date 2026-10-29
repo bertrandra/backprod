@@ -66,6 +66,11 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
                 WHERE tm.tenant_id = :tenantId
                   AND tm.product_id = :productId
                   AND tm.user_id = :userId
+                  -- A membership waiting on an administrator or on its own
+                  -- address is not one yet: somebody PENDING is not to be
+                  -- made an administrator, counted as one, or put in a
+                  -- conversation.
+                  AND tm.status = 'ACTIVE'
                 GROUP BY u.id, u.email, u.display_name
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
@@ -84,6 +89,34 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
         // may see. `$productId` names the context the caller resolved and is
         // one of those rows by construction.
         $this->connection->transactional(function () use ($tenantId, $userId, $roleCodes): void {
+            // Somebody still waiting — on an administrator, or on their own
+            // address — is not a member, so the caller found nobody; an
+            // administrator naming them is the approval, as an invitation is.
+            // The roles they waited with were the sign-up's default, not a
+            // decision: the ones named here replace them.
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    DELETE FROM tenant_member_roles tmr
+                    USING tenant_members tm
+                    WHERE tm.tenant_id = tmr.tenant_id
+                      AND tm.user_id = tmr.user_id
+                      AND tm.product_id = tmr.product_id
+                      AND tmr.tenant_id = :tenantId
+                      AND tmr.user_id = :userId
+                      AND tm.status IN ('PENDING', 'UNCONFIRMED')
+                    SQL,
+                ['tenantId' => $tenantId, 'userId' => $userId],
+            );
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE tenant_members SET status = 'ACTIVE'
+                    WHERE tenant_id = :tenantId
+                      AND user_id = :userId
+                      AND status IN ('PENDING', 'UNCONFIRMED')
+                    SQL,
+                ['tenantId' => $tenantId, 'userId' => $userId],
+            );
+
             $this->connection->executeStatement(
                 <<<'SQL'
                     INSERT INTO tenant_members (tenant_id, user_id, product_id)
@@ -164,9 +197,16 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
                 SELECT count(DISTINCT tmr.user_id)
                 FROM tenant_member_roles tmr
                 JOIN roles r ON r.id = tmr.role_id
+                JOIN tenant_members tm
+                  ON tm.tenant_id = tmr.tenant_id
+                 AND tm.user_id = tmr.user_id
+                 AND tm.product_id = tmr.product_id
                 WHERE tmr.tenant_id = :tenantId
                   AND tmr.product_id = :productId
                   AND r.code = :roleCode
+                  -- Only a live membership administers anything, so only one
+                  -- counts towards "not the last administrator".
+                  AND tm.status = 'ACTIVE'
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId, 'roleCode' => $roleCode],
         );
