@@ -738,6 +738,14 @@ final class PostgresPaymentRepository implements PaymentRepository
      * with the document it leaves unanswered, `decision_required` set, and
      * the refund keeps its link to it ({@see Refund::needsADecision()}).
      *
+     * **After it succeeded, too** (2026-10-29). Stripe can report a refund
+     * `failed` or `canceled` after it had answered `succeeded` — the bank
+     * returned the money. The refund becomes FAILED the same way, and this
+     * time the payment *had* moved for it, so its status is computed again
+     * from the refunds still standing ({@see self::afterRefundReversed()});
+     * the ledger row says which status it left and which it reached, and the
+     * credit note is flagged for a decision exactly as above.
+     *
      * Only by the provider's refund id: a failure that named no refund would
      * otherwise fail every pending refund on the payment.
      */
@@ -747,14 +755,25 @@ final class PostgresPaymentRepository implements PaymentRepository
             return false;
         }
 
+        // The status it had is read under the row's lock, in the same
+        // statement that moves it: two deliveries about one refund cannot both
+        // see SUCCEEDED and both reverse it.
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
-                UPDATE refunds
+                WITH was AS (
+                    SELECT id, status
+                      FROM refunds
+                     WHERE payment_id = :payment
+                       AND provider_refund_id = :reference
+                       AND status IN ('PENDING', 'SUCCEEDED')
+                     FOR UPDATE
+                )
+                UPDATE refunds r
                    SET status = 'FAILED', updated_at = now()
-                 WHERE payment_id = :payment
-                   AND provider_refund_id = :reference
-                   AND status = 'PENDING'
-                RETURNING id, credit_note_id, amount_minor_units, currency
+                  FROM was
+                 WHERE r.id = was.id
+                RETURNING r.id, r.credit_note_id, r.amount_minor_units, r.currency,
+                          was.status AS previous_status
                 SQL,
             ['payment' => $payment->id, 'reference' => $event->providerRefundId],
         );
@@ -764,6 +783,11 @@ final class PostgresPaymentRepository implements PaymentRepository
         }
 
         $note = Row::nullableString($row, 'credit_note_id');
+        $previous = Row::string($row, 'previous_status');
+
+        // A pending refund never moved the payment; a settled one did, and
+        // its money is back with the customer's bank no longer.
+        $moved = $previous === Refund::SUCCEEDED ? $this->afterRefundReversed($payment->id) : null;
 
         $this->record(
             $payment->tenantId,
@@ -780,10 +804,62 @@ final class PostgresPaymentRepository implements PaymentRepository
                 'failure_code' => $event->failureCode,
                 'credit_note_id' => $note,
                 'decision_required' => $note !== null,
-            ],
+                'refund_was' => $previous,
+            ] + ($moved === null ? [] : ['from' => $moved[0], 'to' => $moved[1]]),
         );
 
         return true;
+    }
+
+    /**
+     * The payment's status once a settled refund has been reversed, from the
+     * refunds still standing (2026-10-29). Returns `[from, to]` when it moved.
+     *
+     * **The one move back the machine allows, and why it is not a move.**
+     * {@see PaymentStatus} is one-way so that a stale delivery cannot reverse
+     * a collected payment. REFUNDED and PARTIALLY_REFUNDED are not events of
+     * the payment, though: they are a sum of its refunds, and the provider has
+     * just said one of those never happened. The status is that sum again —
+     * SUCCEEDED when nothing settled is left, PARTIALLY_REFUNDED when some
+     * is, REFUNDED when the rest still covers it — and nothing else moves: a
+     * chargeback, or any status that is not a refund's, is left as it is.
+     *
+     * @return array{string, string}|null
+     */
+    private function afterRefundReversed(string $paymentId): ?array
+    {
+        $payment = $this->requireById($paymentId);
+
+        if ($payment->status !== PaymentStatus::REFUNDED && $payment->status !== PaymentStatus::PARTIALLY_REFUNDED) {
+            return null;
+        }
+
+        $returned = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT coalesce(sum(amount_minor_units), 0)
+                  FROM refunds
+                 WHERE payment_id = :payment AND status = 'SUCCEEDED'
+                SQL,
+            ['payment' => $payment->id],
+        );
+
+        $total = is_numeric($returned) ? (int) $returned : 0;
+        $status = match (true) {
+            $total <= 0 => PaymentStatus::SUCCEEDED,
+            $total >= $payment->amount->minorUnits => PaymentStatus::REFUNDED,
+            default => PaymentStatus::PARTIALLY_REFUNDED,
+        };
+
+        if ($status === $payment->status) {
+            return null;
+        }
+
+        $this->connection->executeStatement(
+            'UPDATE payments SET status = :status, updated_at = now() WHERE id = :id AND status = :from',
+            ['status' => $status, 'id' => $payment->id, 'from' => $payment->status],
+        );
+
+        return [$payment->status, $status];
     }
 
     /**

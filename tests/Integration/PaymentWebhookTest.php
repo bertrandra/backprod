@@ -1066,6 +1066,103 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
     }
 
     /**
+     * Stripe can report `failed` after it had said `succeeded`: the bank sent
+     * the money back. The payment had moved for that refund, so it moves back
+     * to what the refunds still standing justify, and the credit note is left
+     * for a decision as on the pending path.
+     */
+    public function testARefundThatSettledAndThenFailedGivesThePaymentBack(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1_160])->getStatusCode());
+
+        $note = $this->newestCreditNote();
+        $refundReference = $this->connection->fetchOne('SELECT provider_refund_id FROM refunds');
+        self::assertIsString($refundReference);
+
+        $this->deliver([
+            'id' => 'evt_refund_settled',
+            'type' => 'refund.succeeded',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => $refundReference,
+        ]);
+        $settled = $this->statusOfPayment($this->paymentReference());
+        self::assertSame('PARTIALLY_REFUNDED', $settled);
+
+        $response = $this->deliver([
+            'id' => 'evt_refund_reversed',
+            'type' => 'refund.failed',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => $refundReference,
+            'failure_code' => 'lost_or_stolen_card',
+        ]);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('FAILED', $this->connection->fetchOne('SELECT status FROM refunds'));
+
+        // Nothing settled is left, so all of it is ours again.
+        $reversed = $this->statusOfPayment($this->paymentReference());
+        self::assertSame('SUCCEEDED', $reversed);
+
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM financial_events WHERE type = 'REFUND_FAILED'"
+            . " AND detail ->> 'decision_required' = 'true'"
+            . " AND detail ->> 'refund_was' = 'SUCCEEDED'"
+            . " AND detail ->> 'from' = 'PARTIALLY_REFUNDED'"
+            . " AND detail ->> 'to' = 'SUCCEEDED'"
+            . " AND detail ->> 'credit_note_id' = " . $this->connection->quote(Row::string($note, 'id')),
+        ));
+
+        // The same failure delivered again finds nothing left to fail.
+        $again = $this->deliver([
+            'id' => 'evt_refund_reversed_again',
+            'type' => 'refund.failed',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => $refundReference,
+        ]);
+        self::assertSame('IGNORED_NOT_APPLICABLE', $this->decode($again)['outcome'] ?? null);
+    }
+
+    public function testReversingOneOfTwoSettledRefundsLeavesThePaymentPartlyRefunded(): void
+    {
+        $this->seedFiscalFact(2_900, 580, 2_000);
+        $this->collect();
+        self::assertSame(202, $this->refund(['amount_minor_units' => 1_000])->getStatusCode());
+        self::assertSame(202, $this->refund()->getStatusCode());
+
+        $references = $this->connection->fetchFirstColumn('SELECT provider_refund_id FROM refunds ORDER BY created_at, id');
+        self::assertCount(2, $references);
+
+        foreach ($references as $index => $reference) {
+            self::assertIsString($reference);
+            $this->deliver([
+                'id' => 'evt_settled_' . $index,
+                'type' => 'refund.succeeded',
+                'payment_id' => $this->paymentReference(),
+                'refund_id' => $reference,
+            ]);
+        }
+
+        $whole = $this->statusOfPayment($this->paymentReference());
+        self::assertSame('REFUNDED', $whole);
+
+        $first = $references[0] ?? null;
+        self::assertIsString($first);
+
+        $this->deliver([
+            'id' => 'evt_reversed',
+            'type' => 'refund.failed',
+            'payment_id' => $this->paymentReference(),
+            'refund_id' => $first,
+        ]);
+
+        // The second refund still stands, and it is not the whole payment.
+        $partly = $this->statusOfPayment($this->paymentReference());
+        self::assertSame('PARTIALLY_REFUNDED', $partly);
+    }
+
+    /**
      * `settleRefund` recomputed the payment's status even when no refund row
      * matched — a delivery arriving before the refund row had committed moved
      * the payment on a refund this platform had not recorded.
