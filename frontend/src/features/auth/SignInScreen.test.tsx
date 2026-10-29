@@ -264,3 +264,50 @@ describe('the link that sets a password (2026-09-19)', () => {
     expect(screen.getByTestId('reset-failed').textContent).toMatch(/no longer valid/i);
   });
 });
+
+describe('a confirmation link opened signed out', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('is spent once and taken out of the address, so signing in cannot spend it again', async () => {
+    window.history.replaceState(null, '', '/sign-in?verify=tok-1&lang=fr');
+    const { client, requests } = recordingClient({
+      'POST /api/v1/auth/verify-email': { data: { verified: true } },
+    });
+
+    renderWith(<SignInScreen />, client);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification').textContent).toContain('Your email address is confirmed');
+    });
+
+    // The router mounted after signing in reads `?verify=` and would spend it
+    // a second time; everything else the address said stays.
+    expect(new URLSearchParams(window.location.search).get('verify')).toBeNull();
+    expect(new URLSearchParams(window.location.search).get('lang')).toBe('fr');
+    expect(window.location.pathname).toBe('/sign-in');
+    // The message about the link outlives the address that carried it.
+    expect(screen.getByTestId('verification')).toBeDefined();
+    expect(requests.filter((request) => request.path === '/api/v1/auth/verify-email')).toHaveLength(1);
+  });
+
+  it('is taken out of the address when the server refuses it too', async () => {
+    window.history.replaceState(null, '', '/sign-in?verify=spent');
+
+    renderWith(
+      <SignInScreen />,
+      stubClient({
+        'POST /api/v1/auth/verify-email': {
+          status: 410,
+          error: { error: { code: 'TOKEN_INVALID', message: 'x', details: {}, request_id: 'r' } },
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification').textContent).toContain('no longer valid');
+    });
+    expect(window.location.search).toBe('');
+  });
+});
