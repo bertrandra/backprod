@@ -109,13 +109,15 @@ final class DemoWorld
             // the relief (pool, pergola, fence, measured roof bodies, 3D windows
             // and neighbourhood), which a schema-4 reader would lose, and
             // schema 6 since the release after it (2026-10-27; production gets
-            // both from `Version20261027090000`).
-            // All six, and not just the newest: a document written by an
+            // both from `Version20261027090000`), and schemas 7 to 12 declared
+            // ahead of the releases that will write them (2026-10-29; production
+            // gets them from `Version20261030090000`).
+            // All of them, and not just the newest: a document written by an
             // earlier release is still a document its owner opens, and a product
             // that stopped accepting the version it wrote last month would refuse
             // its own customers' work. Plan's `contrat/plan-produit.json` is
             // where this list comes from.
-            'schema_versions' => [1, 2, 3, 4, 5, 6],
+            'schema_versions' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
             'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
             // The seven Plan proposes (its `src/plateforme/capacites.ts`). The
