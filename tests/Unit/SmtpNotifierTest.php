@@ -139,6 +139,7 @@ final class SmtpNotifierTest extends TestCase
                 // The request to pay the next period, with its link
                 // (2026-10-05). Kept as sent too: it is a demand for payment.
                 'subscription.renewal_payment_request',
+                'subscription.renewal_notice',
             ],
             array_column($catalogue, 'type'),
         );
