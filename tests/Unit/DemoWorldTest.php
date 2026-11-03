@@ -36,6 +36,18 @@ final class DemoWorldTest extends TestCase
     }
 
     /**
+     * Plan's demonstration accepts every schema Plan writes, 13 included
+     * (2026-11-03): a facade with a low part at each end is written at 13, and
+     * a demo world that stopped at 12 would refuse its first save. All of them
+     * and not just the newest -- a document written last month is still one its
+     * owner opens.
+     */
+    public function testPlanAcceptsEverySchemaItWritesUpToThirteen(): void
+    {
+        self::assertSame(range(1, 13), DemoWorld::schemaVersionsFor('plan'));
+    }
+
+    /**
      * The demonstration's payments are the stub's, and say so (2026-09-26).
      *
      * A seeded world moves no money, and `StubPaymentProvider` exists so a

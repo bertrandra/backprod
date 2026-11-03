@@ -111,13 +111,15 @@ final class DemoWorld
             // schema 6 since the release after it (2026-10-27; production gets
             // both from `Version20261027090000`), and schemas 7 to 12 declared
             // ahead of the releases that will write them (2026-10-29; production
-            // gets them from `Version20261030090000`).
+            // gets them from `Version20261030090000`), and schema 13 for a
+            // façade with a low part at each end (2026-11-03; production gets it
+            // from `Version20261103090000`).
             // All of them, and not just the newest: a document written by an
             // earlier release is still a document its owner opens, and a product
             // that stopped accepting the version it wrote last month would refuse
             // its own customers' work. Plan's `contrat/plan-produit.json` is
             // where this list comes from.
-            'schema_versions' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            'schema_versions' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
             'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
             // The seven Plan proposes (its `src/plateforme/capacites.ts`). The
