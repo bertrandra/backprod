@@ -53,7 +53,16 @@ final class DemoWorldTest extends TestCase
      */
     public function testPlanAcceptsEverySchemaItWritesUpToFourteen(): void
     {
-        self::assertSame(range(1, 14), DemoWorld::schemaVersionsFor('plan'));
+        self::assertContains(14, DemoWorld::schemaVersionsFor('plan'));
+    }
+
+    /**
+     * And 15 (2026-11-05): a roof drawn by hand (a jerkinhead whose ridge
+     * overhangs the gable, a clipped gable point, a kicked eave) is written at 15.
+     */
+    public function testPlanAcceptsEverySchemaItWritesUpToFifteen(): void
+    {
+        self::assertSame(range(1, 15), DemoWorld::schemaVersionsFor('plan'));
     }
 
     /**
