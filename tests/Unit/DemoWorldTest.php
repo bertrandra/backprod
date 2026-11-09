@@ -62,7 +62,16 @@ final class DemoWorldTest extends TestCase
      */
     public function testPlanAcceptsEverySchemaItWritesUpToFifteen(): void
     {
-        self::assertSame(range(1, 15), DemoWorld::schemaVersionsFor('plan'));
+        self::assertContains(15, DemoWorld::schemaVersionsFor('plan'));
+    }
+
+    /**
+     * And 16 (2026-11-09): a bay window standing on a set-back ground floor is
+     * written at 16.
+     */
+    public function testPlanAcceptsEverySchemaItWritesUpToSixteen(): void
+    {
+        self::assertSame(range(1, 16), DemoWorld::schemaVersionsFor('plan'));
     }
 
     /**
