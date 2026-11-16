@@ -3354,6 +3354,162 @@
           }
         }
       },
+      "ProjectShare": {
+        "type": "object",
+        "description": "A share link as its sender sees it (ADR-073): everything except the token, which is never read back.",
+        "required": [
+          "id",
+          "project_id",
+          "display_name",
+          "recipient_label",
+          "status",
+          "created_by",
+          "created_at",
+          "expires_at",
+          "revoked_at",
+          "open_count",
+          "last_opened_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the reader is shown as the sender. Null when none was given, or once the sender was erased (§30)."
+          },
+          "recipient_label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sender's note of whom it is for; never shown to the reader. Null when none was given, or once the sender was erased."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "EXPIRED",
+              "REVOKED"
+            ],
+            "description": "Derived by the server when the link is read, against its own clock."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "open_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many times the link was opened. Nothing about who."
+          },
+          "last_opened_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CreatedProjectShare": {
+        "description": "A link just made, with the one copy of its URL there will ever be.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProjectShare"
+          },
+          {
+            "type": "object",
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "`{app_url}?product={code}#share={token}` — the product's page, the token in the fragment. Shown once."
+              }
+            }
+          }
+        ]
+      },
+      "SharedProject": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What a share link shows a stranger (ADR-073), and nothing else.",
+        "required": [
+          "project",
+          "shared_by",
+          "expires_at"
+        ],
+        "properties": {
+          "project": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "schema_version",
+              "document",
+              "updated_at"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "integer",
+                "description": "The schema the document speaks, as the product declared it."
+              },
+              "document": {
+                "$ref": "#/components/schemas/ProjectDocument"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When this version was saved: the link follows the project, so this is the date of what the reader sees."
+              }
+            }
+          },
+          "shared_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The display name the sender chose, or null."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the link stops answering."
+          }
+        }
+      },
       "ProjectVersion": {
         "allOf": [
           {
@@ -12935,6 +13091,234 @@
         }
       }
     },
+    "/api/v1/projects/{projectId}/shares": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "listProjectShares",
+        "summary": "List a project's share links",
+        "description": "Every link on the project, newest first — live, expired and revoked — **without their tokens**, which are never read back (ADR-073). `status` is derived by the server against its own clock.\n\n`projects.read` on a project the caller reaches (ADR-064), and **no feature**: somebody whose offer stopped selling `project_sharing` still sees what they handed out, which is what lets them take it back. An unreachable project answers 404.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "shares"
+                  ],
+                  "properties": {
+                    "shares": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectShare"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "createProjectShare",
+        "summary": "Make a read-only link to a project",
+        "description": "A link that shows the project, read-only and as it was last saved, to somebody with no account (ADR-073). The answer carries the full `url` **once**: only the token's hash is stored, so nothing can read it back — a lost link is revoked and made again.\n\nThe URL is the product's own page (`app_url`) with the token in the **fragment** — `{app_url}?product={code}#share={token}` — so it reaches no access log of the product's host and no `Referer`. The page reads it in the browser and asks `openSharedProject`.\n\nFour questions, in this order: a subscription covers the caller (`SUBSCRIPTION_REQUIRED`, `SUBSCRIPTION_PAST_DUE`), their role may change the work (`projects.write`, `PERMISSION_DENIED`), their offer sells sharing (the `project_sharing` feature, `ENTITLEMENT_REQUIRED`), and the project is theirs to reach (404 otherwise).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expires_in_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365,
+                    "default": 30,
+                    "description": "How long the link answers. 30 when absent; outside 1–365 is refused with `400 VALIDATION_FAILED`, never clamped."
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 80,
+                    "description": "What the reader is shown as the sender (\"shared by …\"). Optional; blank reads as none."
+                  },
+                  "recipient_label": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 120,
+                    "description": "The sender's own note of whom the link is for, so one recipient's link can be revoked without the others'. **Never shown to the reader.**"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The link, and its URL — the only time the URL is ever returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedProjectShare"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`SHARE_HAS_NO_VIEWER` — the product has no page of its own (`app_url`) to show a project on, so a link would lead nowhere. `SHARE_LIMIT_REACHED` — the project already has 50 live links (`details.limit`); revoke one first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/shares/{shareId}": {
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "revokeProjectShare",
+        "summary": "Revoke a share link",
+        "description": "The link stops answering at once (ADR-073). Revoking is a date, not a deletion, so the list keeps the history of what was handed out; revoking a link already revoked answers 204 and keeps the first date. `projects.write` on a project the caller reaches, and **no feature** — a link must always be withdrawable. A link of another project, or an unreachable project, answers 404.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/projects/{projectId}/assets": {
       "get": {
         "tags": [
@@ -19400,6 +19784,75 @@
           },
           "400": {
             "description": "`VALIDATION_FAILED` — `product` is missing, or a parameter is too long.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/public/shares/open": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "openSharedProject",
+        "summary": "Open a share link",
+        "description": "What a share link shows, to anybody holding its token (ADR-073). **No session, no product, no tenant**: the token is the whole request, and everything read is scoped by what the link says. The token travels in the body rather than the path so that no access log of this host keeps it; it is a `POST` because opening counts (`open_count`, `last_opened_at` — nothing about the reader is recorded).\n\nThe answer is the project as last saved — its name, its `schema_version`, its document untouched (§16) and the date of that version — the display name the sender chose, and when the link ends. Never the tenant, the holder, the creator, the description, a version or an asset.\n\n**One refusal**: `404 SHARE_NOT_FOUND` for a token that is malformed, unknown, expired or revoked, for a deleted project, and for a project whose holder no subscription covers any more (ADR-060) — the link answers again once they are. Held to the public rate limit. Sent with `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex, nofollow`.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "The token from the link's fragment (`#share=…`), exactly as it appears there."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the link shows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedProject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_BODY` or `VALIDATION_FAILED` — the body is not a JSON object, or `token` is not a string.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`SHARE_NOT_FOUND` — the link opens nothing, whatever the reason.",
             "content": {
               "application/json": {
                 "schema": {

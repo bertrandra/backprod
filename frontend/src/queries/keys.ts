@@ -111,6 +111,7 @@ export const keys = {
     version: (projectId: string, versionId: string) =>
       ['projects', 'one', projectId, 'versions', versionId] as const,
     assets: (id: string) => ['projects', 'one', id, 'assets'] as const,
+    shares: (id: string) => ['projects', 'one', id, 'shares'] as const,
   },
   assets: {
     one: (id: string) => ['assets', id] as const,

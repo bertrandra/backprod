@@ -354,6 +354,10 @@
             "Product",
             "Webhook"
         ],
+        "project_shares": [
+            "Privacy",
+            "Project"
+        ],
         "project_versions": [
             "Project"
         ],

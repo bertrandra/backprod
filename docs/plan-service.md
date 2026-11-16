@@ -204,6 +204,34 @@ Plan links back to the platform's shell for everything that is the
 platform's: the subscription, the invoices, the members, the profile — by
 ordinary links to the platform's host, never by re-implementing the screen.
 
+### 5.6 Share links (ADR-073)
+
+A customer shows a project, read-only, to somebody with no account. Plan offers
+the button, the platform keeps the link, and Plan's own page reads it.
+
+```text
+POST   /api/v1/projects/{id}/shares            { expires_in_days?, display_name?, recipient_label? }
+         201 → the link, and `url` once: {app_url}?product=plan#share=<token>
+GET    /api/v1/projects/{id}/shares            the links, never their tokens
+DELETE /api/v1/projects/{id}/shares/{shareId}  revoke
+POST   /api/v1/public/shares/open              { token } → { project: {name, schema_version,
+                                               document, updated_at}, shared_by, expires_at }
+```
+
+- Making one: `can('projects.write')` **and** `isEntitled('project_sharing')` —
+  the platform's word for the feature, not one of Plan's. Listing and revoking
+  ask for no feature.
+- The token is in the URL's **fragment**. Plan's page reads `#share=` in the
+  browser, removes it from the address bar (`history.replaceState`), and sends
+  it in the **body** of `openSharedProject` — needing no bearer and no `X-Product`:
+  the read is public and takes its scope from the link. The page serving a
+  shared project sends `Referrer-Policy: no-referrer` and `noindex`.
+- Every failure is `404 SHARE_NOT_FOUND`, one sentence for all of them. The
+  public read is held to the platform's public rate limit, so the page does not
+  poll it.
+- The document is what the project holds, untouched; the page renders it with
+  everything that edits it removed. No asset travels with it.
+
 ## 6. Plan's backend, if it has one (`plan-api`)
 
 Optional. A Plan whose resources fit the platform's product-scoped

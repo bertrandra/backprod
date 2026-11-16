@@ -1677,6 +1677,56 @@ export interface paths {
         patch: operations["updateProject"];
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a project's share links
+         * @description Every link on the project, newest first — live, expired and revoked — **without their tokens**, which are never read back (ADR-073). `status` is derived by the server against its own clock.
+         *
+         *     `projects.read` on a project the caller reaches (ADR-064), and **no feature**: somebody whose offer stopped selling `project_sharing` still sees what they handed out, which is what lets them take it back. An unreachable project answers 404.
+         */
+        get: operations["listProjectShares"];
+        put?: never;
+        /**
+         * Make a read-only link to a project
+         * @description A link that shows the project, read-only and as it was last saved, to somebody with no account (ADR-073). The answer carries the full `url` **once**: only the token's hash is stored, so nothing can read it back — a lost link is revoked and made again.
+         *
+         *     The URL is the product's own page (`app_url`) with the token in the **fragment** — `{app_url}?product={code}#share={token}` — so it reaches no access log of the product's host and no `Referer`. The page reads it in the browser and asks `openSharedProject`.
+         *
+         *     Four questions, in this order: a subscription covers the caller (`SUBSCRIPTION_REQUIRED`, `SUBSCRIPTION_PAST_DUE`), their role may change the work (`projects.write`, `PERMISSION_DENIED`), their offer sells sharing (the `project_sharing` feature, `ENTITLEMENT_REQUIRED`), and the project is theirs to reach (404 otherwise).
+         */
+        post: operations["createProjectShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/shares/{shareId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a share link
+         * @description The link stops answering at once (ADR-073). Revoking is a date, not a deletion, so the list keeps the history of what was handed out; revoking a link already revoked answers 204 and keeps the first date. `projects.write` on a project the caller reaches, and **no feature** — a link must always be withdrawable. A link of another project, or an unreachable project, answers 404.
+         */
+        delete: operations["revokeProjectShare"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/assets": {
         parameters: {
             query?: never;
@@ -3215,6 +3265,30 @@ export interface paths {
         get: operations["getPublicPalette"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/shares/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a share link
+         * @description What a share link shows, to anybody holding its token (ADR-073). **No session, no product, no tenant**: the token is the whole request, and everything read is scoped by what the link says. The token travels in the body rather than the path so that no access log of this host keeps it; it is a `POST` because opening counts (`open_count`, `last_opened_at` — nothing about the reader is recorded).
+         *
+         *     The answer is the project as last saved — its name, its `schema_version`, its document untouched (§16) and the date of that version — the display name the sender chose, and when the link ends. Never the tenant, the holder, the creator, the description, a version or an asset.
+         *
+         *     **One refusal**: `404 SHARE_NOT_FOUND` for a token that is malformed, unknown, expired or revoked, for a deleted project, and for a project whose holder no subscription covers any more (ADR-060) — the link answers again once they are. Held to the public rate limit. Sent with `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex, nofollow`.
+         */
+        post: operations["openSharedProject"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5381,6 +5455,63 @@ export interface components {
             created_by: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        /** @description A share link as its sender sees it (ADR-073): everything except the token, which is never read back. */
+        ProjectShare: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** @description What the reader is shown as the sender. Null when none was given, or once the sender was erased (§30). */
+            display_name: string | null;
+            /** @description The sender's note of whom it is for; never shown to the reader. Null when none was given, or once the sender was erased. */
+            recipient_label: string | null;
+            /**
+             * @description Derived by the server when the link is read, against its own clock.
+             * @enum {string}
+             */
+            status: "ACTIVE" | "EXPIRED" | "REVOKED";
+            /** Format: uuid */
+            created_by: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+            /** @description How many times the link was opened. Nothing about who. */
+            open_count: number;
+            /** Format: date-time */
+            last_opened_at: string | null;
+        };
+        /** @description A link just made, with the one copy of its URL there will ever be. */
+        CreatedProjectShare: components["schemas"]["ProjectShare"] & {
+            /**
+             * Format: uri
+             * @description `{app_url}?product={code}#share={token}` — the product's page, the token in the fragment. Shown once.
+             */
+            url: string;
+        };
+        /** @description What a share link shows a stranger (ADR-073), and nothing else. */
+        SharedProject: {
+            project: {
+                name: string;
+                /** @description The schema the document speaks, as the product declared it. */
+                schema_version: number;
+                document: components["schemas"]["ProjectDocument"];
+                /**
+                 * Format: date-time
+                 * @description When this version was saved: the link follows the project, so this is the date of what the reader sees.
+                 */
+                updated_at: string;
+            };
+            /** @description The display name the sender chose, or null. */
+            shared_by: string | null;
+            /**
+             * Format: date-time
+             * @description When the link stops answering.
+             */
+            expires_at: string;
         };
         ProjectVersion: components["schemas"]["ProjectVersionSummary"] & {
             document: components["schemas"]["ProjectDocument"];
@@ -10251,6 +10382,135 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listProjectShares: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The links. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        shares: components["schemas"]["ProjectShare"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createProjectShare: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description How long the link answers. 30 when absent; outside 1–365 is refused with `400 VALIDATION_FAILED`, never clamped.
+                     * @default 30
+                     */
+                    expires_in_days?: number;
+                    /** @description What the reader is shown as the sender ("shared by …"). Optional; blank reads as none. */
+                    display_name?: string | null;
+                    /** @description The sender's own note of whom the link is for, so one recipient's link can be revoked without the others'. **Never shown to the reader.** */
+                    recipient_label?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The link, and its URL — the only time the URL is ever returned. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedProjectShare"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `SHARE_HAS_NO_VIEWER` — the product has no page of its own (`app_url`) to show a project on, so a link would lead nowhere. `SHARE_LIMIT_REACHED` — the project already has 50 live links (`details.limit`); revoke one first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    revokeProjectShare: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+                shareId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     listAssets: {
         parameters: {
             query?: never;
@@ -14070,6 +14330,53 @@ export interface operations {
             };
             /** @description `VALIDATION_FAILED` — `product` is missing, or a parameter is too long. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    openSharedProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The token from the link's fragment (`#share=…`), exactly as it appears there. */
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description What the link shows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedProject"];
+                };
+            };
+            /** @description `INVALID_BODY` or `VALIDATION_FAILED` — the body is not a JSON object, or `token` is not a string. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `SHARE_NOT_FOUND` — the link opens nothing, whatever the reason. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

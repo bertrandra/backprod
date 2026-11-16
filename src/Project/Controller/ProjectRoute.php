@@ -60,6 +60,11 @@ final class ProjectRoute
         return self::attribute($request, 'versionId');
     }
 
+    public static function shareId(ServerRequestInterface $request): string
+    {
+        return self::attribute($request, 'shareId');
+    }
+
     /**
      * Two questions, in this order, on every project endpoint.
      *

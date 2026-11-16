@@ -151,6 +151,12 @@ final class DemoWorld
                 // and not change. It belongs to no tier, because it is not a smaller Plan — it is
                 // a different seat, sold on its own plan below.
                 'plan.readonly' => ['name' => 'Read-only seat', 'from' => 'lecture'],
+                // Share links (ADR-073, 2026-11-16): a platform word, not one of Plan's — the
+                // platform's code reads it to decide whether a link may be made. Sold here from
+                // Starter up, because a terrace one cannot show to whoever will build it is half a
+                // terrace; not by Freemium nor Lecture, whose grants are listed and leave it out —
+                // which is the whole of why a reader's seat makes no link.
+                'project_sharing' => ['name' => 'Share links', 'from' => 'starter'],
             ],
             // Two plans of their own, outside the Starter/Pro/Scale ladder, because neither is a
             // rung on it. Only this product sells them, and that is the point of the key: whether
@@ -266,6 +272,8 @@ final class DemoWorld
      * on a pricing page, so they are where a description earns its place. A
      * product's own capabilities are named and not explained here — what
      * `plan.terrasse` *does* is Plan's documentation, not the platform's.
+     * `project_sharing` is described because it is the platform's word, not
+     * the product's (ADR-073), and the migration that adds it says the same.
      *
      * @var array<string, string>
      */
@@ -273,6 +281,7 @@ final class DemoWorld
         'max_projects' => 'How many plans you may keep at once.',
         'exports' => 'How many files you may export each month.',
         'users' => 'How many colleagues the subscription covers.',
+        'project_sharing' => 'Show a project, read-only, to somebody with no account.',
     ];
 
     /**
@@ -363,6 +372,12 @@ final class DemoWorld
             'es' => ['name' => 'Dosier PDF para el cliente'],
             'de' => ['name' => 'Kunden-PDF-Dossier'],
             'it' => ['name' => 'Dossier PDF cliente'],
+        ],
+        'project_sharing' => [
+            'fr' => ['name' => 'Liens de partage', 'description' => 'Montrer un projet, en lecture seule, à quelqu’un qui n’a pas de compte.'],
+            'es' => ['name' => 'Enlaces para compartir', 'description' => 'Mostrar un proyecto, en solo lectura, a alguien sin cuenta.'],
+            'de' => ['name' => 'Freigabelinks', 'description' => 'Ein Projekt schreibgeschützt jemandem ohne Konto zeigen.'],
+            'it' => ['name' => 'Link di condivisione', 'description' => 'Mostrare un progetto, in sola lettura, a chi non ha un account.'],
         ],
         'plan.readonly' => [
             'fr' => ['name' => 'Siège en lecture seule'],

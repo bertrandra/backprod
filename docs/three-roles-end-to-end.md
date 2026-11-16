@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 22 (dont 7 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 36 propres + 70 partagées + 17 sans permission = **123** | **81** |
+| Opérations atteignables | 7 propres + 73 partagées + 17 sans permission = **97** | 36 propres + 73 partagées + 17 sans permission = **126** | **81** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -276,6 +276,9 @@ ceux qui savent atteindre l'endpoint.
 | `deleteAsset` | Le retire. |
 | `createAssetLink` | Émet un lien **signé et daté** que le navigateur suit sans session. |
 | `requestExport` | Met un export en file. Le fichier arrive comme un asset quand la tâche passe. |
+| `createProjectShare` | Émet un **lien de partage** en lecture seule (ADR-073) : l'adresse est rendue **une fois**, seul le haché du jeton est gardé. Demande aussi la fonction `project_sharing` de l'offre — une place *Lecture* n'en fait pas. |
+| `listProjectShares` | Rien. Les liens du projet, sans leurs jetons ; ne demande pas la fonction, pour qu'on voie toujours ce qu'on a donné. |
+| `revokeProjectShare` | Le lien cesse de répondre ; une date, pas une suppression. Ne demande pas la fonction : un lien se retire toujours. |
 | `listJobs`, `showJob` | Rien. Ce que la file fait de ses demandes. |
 
 ### Ses documents — `billing.read`, `payments.read`, `sales.read`
@@ -705,11 +708,13 @@ l'ADR-069.
 
 # Ce qu'aucun des trois n'atteint à la main
 
-### Publiques — huit opérations, aucun compte
+### Publiques — neuf opérations, aucun compte
 
 `signUp`, `getPublicOffers`, `getPublicOffer`, `listPublicProducts`,
-`getPublicShowcase`, `showPublicTenant`, `showPublicDemo`, `getPublicPalette` —
-la palette que l'organisation porte pour ce produit, celle que voient ses
+`getPublicShowcase`, `showPublicTenant`, `showPublicDemo`, `getPublicPalette` et
+`openSharedProject` — ce dernier n'ouvre qu'un projet dont on tient le jeton de
+partage (ADR-073), et répond le même 404 pour tout lien qui ne s'ouvre pas ; la
+palette, c'est la palette que l'organisation porte pour ce produit, celle que voient ses
 membres, puisque la page la montre déjà à n'importe qui. La vitrine vend à des
 inconnus (ADR-041) ; ce que la plateforme *fait tourner* reste privé, seuls les
 produits qui annoncent quelque chose de vendable sont listés.
@@ -737,20 +742,20 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
                                           opérations
   atteignables par un USER seul                    7    billing.pay
   atteignables par un TENANT_ADMIN seul           37
-  partagées par les deux                          70
+  partagées par les deux                          73
   sans permission, tout membre                    17
   ─────────────────────────────────────────────────
-  surface locataire                              131
+  surface locataire                              134
 
   PLATFORM_ADMIN                                  91
-  publiques, sans compte                           8
+  publiques, sans compte                           9
   machines et sondes                               8
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          242
+  total                                          246
 ```
 
-Dont **117 lectures** et **125 écritures**. Chaque écriture a sa ligne dans les
+Dont **118 lectures** et **128 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

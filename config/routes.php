@@ -121,13 +121,17 @@ use App\Product\Controller\PublicShowcaseAssetController;
 use App\Product\Controller\PublicShowcaseController;
 use App\Product\Controller\ShowProductController;
 use App\Project\Controller\CreateProjectController;
+use App\Project\Controller\CreateProjectShareController;
 use App\Project\Controller\CreateProjectVersionController;
 use App\Project\Controller\DeleteProjectController;
 use App\Project\Controller\DuplicateProjectController;
 use App\Project\Controller\ListProjectsController;
+use App\Project\Controller\ListProjectSharesController;
 use App\Project\Controller\ListProjectVersionsController;
+use App\Project\Controller\OpenSharedProjectController;
 use App\Project\Controller\RequestExportController;
 use App\Project\Controller\RestoreProjectController;
+use App\Project\Controller\RevokeProjectShareController;
 use App\Project\Controller\ShowProjectController;
 use App\Project\Controller\ShowProjectVersionController;
 use App\Project\Controller\UndeleteProjectController;
@@ -331,6 +335,10 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/public/palette', PublicPaletteController::class);
     // The demonstration page (2026-09-18): 404 until the console switches it on.
     $routes->addRoute('GET', '/api/v1/public/demo', PublicDemoController::class);
+    // What a share link shows (ADR-073): a project, read-only, to whoever
+    // holds the token. A POST with the token in the body, so no access log of
+    // this host keeps it; one 404 for every way a link can fail.
+    $routes->addRoute('POST', '/api/v1/public/shares/open', OpenSharedProjectController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
@@ -559,6 +567,12 @@ return static function (RouteCollector $routes): void {
     // Restoring *to a version* and undeleting are different operations that
     // share a word in English and nothing else (R13).
     $routes->addRoute('POST', '/api/v1/projects/{projectId}/undelete', UndeleteProjectController::class);
+
+    // Share links (ADR-073): made, listed and revoked by whoever reaches the
+    // project. The token leaves once, inside the URL the creation answers.
+    $routes->addRoute('GET', '/api/v1/projects/{projectId}/shares', ListProjectSharesController::class);
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/shares', CreateProjectShareController::class);
+    $routes->addRoute('DELETE', '/api/v1/projects/{projectId}/shares/{shareId}', RevokeProjectShareController::class);
 
     // Assets (§15). The bytes live outside PostgreSQL; these move the record
     // of them. Upload takes the file as the raw body — the request is the
