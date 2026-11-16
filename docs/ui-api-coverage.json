@@ -639,6 +639,18 @@
         "uploadAsset"
       ]
     },
+    "workspace.shares": {
+      "authority": "tenant",
+      "routes": [
+        "/projects/$projectId"
+      ],
+      "operations": [
+        "createProjectShare",
+        "listProjectShares",
+        "revokeProjectShare"
+      ],
+      "$comment": "Share links on a project (ADR-073): the project's own screen lists them for whoever reaches the project — the holder, a colleague on the seat, the organisation's administrator — makes one when the offer sells `project_sharing`, shows its URL once, and revokes. A product beside the platform (Plan) offers the same three operations from its own screens, through the same generated client; the page a stranger reads is that product's, not this shell's."
+    },
     "workspace.jobs": {
       "authority": "tenant",
       "routes": [
@@ -701,6 +713,7 @@
     "reportProductUsage": "Called by a product’s server with its key, before it does the metered work (ADR-051 §4). No human origin, so no screen.",
     "declareProductCapabilities": "Called by a product’s server with its key, on deployment, to say what it gates on (2026-09-24, ADR-052). No human origin, so no screen — and deliberately none: a console form here would be a second place the same list is written, and the point of the route is that the program declaring it is the authority on what it built. Every code is checked against the platform’s list, which a person does keep on a screen — console.admin.features.",
     "showProductTenantEntitlements": "Called by a product’s server with its key and no person present (ADR-051 §4). No human origin, so no screen.",
+    "openSharedProject": "Read by the product's own page (Plan, at its app_url) for a stranger who holds a share link, with the token from the link's fragment (ADR-073). This shell has no viewer for a product's document — the document is the Core's (§16) — so no screen here calls it; the shell's part is making, listing and revoking links (workspace.shares).",
     "getJwks": "The public keys sessions are signed with (ADR-051 milestone E), read by a product’s server that verifies bearers locally. The shell never verifies a token — it presents one — so there is no screen.",
     "showMyContext": "Read by a product deployed beside the platform (ADR-051 §3) — its server asks who is asking and what they hold, in one call, instead of verifying the token itself. The shell reads the same facts through showMe, showMyPermissions and showMyEntitlements and needs no fourth screen for them."
   }

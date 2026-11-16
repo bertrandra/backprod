@@ -60,6 +60,22 @@ const QUEUED_JOB = {
   created_at: '2026-01-01T10:00:00Z',
 };
 
+const SHARE_URL = 'https://plan.example.test/?product=atlas#share=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCd';
+
+const SHARE = {
+  id: '77777777-7777-4777-8777-777777777777',
+  project_id: PROJECT_ID,
+  display_name: null,
+  recipient_label: 'The carpenter',
+  status: 'ACTIVE',
+  created_by: SESSION.user_id,
+  created_at: '2026-01-02T10:00:00Z',
+  expires_at: '2026-02-01T10:00:00Z',
+  revoked_at: null,
+  open_count: 0,
+  last_opened_at: null,
+};
+
 /**
  * A backend where the export actually finishes.
  *
@@ -67,7 +83,7 @@ const QUEUED_JOB = {
  * a test of the polling rather than of the first render.
  */
 async function workspace(page: Page, session: Record<string, unknown> = SESSION) {
-  const state = { requested: false, polls: 0 };
+  const state = { requested: false, polls: 0, shared: false };
 
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: session }));
 
@@ -116,6 +132,18 @@ async function workspace(page: Page, session: Record<string, unknown> = SESSION)
   await page.route(/\/api\/v1\/projects\/[^/]+\/assets$/, (route) =>
     route.fulfill({ json: { assets: [] } }),
   );
+
+  // Share links (ADR-073): none until one is made, and the made one comes back
+  // with its URL — the only answer that ever carries it.
+  await page.route(/\/api\/v1\/projects\/[^/]+\/shares$/, (route) => {
+    if (route.request().method() === 'POST') {
+      state.shared = true;
+
+      return route.fulfill({ status: 201, json: { ...SHARE, url: SHARE_URL } });
+    }
+
+    return route.fulfill({ json: { shares: state.shared ? [SHARE] : [] } });
+  });
 
   await page.route(/\/api\/v1\/projects\/[^/]+\/exports$/, (route) => {
     state.requested = true;
@@ -195,6 +223,31 @@ test.describe('an export', () => {
     // navigation, so the bytes never pass through the application.
     await page.waitForURL(/signed-export\.json/);
     expect(requests.some((url) => url.includes('/api/v1/assets/'))).toBe(true);
+  });
+});
+
+test.describe('a share link', () => {
+  test('is made from the project, shown once, and fits a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 720 });
+    await workspace(page, { ...SESSION, capabilities: ['project_sharing'] });
+
+    await page.goto(`/projects/${PROJECT_ID}?product=atlas`);
+    await expect(page.getByRole('heading', { name: 'Share links' })).toBeVisible();
+
+    await page.getByLabel(/^For/).fill('The carpenter');
+    await page.getByRole('button', { name: 'Create a link' }).click();
+
+    await expect(page.getByTestId('share-created')).toBeVisible();
+    await expect(page.getByLabel('Share link')).toHaveValue(SHARE_URL);
+    // The list, asked again, names the link and never its URL.
+    await expect(page.locator(`[data-share="${SHARE.id}"]`)).toContainText('The carpenter');
+    await expect(page.locator(`[data-share="${SHARE.id}"]`)).not.toContainText('share=');
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+
+    expect(overflows).toBe(false);
   });
 });
 

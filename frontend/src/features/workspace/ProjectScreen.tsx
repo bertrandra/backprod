@@ -21,6 +21,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 import { AssetsPanel } from './AssetsPanel';
+import { SharesPanel } from './SharesPanel';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
 import { formatBytes } from '@/ui/Bytes';
@@ -74,6 +75,10 @@ import { formatBytes } from '@/ui/Bytes';
  *
  * The files are the opposite case and stay: a project's files are
  * something the platform holds for whoever works on it, product or none.
+ *
+ * **And its share links** (2026-11-16, ADR-073), for the same reason: a link is
+ * a property of the work, listed for whoever reaches it — the organisation's
+ * administrator included — wherever the work is drawn.
  */
 const renameSchema = z.object({
   name: z.string().trim().min(1, 'A project needs a name.'),
@@ -262,6 +267,10 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
 
       <div className="border-t border-line pt-6">
         <AssetsPanel projectId={projectId} />
+      </div>
+
+      <div className="border-t border-line pt-6">
+        <SharesPanel projectId={projectId} />
       </div>
 
       <section className="space-y-3 border-t border-line pt-6">

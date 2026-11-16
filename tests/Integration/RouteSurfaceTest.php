@@ -96,6 +96,10 @@ final class RouteSurfaceTest extends ApiTestCase
         // The demonstration page: a 404 until switched on, so the route itself
         // reveals nothing.
         'GET /api/v1/public/demo',
+        // What a share link shows (ADR-073). Authenticates the *token in the
+        // body* — 256 bits of CSPRNG, stored as a SHA-256, expiring and
+        // revocable — and answers one 404 for every way it can fail.
+        'POST /api/v1/public/shares/open',
         'POST /api/v1/webhooks/payments/{provider}',
         'POST /api/v1/webhooks/einvoice/{provider}',
         'GET /api/v1/downloads/{assetId}/content',

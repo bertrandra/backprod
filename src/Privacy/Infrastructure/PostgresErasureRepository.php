@@ -177,6 +177,20 @@ final class PostgresErasureRepository implements ErasureRepository
             ['id' => $userId],
         );
 
+        // Their words on the share links they made (ADR-073): the name a
+        // reader was shown as the sender — very often their own — and their
+        // note of whom it was for. The links stay: the project is its
+        // holder's, not the erased colleague's.
+        $shareNames = (int) $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE project_shares
+                   SET display_name = NULL, recipient_label = NULL
+                 WHERE created_by = CAST(:id AS uuid)
+                   AND (display_name IS NOT NULL OR recipient_label IS NOT NULL)
+                SQL,
+            ['id' => $userId],
+        );
+
         // And the identity itself. The tombstone is the person's own id, so
         // it is unique without a second thought and can never be presented by
         // a token: a real subject is the identity provider's, never ours.
@@ -208,6 +222,7 @@ final class PostgresErasureRepository implements ErasureRepository
             'audit_actors' => $auditActors,
             'credentials' => $credentials,
             'sessions' => $sessions,
+            'share_names' => $shareNames,
         ];
     }
 
