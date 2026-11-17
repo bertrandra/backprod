@@ -85,6 +85,29 @@ interface DemoFixtures
     public function verify(DemoStructure $structure): array;
 
     /**
+     * The organisations the world names that this deployment does not hold,
+     * by slug, in the world's order (2026-11-17).
+     *
+     * @return list<string>
+     */
+    public function missingTenants(): array;
+
+    /**
+     * Writes the organisations named — their rows, holdings and palettes,
+     * people with their credential, memberships, billing and tax profiles —
+     * onto a deployment that already holds the demonstration (2026-11-17).
+     *
+     * Products, catalogues and offers are read back by code and never
+     * written; a person whose address already has an account is reused as
+     * they are and named in {@see DemoStructure::$existingPeople}. Nothing
+     * belonging to another organisation is touched.
+     *
+     * @param list<string> $slugs
+     * @param string       $passwordHash what every new credential stores
+     */
+    public function extend(array $slugs, string $passwordHash): DemoStructure;
+
+    /**
      * Hangs an uploaded picture on a showcase block (2026-10-08).
      *
      * The bytes and the asset row are the showcase module's to write —

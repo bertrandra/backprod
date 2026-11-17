@@ -115,6 +115,63 @@ final class DemoWorldTest extends TestCase
         }
     }
 
+    /**
+     * Parso is Acme's twin (2026-11-17): the same products, default and
+     * palette, the same people under its own keys, the same seats bought the
+     * same way, the same people covered and the same projects -- so a second
+     * organisation at Acme's level exists, and a drift between the two fails
+     * here rather than on a screen.
+     */
+    public function testParsoIsAcmesTwin(): void
+    {
+        self::assertSame(DemoWorld::TENANTS['acme']['holds'], DemoWorld::TENANTS['parso']['holds']);
+        self::assertSame(DemoWorld::TENANTS['acme']['default'], DemoWorld::TENANTS['parso']['default']);
+        self::assertSame(DemoWorld::PALETTES['acme'], DemoWorld::PALETTES['parso']);
+        self::assertSame('Parso SAS', DemoWorld::legalName('parso'));
+        self::assertSame('Acme Ltd', DemoWorld::legalName('acme'));
+
+        $acme = [];
+        $parso = [];
+
+        foreach (DemoWorld::PEOPLE as $key => $person) {
+            if ($person['tenants'] === ['acme']) {
+                $acme[] = str_replace('acme-', '', $key) . ' ' . $person['role'];
+            } elseif ($person['tenants'] === ['parso']) {
+                $parso[] = str_replace('parso-', '', $key) . ' ' . $person['role'];
+            }
+        }
+
+        foreach (DemoWorld::SEATS as $seat) {
+            $line = implode(' ', [$seat['product'], $seat['offer'], str_replace($seat['tenant'] . '-', '', $seat['holder']), json_encode($seat['card'] ?? false), json_encode($seat['declined'] ?? null)]);
+            self::collectFor($seat['tenant'], 'seat ' . $line, $acme, $parso);
+        }
+
+        foreach (DemoWorld::SUBSCRIPTION_PEOPLE as $row) {
+            $prefix = $row['tenant'] . '-';
+            self::collectFor($row['tenant'], 'covers ' . $row['product'] . ' ' . str_replace($prefix, '', $row['holder']) . ' ' . str_replace($prefix, '', $row['user']), $acme, $parso);
+        }
+
+        foreach (DemoWorld::PROJECTS as $draft) {
+            self::collectFor($draft['tenant'], 'project ' . $draft['product'] . ' ' . str_replace($draft['tenant'] . '-', '', $draft['by']) . ' ' . ($draft['document_file'] ?? '-'), $acme, $parso);
+        }
+
+        self::assertNotSame([], $acme);
+        self::assertSame($acme, $parso);
+    }
+
+    /**
+     * @param list<string> $acme
+     * @param list<string> $parso
+     */
+    private static function collectFor(string $tenant, string $line, array &$acme, array &$parso): void
+    {
+        if ($tenant === 'acme') {
+            $acme[] = $line;
+        } elseif ($tenant === 'parso') {
+            $parso[] = $line;
+        }
+    }
+
     public function testEveryDemonstrationPaymentNamesTheProviderThatDidNotTakeIt(): void
     {
         self::assertSame(StubPaymentProvider::NAME, DemoWorld::PAYMENT_PROVIDER);

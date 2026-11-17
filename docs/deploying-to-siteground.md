@@ -535,6 +535,28 @@ the SSH path avoids; keep that window to the minute it takes, or apply the
 migrations first from your machine as in §3 (`composer run migrate`, from a
 checkout of the bundle's commit).
 
+### The demonstration grows without a reset (2026-11-17)
+
+A deployment seeded by the installer is never reset — that would take every
+invoice and project made since. When a new bundle's demonstration world names
+an organisation the database lacks (Parso, Acme's twin, is the first), the
+upgrade adds it:
+
+- **On `/setup.php`**, the summary and the administrator's panel say so beside
+  the migrations (*adds organisation Parso*), and the same *Apply* runs the
+  migrations first, then `DemoSeeder::complete()`, and lists what it created:
+  the organisation, its people (public demo password; an address that already
+  has an account keeps it and its own password), its seats with invoices
+  numbered in its own series, its projects. When nothing is waiting and nothing
+  is missing, the page says so and offers no button.
+- **Over SSH**, after the migrations:
+  `php backprod-app/bin/demo-upgrade.php --dry-run` lists what would be added;
+  without the flag it adds it.
+
+One transaction, idempotent (a second run adds nothing), and nothing existing
+is touched — no other organisation, person, page or setting. Refused on a
+deployment hosting a product that is not the demonstration's.
+
 ---
 
 ## A product that shows itself on its own page

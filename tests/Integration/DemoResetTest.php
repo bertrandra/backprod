@@ -81,6 +81,8 @@ final class DemoResetTest extends DatabaseApiTestCase
                 'acme-admin@raillard.org', 'acme-user1@raillard.org', 'acme-user2@raillard.org', 'acme-user4@raillard.org',
                 'globex-admin@raillard.org', 'globex-user1@raillard.org', 'globex-user2@raillard.org',
                 'initech-admin@raillard.org', 'initech-user1@raillard.org',
+                // Parso, Acme's twin (2026-11-17).
+                'parso-admin@raillard.org', 'parso-user1@raillard.org', 'parso-user2@raillard.org', 'parso-user4@raillard.org',
             ],
             array_column($this->listIn($world, 'people'), 'email'),
         );
@@ -88,8 +90,12 @@ final class DemoResetTest extends DatabaseApiTestCase
         // numbers them 1, 2, 3; Globex and Initech sold one each and both
         // start at 1. Under the platform-wide counter this read 1 to 5, so
         // Initech's only invoice announced four documents it never wrote and
-        // Acme's own series was missing the two that went elsewhere.
-        self::assertSame(['2026-000001', '2026-000002', '2026-000003', '2026-000001', '2026-000001'], $world['invoices'] ?? null);
+        // Acme's own series was missing the two that went elsewhere. Parso,
+        // Acme's twin since 2026-11-17, numbers its three 1, 2, 3 in its own.
+        self::assertSame(
+            ['2026-000001', '2026-000002', '2026-000003', '2026-000001', '2026-000001', '2026-000001', '2026-000002', '2026-000003'],
+            $world['invoices'] ?? null,
+        );
         // And the series is the issuer's, not the tenant scope's: every
         // document here was raised by the organisation it is scoped to,
         // because every one of them is a seat it sold.
@@ -224,15 +230,18 @@ final class DemoResetTest extends DatabaseApiTestCase
         ), 'a holding without a palette');
 
         // Except where the world names one: Acme in Plan wears Forest ledger
-        // after every reset (2026-10-08).
-        self::assertSame('forest-ledger', $this->connection->fetchOne(
-            <<<'SQL'
-                SELECT p.palette FROM tenant_palettes p
-                  JOIN tenants t ON t.id = p.tenant_id
-                  JOIN products pr ON pr.id = p.product_id
-                 WHERE t.slug = 'acme' AND pr.code = 'plan'
-                SQL,
-        ));
+        // after every reset (2026-10-08), and so does Parso, its twin.
+        foreach (['acme', 'parso'] as $slug) {
+            self::assertSame(DemoWorld::PALETTES[$slug]['plan'], $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT p.palette FROM tenant_palettes p
+                      JOIN tenants t ON t.id = p.tenant_id
+                      JOIN products pr ON pr.id = p.product_id
+                     WHERE t.slug = :slug AND pr.code = 'plan'
+                    SQL,
+                ['slug' => $slug],
+            ), $slug);
+        }
     }
 
     /**
@@ -393,18 +402,30 @@ final class DemoResetTest extends DatabaseApiTestCase
     {
         self::assertSame(200, $this->reset('ola-token')->getStatusCode());
 
-        // Two that went through and two that did not: the screen renders a
+        // Some that went through and some that did not: the screen renders a
         // failure differently and offers to try again, so a world with only
-        // successes demonstrates half of it.
-        self::assertSame(2, $this->rowCount("SELECT count(*) FROM payments WHERE status = 'SUCCEEDED'"));
-        self::assertSame(2, $this->rowCount("SELECT count(*) FROM payments WHERE status = 'FAILED'"));
+        // successes demonstrates half of it. Counted from the world — every
+        // seat paid by card succeeded once, and each refusal it names, plus
+        // every declined order, failed once.
+        $byCard = array_filter(DemoWorld::SEATS, static fn (array $seat): bool => ($seat['card'] ?? false) === true);
+        $refused = count(array_filter(DemoWorld::SEATS, static fn (array $seat): bool => isset($seat['declined'])))
+            + count(DemoWorld::DECLINED_ORDERS);
+        $paying = array_unique(array_merge(
+            array_column($byCard, 'tenant'),
+            array_column(DemoWorld::DECLINED_ORDERS, 'tenant'),
+        ));
+
+        self::assertGreaterThan(1, count($byCard));
+        self::assertGreaterThan(1, $refused);
+        self::assertSame(count($byCard), $this->rowCount("SELECT count(*) FROM payments WHERE status = 'SUCCEEDED'"));
+        self::assertSame($refused, $this->rowCount("SELECT count(*) FROM payments WHERE status = 'FAILED'"));
         self::assertSame(
-            2,
+            $refused,
             $this->rowCount("SELECT count(*) FROM payments WHERE status = 'FAILED' AND failure_code IS NOT NULL AND failure_reason IS NOT NULL"),
         );
-        // Across two organisations, so the console's cross-tenant views have
-        // something to show as well.
-        self::assertSame(2, $this->rowCount('SELECT count(DISTINCT tenant_id) FROM payments'));
+        // Across several organisations, so the console's cross-tenant views
+        // have something to show as well.
+        self::assertSame(count($paying), $this->rowCount('SELECT count(DISTINCT tenant_id) FROM payments'));
         // The one somebody would notice on stage: money collected that the
         // document never asked for.
         self::assertSame(0, $this->rowCount(

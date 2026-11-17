@@ -208,11 +208,11 @@ final class PostgresDemoFixtures implements DemoFixtures
     {
         return $this->connection->transactional(function () use ($passwordHash): DemoStructure {
             $products = $this->products();
-            $tenants = $this->tenants($products);
-            $users = $this->people($passwordHash, $products);
+            $tenants = $this->tenants($products, array_keys(DemoWorld::TENANTS));
+            [$users, $existing] = $this->people($passwordHash, $products, array_keys(DemoWorld::PEOPLE));
 
             $this->holdings($tenants, $products, $users[DemoWorld::STAFF_ADMIN]);
-            $this->roles($tenants, $products, $users);
+            $this->roles($tenants, $products, $users, array_keys(DemoWorld::PEOPLE));
 
             $offers = [];
 
@@ -226,7 +226,65 @@ final class PostgresDemoFixtures implements DemoFixtures
 
             $this->customers($tenants);
 
-            return new DemoStructure($products, $tenants, $users, $offers, $this->pictures);
+            return new DemoStructure($products, $tenants, $users, $offers, $this->pictures, $existing);
+        });
+    }
+
+    public function missingTenants(): array
+    {
+        $present = $this->connection->fetchFirstColumn(
+            'SELECT slug FROM tenants WHERE slug = ANY(CAST(:slugs AS text[]))',
+            ['slugs' => self::textArray(array_keys(DemoWorld::TENANTS))],
+        );
+
+        return array_values(array_diff(array_keys(DemoWorld::TENANTS), $present));
+    }
+
+    public function extend(array $slugs, string $passwordHash): DemoStructure
+    {
+        return $this->connection->transactional(function () use ($slugs, $passwordHash): DemoStructure {
+            // The catalogue is already there: products and offers are read
+            // back by code, never written a second time. A product the world
+            // names and the deployment lacks is a refusal rather than a
+            // product quietly created beside whatever the operator did.
+            $products = $this->productIds();
+            $absent = array_diff(DemoWorld::productCodes(), array_keys($products));
+
+            if ($absent !== []) {
+                throw new RuntimeException('The demonstration\'s products are not all here, so no organisation can be added: ' . implode(', ', $absent) . '.');
+            }
+
+            $offers = [];
+
+            foreach ($this->connection->fetchAllAssociative(
+                'SELECT o.id, o.code, p.code AS product FROM offers o JOIN products p ON p.id = o.product_id WHERE p.code = ANY(CAST(:codes AS text[]))',
+                ['codes' => self::textArray(DemoWorld::productCodes())],
+            ) as $row) {
+                if (is_string($row['id']) && is_string($row['code']) && is_string($row['product'])) {
+                    $offers[$row['product']][$row['code']] = $row['id'];
+                }
+            }
+
+            // Only the people of the organisations being added: everybody
+            // else exists already, the platform's staff included.
+            $keys = array_keys(array_filter(
+                DemoWorld::PEOPLE,
+                static fn (array $person): bool => array_intersect($person['tenants'], $slugs) !== [],
+            ));
+
+            $tenants = $this->tenants($products, $slugs);
+            [$users, $existing] = $this->people($passwordHash, $products, $keys);
+            $staff = $this->userByEmail(DemoWorld::email(DemoWorld::STAFF_ADMIN));
+
+            $this->holdings($tenants, $products, $staff);
+            $this->roles($tenants, $products, $users, $keys);
+            $this->customers($tenants);
+
+            if ($staff !== null) {
+                $users[DemoWorld::STAFF_ADMIN] = $staff;
+            }
+
+            return new DemoStructure($products, $tenants, $users, $offers, [], $existing);
         });
     }
 
@@ -441,7 +499,10 @@ final class PostgresDemoFixtures implements DemoFixtures
             // no default lands nowhere in particular, and a tenant whose
             // people all answer for themselves makes the column invisible —
             // the ladder never reaches it, and it could hold anything.
-            'an organisation says where its screens open' => count(DemoWorld::TENANTS) - 1 === $this->count(
+            'an organisation says where its screens open' => count(array_filter(
+                DemoWorld::TENANTS,
+                static fn (array $tenant): bool => $tenant['default'] !== null,
+            )) === $this->count(
                 'SELECT count(*) FROM tenants WHERE default_product_id IS NOT NULL',
             ),
             'and the organisation that decides for its people is the one they leave unanswered'
@@ -582,14 +643,16 @@ final class PostgresDemoFixtures implements DemoFixtures
 
     /**
      * @param array<string, string> $products code => id
+     * @param list<string>          $slugs    the organisations to write
      *
      * @return array<string, string> key => id
      */
-    private function tenants(array $products): array
+    private function tenants(array $products, array $slugs): array
     {
         $tenants = [];
 
-        foreach (DemoWorld::TENANTS as $key => $tenant) {
+        foreach ($slugs as $key) {
+            $tenant = DemoWorld::TENANTS[$key] ?? throw new RuntimeException("The demo has no tenant {$key}.");
             $tenants[$key] = $this->id(
                 // `default_product_id` is where an organisation's screens open
                 // when the address names none and the person has answered
@@ -607,7 +670,12 @@ final class PostgresDemoFixtures implements DemoFixtures
         }
 
         // Acme is the operator's own: the bare host addresses it (2026-09-17);
-        // the others live at /<slug>/.
+        // the others live at /<slug>/. Written only with the organisation it
+        // names, so adding another leaves the setting alone.
+        if (!isset($tenants[DemoWorld::DEFAULT_TENANT])) {
+            return $tenants;
+        }
+
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO platform_settings (key, value)
@@ -621,13 +689,20 @@ final class PostgresDemoFixtures implements DemoFixtures
     }
 
     /**
-     * @param array<string, string> $products code => id
+     * The people named, each with their credential — except whoever already
+     * has an account under the same address: they are reused as they are,
+     * password included, and named in the second half of the answer.
      *
-     * @return array<string, string> key => id
+     * @param array<string, string> $products code => id
+     * @param list<string>          $keys     the people to write
+     *
+     * @return array{0: array<string, string>, 1: list<string>} key => id, and the keys that already existed
      */
-    private function people(string $passwordHash, array $products): array
+    private function people(string $passwordHash, array $products, array $keys): array
     {
         $users = [];
+        $created = [];
+        $existing = [];
 
         // Where each person's screens open when an address names no product
         // (2026-09-23). Everybody with a membership holds Plan here, and
@@ -635,7 +710,17 @@ final class PostgresDemoFixtures implements DemoFixtures
         // promise: the database would refuse a code that is not one.
         $default = $products[DemoWorld::PEOPLE_DEFAULT_PRODUCT];
 
-        foreach (DemoWorld::PEOPLE as $key => $person) {
+        foreach ($keys as $key) {
+            $person = DemoWorld::PEOPLE[$key] ?? throw new RuntimeException("The demo has no person {$key}.");
+            $already = $this->userByEmail(DemoWorld::email($key));
+
+            if ($already !== null) {
+                $users[$key] = $already;
+                $existing[] = $key;
+
+                continue;
+            }
+
             // A distinct placeholder per person: `auth_subject` is unique, so
             // nine rows sharing one literal is a constraint violation rather
             // than nine people. Rewritten to `local:<id>` below.
@@ -656,9 +741,10 @@ final class PostgresDemoFixtures implements DemoFixtures
                     ) !== [] ? null : $default,
                 ],
             );
+            $created[] = $users[$key];
         }
 
-        foreach ($users as $user) {
+        foreach ($created as $user) {
             // `auth_subject` becomes `local:<id>` — the same `prefix:id` shape
             // erasure uses — because that is what a token this platform issues
             // carries, and a subject the token cannot name is a person who
@@ -680,7 +766,23 @@ final class PostgresDemoFixtures implements DemoFixtures
             );
         }
 
-        return $users;
+        return [$users, $existing];
+    }
+
+    /** The account under an address, by its user row or by the credential that carries it. */
+    private function userByEmail(string $email): ?string
+    {
+        $id = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT id FROM users WHERE lower(email) = lower(:email)
+                UNION ALL
+                SELECT user_id FROM local_credentials WHERE lower(email) = lower(:email)
+                LIMIT 1
+                SQL,
+            ['email' => $email],
+        );
+
+        return is_string($id) ? $id : null;
     }
 
     /**
@@ -690,10 +792,10 @@ final class PostgresDemoFixtures implements DemoFixtures
      * @param array<string, string> $tenants
      * @param array<string, string> $products
      */
-    private function holdings(array $tenants, array $products, string $assignedBy): void
+    private function holdings(array $tenants, array $products, ?string $assignedBy): void
     {
-        foreach (DemoWorld::TENANTS as $key => $tenant) {
-            foreach ($tenant['holds'] as $code) {
+        foreach (array_keys($tenants) as $key) {
+            foreach (DemoWorld::TENANTS[$key]['holds'] ?? [] as $code) {
                 $this->connection->executeStatement(
                     'INSERT INTO tenant_products (tenant_id, product_id, assigned_by) VALUES (:tenant, :product, :user)',
                     ['tenant' => $tenants[$key], 'product' => $products[$code], 'user' => $assignedBy],
@@ -722,7 +824,7 @@ final class PostgresDemoFixtures implements DemoFixtures
      * `DemoWorld::PALETTES` pins, which take their named palette when the
      * list still has it and join the draw when it does not.
      */
-    private function palette(string $tenant, string $product, string $chosenBy, ?string $pinned): void
+    private function palette(string $tenant, string $product, ?string $chosenBy, ?string $pinned): void
     {
         $this->connection->executeStatement(
             <<<'SQL'
@@ -743,13 +845,16 @@ final class PostgresDemoFixtures implements DemoFixtures
      * @param array<string, string> $tenants
      * @param array<string, string> $products
      * @param array<string, string> $users
+     * @param list<string>          $keys    the people whose roles to write
      */
-    private function roles(array $tenants, array $products, array $users): void
+    private function roles(array $tenants, array $products, array $users, array $keys): void
     {
-        $staffAdmin = $users[DemoWorld::STAFF_ADMIN];
+        foreach ($keys as $key) {
+            $person = DemoWorld::PEOPLE[$key];
 
-        foreach (DemoWorld::PEOPLE as $key => $person) {
             if ($person['scope'] === 'platform') {
+                $staffAdmin = $users[DemoWorld::STAFF_ADMIN];
+
                 // A separate identity, never a tenant membership (non-negotiable
                 // #22). Granted by the platform administrator — who grants their
                 // own, which is the honest answer for a seeded world.
@@ -767,7 +872,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             // A member of the tenant, mirrored onto every product it holds
             // (ADR-047): the same rows `PostgresTenantMemberRepository::addMember`
             // writes, so the demo is a world the application could have made.
-            foreach ($person['tenants'] as $tenant) {
+            foreach (array_intersect($person['tenants'], array_keys($tenants)) as $tenant) {
                 foreach (DemoWorld::TENANTS[$tenant]['holds'] as $code) {
                     $this->connection->executeStatement(
                         'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',
@@ -1252,10 +1357,17 @@ final class PostgresDemoFixtures implements DemoFixtures
     private function customers(array $tenants): void
     {
         foreach ([
-            ['acme', 'FR12345678901', '12 rue de la Paix'],
-            ['globex', 'FR98765432109', '1 rue de la Paix'],
-            ['initech', 'FR45678912301', '8 quai Saint-Antoine'],
-        ] as [$key, $vat, $address]) {
+            ['acme', 'FR12345678901', '12 rue de la Paix', '75002', 'Paris'],
+            ['globex', 'FR98765432109', '1 rue de la Paix', '75002', 'Paris'],
+            ['initech', 'FR45678912301', '8 quai Saint-Antoine', '69002', 'Lyon'],
+            ['parso', 'FR74852147963', '27 rue du Faubourg Saint-Antoine', '75011', 'Paris'],
+        ] as [$key, $vat, $address, $postalCode, $city]) {
+            // Only the organisations being written: adding one leaves the
+            // others' identities as their administrators left them.
+            if (!isset($tenants[$key])) {
+                continue;
+            }
+
             $this->connection->executeStatement(
                 <<<'SQL'
                 INSERT INTO billing_profiles
@@ -1264,11 +1376,11 @@ final class PostgresDemoFixtures implements DemoFixtures
                 SQL,
                 [
                     'tenant' => $tenants[$key],
-                    'name' => DemoWorld::TENANTS[$key]['name'],
+                    'name' => DemoWorld::legalName($key),
                     'vat' => $vat,
                     'address' => $address,
-                    'postalCode' => $key === 'initech' ? '69002' : '75002',
-                    'city' => $key === 'initech' ? 'Lyon' : 'Paris',
+                    'postalCode' => $postalCode,
+                    'city' => $city,
                     'email' => DemoWorld::email('billing'),
                 ],
             );

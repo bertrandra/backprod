@@ -115,6 +115,7 @@ for path in public_html/index.php public_html/.htaccess public_html/index.html \
             backprod-app/public/index.php backprod-app/vendor/autoload.php \
             backprod-app/config/container.php backprod-app/.env.example \
             backprod-app/bin/run-jobs.php backprod-app/bin/preflight.php \
+            backprod-app/bin/upgrade.php backprod-app/bin/demo-upgrade.php \
             BUNDLE.txt DEPLOY.md MANIFEST.sha256; do
     if [ -e "$BUNDLE/$path" ]; then
         pass "$path"

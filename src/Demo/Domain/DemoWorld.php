@@ -7,8 +7,8 @@ namespace App\Demo\Domain;
 /**
  * What the demonstration world contains — the definition, not the rows.
  *
- * **Five products, three organisations, nine people, five seats, one free
- * period, six projects.** The platform is multi-product, and a demo with one
+ * **Five products, four organisations, thirteen people, eight seats, one
+ * free period, nine projects.** The platform is multi-product, and a demo with one
  * product cannot show the part that matters: a tenant holding several
  * (ADR-047), the console switching between them, the storefront asking
  * which one a stranger wants. Since 2026-09-22 one of the five is **Plan**,
@@ -19,7 +19,11 @@ namespace App\Demo\Domain;
  * product and a product with three tenants both exist. Each organisation
  * has its administrator and at least one member, and the platform has its
  * one administrator; nobody holds two authorities at once (non-negotiable
- * #22 is easier to show when nobody is both). The addresses are the
+ * #22 is easier to show when nobody is both). **Parso** (2026-11-17) is
+ * Acme's twin — the same products, the same people under its own names, the
+ * same seats, projects and money — so a second organisation at Acme's level
+ * can be shown beside it, and its arrival on a deployment already seeded is
+ * what `DemoSeeder::complete()` exists for. The addresses are the
  * operator's own since 2026-09-19, so the mails the platform sends — a
  * reset link, an invitation — land somewhere real.
  *
@@ -1199,7 +1203,15 @@ final class DemoWorld
     /**
      * The organisations, and which products each holds (ADR-047).
      *
-     * @var array<string, array{name: string, holds: list<string>}>
+     * `legal_name` is what the billing profile — and so every invoice the
+     * organisation raises — calls it, where that differs from the name its
+     * people see; absent, the two are the same words.
+     *
+     * Parso (2026-11-17) is Acme's twin: the same five products, the same
+     * default, the same palette pin, and below the same people, seats,
+     * projects and money under its own names.
+     *
+     * @var array<string, array{name: string, legal_name?: string, holds: list<string>, default: ?string}>
      */
     public const TENANTS = [
         'acme' => ['name' => 'Acme Ltd', 'holds' => ['atlas', 'boreas', 'ceres', 'delos', 'plan'], 'default' => 'plan'],
@@ -1207,6 +1219,7 @@ final class DemoWorld
         // None, deliberately: an organisation that has not chosen is the
         // ordinary state, and the ladder has to answer for it too.
         'initech' => ['name' => 'Initech SARL', 'holds' => ['plan'], 'default' => null],
+        'parso' => ['name' => 'Parso', 'legal_name' => 'Parso SAS', 'holds' => ['atlas', 'boreas', 'ceres', 'delos', 'plan'], 'default' => 'plan'],
     ];
 
     /**
@@ -1241,18 +1254,20 @@ final class DemoWorld
      */
     public const PALETTES = [
         'acme' => ['plan' => 'forest-ledger'],
+        'parso' => ['plan' => 'forest-ledger'],
     ];
 
     /**
      * The organisation the bare host addresses (2026-09-17): Acme, as the
-     * operator's own. Globex lives at `/globex/`, Initech at `/initech/`.
+     * operator's own. Globex lives at `/globex/`, Initech at `/initech/`,
+     * Parso at `/parso/`.
      */
     public const DEFAULT_TENANT = 'acme';
 
     /**
      * Where a demonstration person's screens open when the address names no
      * product (2026-09-23): Plan, for everybody who holds it — which here is
-     * everybody with a membership, since all three organisations hold it.
+     * everybody with a membership, since every organisation holds it.
      *
      * The field exists per person (`users.default_product_id`, chosen on the
      * profile) and the demo left it empty, so the switcher fell back to the
@@ -1288,6 +1303,12 @@ final class DemoWorld
         'globex-user2' => ['name' => 'Globex user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
         'initech-admin' => ['name' => 'Initech tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['initech']],
         'initech-user1' => ['name' => 'Initech user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['initech']],
+        // Acme's people, at Parso (2026-11-17): the same four roles and seats,
+        // keyed the same way so the story reads the same in both.
+        'parso-admin' => ['name' => 'Parso tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['parso']],
+        'parso-user1' => ['name' => 'Parso user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['parso']],
+        'parso-user2' => ['name' => 'Parso user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['parso']],
+        'parso-user4' => ['name' => 'Parso user4 (lecture)', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['parso']],
     ];
 
     /** The one platform administrator, who assigns and grants on the seeder's behalf. */
@@ -1307,7 +1328,7 @@ final class DemoWorld
      * world was sold by a person's decision and settled by their
      * organisation's.
      */
-    public const TENANT_ADMINS = ['acme' => 'acme-admin', 'globex' => 'globex-admin', 'initech' => 'initech-admin'];
+    public const TENANT_ADMINS = ['acme' => 'acme-admin', 'globex' => 'globex-admin', 'initech' => 'initech-admin', 'parso' => 'parso-admin'];
 
     /**
      * Every subscription in the world, and every one of them is a **seat**:
@@ -1371,6 +1392,15 @@ final class DemoWorld
         // payments has more than one organisation in it.
         ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly', 'holder' => 'globex-user1', 'card' => true],
         ['tenant' => 'initech', 'product' => 'plan', 'offer' => 'starter-monthly', 'holder' => 'initech-user1'],
+        // Parso's, as Acme's (2026-11-17): numbered 1, 2, 3 in Parso's own
+        // series, the first collected by card after the same refusal.
+        [
+            'tenant' => 'parso', 'product' => 'plan', 'offer' => 'pro-monthly', 'holder' => 'parso-user1',
+            'card' => true,
+            'declined' => ['code' => 'insufficient_funds', 'reason' => 'The card has insufficient funds.'],
+        ],
+        ['tenant' => 'parso', 'product' => 'atlas', 'offer' => 'pro-monthly', 'holder' => 'parso-user1'],
+        ['tenant' => 'parso', 'product' => 'plan', 'offer' => 'lecture-monthly', 'holder' => 'parso-user4'],
     ];
 
     /**
@@ -1464,6 +1494,8 @@ final class DemoWorld
     public const SUBSCRIPTION_PEOPLE = [
         ['tenant' => 'acme', 'product' => 'plan', 'holder' => 'acme-user1', 'user' => 'acme-user2'],
         ['tenant' => 'acme', 'product' => 'atlas', 'holder' => 'acme-user1', 'user' => 'acme-user2'],
+        ['tenant' => 'parso', 'product' => 'plan', 'holder' => 'parso-user1', 'user' => 'parso-user2'],
+        ['tenant' => 'parso', 'product' => 'atlas', 'holder' => 'parso-user1', 'user' => 'parso-user2'],
     ];
 
     /**
@@ -1571,12 +1603,50 @@ final class DemoWorld
             'description' => 'Cinq jours pour voir si Plan fait le travail : terrasse 18 m², Villeurbanne.',
             'document' => [],
         ],
+        // Parso's, as Acme's (2026-11-17): the same real Plan document — an
+        // export names nothing this world decides, so one file serves both —
+        // under names that say whose they are.
+        [
+            'tenant' => 'parso', 'product' => 'plan', 'by' => 'parso-user1',
+            'name' => 'Parcelle AE 101 — étude Parso',
+            'description' => 'La parcelle au Vésinet, étudiée par Parso : cadastre, PLU, terrasse bois sur vis de fondation, cheminements et arbres.',
+            'document_file' => 'plan-parcelle-ae-101.json',
+        ],
+        [
+            'tenant' => 'parso', 'product' => 'plan', 'by' => 'parso-user2',
+            'name' => 'Abri de jardin Parso — parcelle AE 101',
+            'description' => 'Dalle et abri 12 m² au fond de la parcelle, proposés par Parso, à vérifier contre le PLU.',
+            'document' => [],
+        ],
+        [
+            'tenant' => 'parso', 'product' => 'atlas', 'by' => 'parso-user1',
+            'name' => 'North wall — Parso',
+            'description' => 'Parso\'s scaffolding job.',
+            'document' => [],
+        ],
     ];
 
     /** @return list<string> */
     public static function productCodes(): array
     {
         return array_keys(self::PRODUCTS);
+    }
+
+    /**
+     * What an organisation's billing profile, and every document it issues,
+     * calls it: its `legal_name` where it has one, its name otherwise.
+     */
+    public static function legalName(string $slug): string
+    {
+        $tenant = self::TENANTS[$slug] ?? throw new \RuntimeException("The demo has no tenant {$slug}.");
+
+        return $tenant['legal_name'] ?? $tenant['name'];
+    }
+
+    /** How completing a deployment says it adds an organisation: "adds organisation Parso". */
+    public static function describeAddition(string $slug): string
+    {
+        return 'adds organisation ' . (self::TENANTS[$slug]['name'] ?? $slug);
     }
 
     /** The address a seeded person signs in with. */
