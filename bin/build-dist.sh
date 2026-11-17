@@ -285,7 +285,9 @@ Upgrading a site that is already installed never reinstalls: upload the new
 code keeping .env and var/, open /setup.php, compare the code's version with
 the database's, and approve the waiting migrations with a platform
 administrator's password. Forward only. With SSH, backprod-app/bin/upgrade.php
-does the file swap too (DEPLOY.md, section 9).
+does the file swap too (DEPLOY.md, section 9). On a demonstration deployment the
+same approval then adds any organisation the demonstration world gained
+(backprod-app/bin/demo-upgrade.php over SSH; --dry-run lists it first).
 INFO
 
 # Checksums, so a half-finished FTP transfer is a failed check rather than a

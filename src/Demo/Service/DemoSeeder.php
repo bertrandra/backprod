@@ -7,10 +7,13 @@ namespace App\Demo\Service;
 use App\Auth\Domain\PasswordHashing;
 use App\Billing\Domain\Invoice;
 use App\Billing\Service\Invoicing;
+use App\Commerce\Domain\Subscription;
 use App\Commerce\Service\Freemium;
 use App\Commerce\Service\SubscriptionPeople;
 use App\Commerce\Service\Subscriptions;
+use App\Demo\Domain\CompletedWorld;
 use App\Demo\Domain\DemoFixtures;
+use App\Demo\Domain\DemoStructure;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
 use App\Entitlement\Domain\EntitlementRepository;
@@ -18,6 +21,7 @@ use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
 use App\Product\Domain\ProductAsset;
 use App\Product\Service\ShowcasePictures;
+use App\Project\Domain\Project;
 use App\Project\Service\ProjectWorkspace;
 use App\Sales\Service\Sales;
 use App\Shared\Exceptions\ConflictException;
@@ -64,6 +68,14 @@ use Throwable;
  * `/payments` permanently empty in the one place the platform is shown to
  * people. See {@see DemoCollection}.
  *
+ * **And completed, never reset, where it is in production** (2026-11-17).
+ * A deployment is seeded once by its installer and then keeps everything its
+ * people make, so a world that grows — Parso, Acme's twin — reaches it through
+ * {@see complete()}, which adds the organisations it lacks by the same code
+ * paths `build()` runs, and {@see missing()} says beforehand what that would
+ * be. `deploy/siteground/setup.php` runs it after the migrations it applies;
+ * `bin/demo-upgrade.php` runs it over SSH.
+ *
  * **Seeding and verifying in one pass.** The result carries every check, and
  * a caller that finds one failed has a world worse than none: somebody would
  * demonstrate it.
@@ -91,6 +103,15 @@ final class DemoSeeder
     public function isSeeded(): bool
     {
         return $this->fixtures->isSeeded();
+    }
+
+    /**
+     * Whether this deployment is the demonstration's to complete: seeded,
+     * and hosting no product the world does not name (2026-11-17).
+     */
+    public function isDemoDeployment(): bool
+    {
+        return $this->fixtures->isSeeded() && $this->fixtures->foreignProducts() === [];
     }
 
     /**
@@ -222,6 +243,102 @@ final class DemoSeeder
     }
 
     /**
+     * The organisations the world names that this deployment does not hold
+     * yet, by slug — what {@see complete()} would add, read without changing
+     * anything (2026-11-17). Empty on a deployment that holds them all, and on
+     * one that is not the demonstration's at all, because nothing would be.
+     *
+     * @return list<string>
+     */
+    public function missing(): array
+    {
+        return $this->isDemoDeployment() ? $this->fixtures->missingTenants() : [];
+    }
+
+    /**
+     * Brings a deployment seeded from an older world up to this one, without
+     * a reset (2026-11-17).
+     *
+     * Production deployments are seeded once by the installer and never reset:
+     * a reset would take every invoice and project their people made since.
+     * So when the world gains an organisation — Parso, Acme's twin — this is
+     * how it arrives on them. It adds every organisation `DemoWorld::TENANTS`
+     * names whose slug the deployment lacks, and its whole world with it: the
+     * row, its holdings and palettes, its people with the public password
+     * (somebody whose address already has an account keeps it, and their own
+     * password, and the answer says so), memberships, billing and tax
+     * profiles, then its seats through the same sale `build()` runs — order,
+     * invoice numbered in the organisation's own series, payment — and its
+     * declined orders, free periods, the people its holders cover and its
+     * projects. The same code paths as `build()`, run for those slugs only.
+     *
+     * **It never touches what exists.** Products, catalogues and offers are
+     * looked up by code; no other organisation, person, setting or page is
+     * written. Idempotent by construction: a second run finds nothing missing
+     * and adds nothing.
+     *
+     * **One transaction**: an organisation is added whole, its checks holding,
+     * or not at all.
+     *
+     * @throws ConflictException NOT_A_DEMO_DEPLOYMENT — a product that is not
+     *                           the demonstration's exists, or the world was
+     *                           never seeded here
+     */
+    public function complete(): CompletedWorld
+    {
+        $foreign = $this->fixtures->foreignProducts();
+
+        if ($foreign !== [] || !$this->fixtures->isSeeded()) {
+            throw new ConflictException(
+                self::NOT_A_DEMO_DEPLOYMENT,
+                $foreign !== []
+                    ? 'This platform hosts products that are not the demonstration\'s; the demonstration is not completed on it.'
+                    : 'The demonstration was never seeded here, so there is nothing to complete; seed it instead.',
+                ['products' => $foreign],
+            );
+        }
+
+        $missing = $this->fixtures->missingTenants();
+
+        if ($missing === []) {
+            return CompletedWorld::nothing();
+        }
+
+        return $this->fixtures->atomically(function () use ($missing): CompletedWorld {
+            $structure = $this->fixtures->extend($missing, PasswordHashing::hash(DemoWorld::PASSWORD));
+            $sold = $this->sell($structure, $missing);
+            $checks = $this->checksFor($structure, $missing, $sold);
+
+            $created = array_values(array_diff(
+                array_keys(array_filter(
+                    DemoWorld::PEOPLE,
+                    static fn (array $person): bool => array_intersect($person['tenants'], $missing) !== [],
+                )),
+                $structure->existingPeople,
+            ));
+
+            $completed = new CompletedWorld(
+                $missing,
+                $created,
+                $structure->existingPeople,
+                array_values($sold['subscriptions']),
+                array_values($sold['invoices']),
+                $checks,
+            );
+
+            if (!$completed->holds()) {
+                // Thrown inside, so the deployment is as it was.
+                throw new RuntimeException(
+                    'The organisations were added but a check failed, so nothing was changed: '
+                    . implode(', ', $completed->failures()) . '.',
+                );
+            }
+
+            return $completed;
+        });
+    }
+
+    /**
      * @param list<ProductAsset> $written collects every picture put in
      *                                    storage, so a caller whose
      *                                    transaction fails can delete the
@@ -255,10 +372,51 @@ final class DemoSeeder
             ++$pictured;
         }
 
+        $everybody = array_keys(DemoWorld::TENANTS);
+        $sold = $this->sell($structure, $everybody);
+
+        $checks = [
+            // The page is judged on its pictures as much as its words: a
+            // demonstration whose hero shows a grey box is one nobody
+            // demonstrates (2026-10-08).
+            'every picture the story names is on its row' => $pictured === count($structure->pictures)
+                && $pictured === count(array_filter(
+                    $this->pictures->of($structure->product(DemoWorld::PICTURED_PRODUCT)),
+                    static fn ($asset): bool => $asset->id !== '',
+                )),
+            // And the other half, which is what makes the number sold mean
+            // something: a member the subscription does not cover is covered
+            // by nothing. Globex sells one place on Boreas and has three
+            // members.
+            'a member outside the places sold is covered by nothing' => !$this->entitlements->coverageFor(
+                $structure->tenant('globex'),
+                $structure->product('boreas'),
+                $structure->user('globex-user2'),
+            )->covers(),
+        ] + $this->checksFor($structure, $everybody, $sold) + $this->fixtures->verify($structure);
+
+        return new SeededWorld($structure, array_values($sold['subscriptions']), array_values($sold['invoices']), $checks);
+    }
+
+    /**
+     * Everything a customer does in the world, for the organisations named —
+     * all of them for `build()`, the missing ones for `complete()` — in the
+     * order the world needs it: seats, then the debt, the free periods, the
+     * people holders cover, and the projects those people make.
+     *
+     * Each result is keyed by its row's index in the `DemoWorld` list it came
+     * from, so a check can name the row it is checking whatever was skipped.
+     *
+     * @param list<string> $slugs
+     *
+     * @return array{subscriptions: array<int, Subscription>, invoices: array<int, Invoice>, declined: array<int, Payment>, freemium: array<int, Subscription>, projects: array<int, Project>}
+     */
+    private function sell(DemoStructure $structure, array $slugs): array
+    {
         $subscriptions = [];
         $invoices = [];
 
-        foreach (DemoWorld::SEATS as $seat) {
+        foreach (self::rowsOf(DemoWorld::SEATS, $slugs) as $i => $seat) {
             $tenant = $structure->tenant($seat['tenant']);
             $product = $structure->product($seat['product']);
             // The person who wants the product buys it, for themselves.
@@ -288,7 +446,7 @@ final class DemoSeeder
 
             // Paying it completes the order, which activates the seat: the
             // subscription exists because the money did, and not before.
-            $invoices[] = $this->collect($seat, $tenant, $product, $order->invoiceId, $buyer, $collector);
+            $invoices[$i] = $this->collect($seat, $tenant, $product, $order->invoiceId, $buyer, $collector);
 
             $started = $this->subscriptions->seatOf($tenant, $product, $buyer);
 
@@ -300,7 +458,7 @@ final class DemoSeeder
                 );
             }
 
-            $subscriptions[] = $started;
+            $subscriptions[$i] = $started;
         }
 
         // The debt (2026-09-26), after every seat so the numbers already in
@@ -313,7 +471,7 @@ final class DemoSeeder
         // document offers a button that can only answer with an error.
         $declined = [];
 
-        foreach (DemoWorld::DECLINED_ORDERS as $unpaid) {
+        foreach (self::rowsOf(DemoWorld::DECLINED_ORDERS, $slugs) as $i => $unpaid) {
             $tenant = $structure->tenant($unpaid['tenant']);
             $product = $structure->product($unpaid['product']);
             $buyer = $structure->user($unpaid['buyer']);
@@ -333,7 +491,7 @@ final class DemoSeeder
                 );
             }
 
-            $declined[] = $this->collection->declined(
+            $declined[$i] = $this->collection->declined(
                 $this->invoicing->show($tenant, $product, $order->invoiceId),
                 $buyer,
                 $unpaid['failure']['code'],
@@ -354,8 +512,8 @@ final class DemoSeeder
         // counted against the quota the free period sells.
         $freemium = [];
 
-        foreach (DemoWorld::FREEMIUM as $trying) {
-            $freemium[] = $this->freemium->take(
+        foreach (self::rowsOf(DemoWorld::FREEMIUM, $slugs) as $i => $trying) {
+            $freemium[$i] = $this->freemium->take(
                 $structure->tenant($trying['tenant']),
                 $structure->product($trying['product']),
                 $structure->offer($trying['product'], $trying['offer']),
@@ -374,7 +532,7 @@ final class DemoSeeder
         //
         // Before this runs, a seat covers its holder alone, so it has to come
         // before the projects below: `acme-user2` makes one of them.
-        foreach (DemoWorld::SUBSCRIPTION_PEOPLE as $covered) {
+        foreach (self::rowsOf(DemoWorld::SUBSCRIPTION_PEOPLE, $slugs) as $covered) {
             $this->people->add(
                 $structure->tenant($covered['tenant']),
                 $structure->product($covered['product']),
@@ -389,10 +547,10 @@ final class DemoSeeder
         // organisation's quota on the product, which the subscription grants.
         $projects = [];
 
-        foreach (DemoWorld::PROJECTS as $draft) {
+        foreach (self::rowsOf(DemoWorld::PROJECTS, $slugs) as $i => $draft) {
             [$document, $schemaVersion] = $this->documentOf($draft);
 
-            $projects[] = $this->workspace->create(
+            $projects[$i] = $this->workspace->create(
                 $structure->tenant($draft['tenant']),
                 $structure->product($draft['product']),
                 $structure->user($draft['by']),
@@ -403,21 +561,40 @@ final class DemoSeeder
             );
         }
 
-        $checks = [
-            // The page is judged on its pictures as much as its words: a
-            // demonstration whose hero shows a grey box is one nobody
-            // demonstrates (2026-10-08).
-            'every picture the story names is on its row' => $pictured === count($structure->pictures)
-                && $pictured === count(array_filter(
-                    $this->pictures->of($structure->product(DemoWorld::PICTURED_PRODUCT)),
-                    static fn ($asset): bool => $asset->id !== '',
-                )),
+        return [
+            'subscriptions' => $subscriptions,
+            'invoices' => $invoices,
+            'declined' => $declined,
+            'freemium' => $freemium,
+            'projects' => $projects,
+        ];
+    }
+
+    /**
+     * What the rows of the organisations named say about themselves, asked
+     * through the ports the platform itself asks — the same checks for a
+     * whole world and for an organisation added to one.
+     *
+     * @param list<string>                                                                                                                                                                    $slugs
+     * @param array{subscriptions: array<int, Subscription>, invoices: array<int, Invoice>, declined: array<int, Payment>, freemium: array<int, Subscription>, projects: array<int, Project>} $sold
+     *
+     * @return array<string, bool>
+     */
+    private function checksFor(DemoStructure $structure, array $slugs, array $sold): array
+    {
+        $subscriptions = $sold['subscriptions'];
+        $invoices = $sold['invoices'];
+        $declined = $sold['declined'];
+        $freemium = $sold['freemium'];
+        $projects = $sold['projects'];
+
+        return [
             'every project was stored where it was made' => array_filter(
                 array_keys($projects),
                 static fn (int $i): bool => $projects[$i]->tenantId !== $structure->tenant(DemoWorld::PROJECTS[$i]['tenant'])
                     || $projects[$i]->productId !== $structure->product(DemoWorld::PROJECTS[$i]['product']),
             ) === [],
-            'every seat is active' => array_filter(
+            'every seat is active' => count($subscriptions) === count(self::rowsOf(DemoWorld::SEATS, $slugs)) && array_filter(
                 $subscriptions,
                 // Named `$seat` rather than `$subscription` on purpose:
                 // `gate:plans` watches for a string compared against a
@@ -437,7 +614,7 @@ final class DemoSeeder
             // accident that bound one to somebody else fails here rather than
             // showing up as a screen looking wrong.
             'every seat belongs to its named holder' => array_filter(
-                DemoWorld::SEATS,
+                self::rowsOf(DemoWorld::SEATS, $slugs),
                 fn (array $seat): bool => $this->subscriptions->current(
                     $structure->tenant($seat['tenant']),
                     $structure->product($seat['product']),
@@ -459,7 +636,7 @@ final class DemoSeeder
             'each invoice is raised by the organisation to one of its people' => array_filter(
                 array_keys($invoices),
                 static fn (int $i): bool => ($invoices[$i]->supplier['legal_name'] ?? null)
-                        !== DemoWorld::TENANTS[DemoWorld::SEATS[$i]['tenant']]['name']
+                        !== DemoWorld::legalName(DemoWorld::SEATS[$i]['tenant'])
                     || ($invoices[$i]->customer['legal_name'] ?? null)
                         !== DemoWorld::PEOPLE[DemoWorld::SEATS[$i]['holder']]['name']
                     || ($invoices[$i]->customer['billing_email'] ?? null)
@@ -470,7 +647,7 @@ final class DemoSeeder
             // apology, and the retry it offers has to have a debt to act
             // against — so the attempt is FAILED, it says why, and the seat
             // it would have started does not exist.
-            'the attempt the card refused is recorded, with its reason' => count($declined) === count(DemoWorld::DECLINED_ORDERS)
+            'the attempt the card refused is recorded, with its reason' => count($declined) === count(self::rowsOf(DemoWorld::DECLINED_ORDERS, $slugs))
                 && array_filter(
                     $declined,
                     static fn (Payment $attempt): bool => $attempt->status !== PaymentStatus::FAILED
@@ -478,7 +655,7 @@ final class DemoSeeder
                         || $attempt->failureReason === null,
                 ) === [],
             'an order whose payment failed started no seat' => array_filter(
-                DemoWorld::DECLINED_ORDERS,
+                self::rowsOf(DemoWorld::DECLINED_ORDERS, $slugs),
                 fn (array $unpaid): bool => $this->subscriptions->seatOf(
                     $structure->tenant($unpaid['tenant']),
                     $structure->product($unpaid['product']),
@@ -489,7 +666,7 @@ final class DemoSeeder
             // it says so on the row rather than by a join to the offer: what is
             // remembered is what was sold, because the offer may be repriced
             // tomorrow and this account has still had its one (§6.4).
-            'the free period is held by the person who took it, and says it is one' => count($freemium) === count(DemoWorld::FREEMIUM)
+            'the free period is held by the person who took it, and says it is one' => count($freemium) === count(self::rowsOf(DemoWorld::FREEMIUM, $slugs))
                 && array_filter(
                     array_keys($freemium),
                     static fn (int $i): bool => !$freemium[$i]->isFreemium
@@ -501,7 +678,7 @@ final class DemoSeeder
             // port the platform itself asks, so a world that seeded is a world
             // somebody could have used.
             'the free period covers its holder' => array_filter(
-                DemoWorld::FREEMIUM,
+                self::rowsOf(DemoWorld::FREEMIUM, $slugs),
                 fn (array $trying): bool => !$this->entitlements->coverageFor(
                     $structure->tenant($trying['tenant']),
                     $structure->product($trying['product']),
@@ -512,29 +689,21 @@ final class DemoSeeder
             // whoever made a project was covered by a subscription at the
             // time. Asked through the port the platform itself asks, so a
             // world that seeded is a world somebody could have built.
-            'every project was made by somebody a subscription covers' => array_filter(
-                DemoWorld::PROJECTS,
-                fn (array $draft): bool => !$this->entitlements->coverageFor(
-                    $structure->tenant($draft['tenant']),
-                    $structure->product($draft['product']),
-                    $structure->user($draft['by']),
-                )->covers(),
-            ) === [],
-            // And the other half, which is what makes the number sold mean
-            // something: a member the subscription does not cover is covered
-            // by nothing. Globex sells one place on Boreas and has three
-            // members.
-            'a member outside the places sold is covered by nothing' => !$this->entitlements->coverageFor(
-                $structure->tenant('globex'),
-                $structure->product('boreas'),
-                $structure->user('globex-user2'),
-            )->covers(),
+            'every project was made by somebody a subscription covers' => count($projects) === count(self::rowsOf(DemoWorld::PROJECTS, $slugs))
+                && array_filter(
+                    self::rowsOf(DemoWorld::PROJECTS, $slugs),
+                    fn (array $draft): bool => !$this->entitlements->coverageFor(
+                        $structure->tenant($draft['tenant']),
+                        $structure->product($draft['product']),
+                        $structure->user($draft['by']),
+                    )->covers(),
+                ) === [],
             // The model's most surprising consequence (2026-09-25), so it is
             // asserted rather than left to be discovered on a screen: running
             // an organisation entitles its administrator to nothing. They
             // administer Acme and hold no product, because they bought none.
             'an administrator who bought nothing is entitled to nothing' => array_filter(
-                DemoWorld::TENANT_ADMINS,
+                array_intersect_key(DemoWorld::TENANT_ADMINS, array_flip($slugs)),
                 fn (string $who, string $slug): bool => array_filter(
                     DemoWorld::TENANTS[$slug]['holds'],
                     fn (string $code): bool => $this->entitlements->coverageFor(
@@ -545,9 +714,23 @@ final class DemoSeeder
                 ) !== [],
                 ARRAY_FILTER_USE_BOTH,
             ) === [],
-        ] + $this->fixtures->verify($structure);
+        ];
+    }
 
-        return new SeededWorld($structure, $subscriptions, $invoices, $checks);
+    /**
+     * The rows of a `DemoWorld` list that belong to the organisations named,
+     * keyed by their index in the list.
+     *
+     * @template T of array{tenant: string}
+     *
+     * @param list<T>      $rows
+     * @param list<string> $slugs
+     *
+     * @return array<int, T>
+     */
+    private static function rowsOf(array $rows, array $slugs): array
+    {
+        return array_filter($rows, static fn (array $row): bool => in_array($row['tenant'], $slugs, true));
     }
 
     /**

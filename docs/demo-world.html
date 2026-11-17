@@ -134,7 +134,7 @@
 <main>
   <p class="eyebrow">Backprod · demonstration database</p>
   <h1>The Demonstration World</h1>
-  <p class="lede">Five products — one of them deployed beside the platform — three organisations, one person per role, five seats bought by five people with the invoices their organisations raised, four payments and one debt nobody has settled, one free period that raised no document at all, six projects — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
+  <p class="lede">Five products — one of them deployed beside the platform — four organisations, one person per role, eight seats bought by their holders with the invoices their organisations raised, six payments and one debt nobody has settled, one free period that raised no document at all, nine projects — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
 
   <h2>Seeding it</h2>
   <p>From a shell, against a migrated database (<code>DATABASE_DSN</code> set, or in <code>.env</code>):</p>
@@ -151,19 +151,19 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <table>
     <thead><tr><th class="num">#</th><th>Code</th><th>Name</th><th class="num">Starter / month</th><th class="num">Pro / month</th><th class="num">Scale / year</th><th>Held by</th></tr></thead>
     <tbody>
-      <tr><td class="num">10</td><td><code>plan</code></td><td>Plan</td><td class="num">€15.00</td><td class="num">€39.00</td><td class="num">€390.00</td><td>Acme, Globex, Initech</td></tr>
-      <tr><td class="num">20</td><td><code>atlas</code></td><td>Atlas</td><td class="num">€19.00</td><td class="num">€49.40</td><td class="num">€494.00</td><td>Acme, Globex</td></tr>
-      <tr><td class="num">30</td><td><code>boreas</code></td><td>Boreas</td><td class="num">€29.00</td><td class="num">€75.40</td><td class="num">€754.00</td><td>Acme, Globex</td></tr>
-      <tr><td class="num">40</td><td><code>ceres</code></td><td>Ceres</td><td class="num">€9.00</td><td class="num">€23.40</td><td class="num">€234.00</td><td>Acme</td></tr>
-      <tr><td class="num">50</td><td><code>delos</code></td><td>Delos</td><td class="num">€49.00</td><td class="num">€127.40</td><td class="num">€1,274.00</td><td>Acme</td></tr>
+      <tr><td class="num">10</td><td><code>plan</code></td><td>Plan</td><td class="num">€15.00</td><td class="num">€39.00</td><td class="num">€390.00</td><td>Acme, Globex, Initech, Parso</td></tr>
+      <tr><td class="num">20</td><td><code>atlas</code></td><td>Atlas</td><td class="num">€19.00</td><td class="num">€49.40</td><td class="num">€494.00</td><td>Acme, Globex, Parso</td></tr>
+      <tr><td class="num">30</td><td><code>boreas</code></td><td>Boreas</td><td class="num">€29.00</td><td class="num">€75.40</td><td class="num">€754.00</td><td>Acme, Globex, Parso</td></tr>
+      <tr><td class="num">40</td><td><code>ceres</code></td><td>Ceres</td><td class="num">€9.00</td><td class="num">€23.40</td><td class="num">€234.00</td><td>Acme, Parso</td></tr>
+      <tr><td class="num">50</td><td><code>delos</code></td><td>Delos</td><td class="num">€49.00</td><td class="num">€127.40</td><td class="num">€1,274.00</td><td>Acme, Parso</td></tr>
     </tbody>
   </table>
   </div>
   <p class="note">The <strong>#</strong> is the position a product holds in every list — the switcher, the public storefront, the console — with the code breaking a tie. Plan is first because it is the one deployed beside the platform, and the first option is what somebody with no default lands on. The numbers go in tens so a sixth product can be slipped between two others without renumbering anybody; change one from Console → Products → Position. Starter grants 3 projects and 10 exports; Pro 25 projects and 200 exports; Scale is unlimited. All prices are net of VAT, in cents in the database and formatted here.</p>
   <p class="note"><strong>The catalogue speaks five languages.</strong> Every feature and every offer is seeded with its French, Spanish, German and Italian beside the English (ADR-050, ADR-052) — <em>Projects / Projets / Proyectos / Projekte / Progetti</em>, and Plan's own seven capabilities with them. Switch the language on your profile and the catalogue follows: this is <strong>operator data</strong>, in <code>feature_translations</code> and <code>offer_translations</code>, not an application sentence shipped in the bundle. The seeder refuses a world where one of them is missing, because a feature with no translation still renders — in English — and nothing on screen would say it had stopped working.</p>
 
-  <h2>The three organisations</h2>
-  <p>A tenant holds the products the platform assigned it, and a member of the tenant is mirrored onto every one of them (ADR-047). All three have a billing profile and a B2B French tax profile, so any can be invoiced. Each lives at its own URL root (ADR-049): Acme is the <strong>default tenant</strong>, so it answers at <code>/</code>; Globex answers at <code>/globex/</code>, Initech at <code>/initech/</code>. All admit newcomers at once (join policy <em>OPEN</em>, the default): a sign-up at either root is a member — a USER, who may buy — there and then. Switch a policy on the Organisation screen to see the other three.</p>
+  <h2>The four organisations</h2>
+  <p>A tenant holds the products the platform assigned it, and a member of the tenant is mirrored onto every one of them (ADR-047). All four have a billing profile and a B2B French tax profile, so any can be invoiced. Each lives at its own URL root (ADR-049): Acme is the <strong>default tenant</strong>, so it answers at <code>/</code>; Globex answers at <code>/globex/</code>, Initech at <code>/initech/</code>, Parso at <code>/parso/</code>. All admit newcomers at once (join policy <em>OPEN</em>, the default): a sign-up at either root is a member — a USER, who may buy — there and then. Switch a policy on the Organisation screen to see the other three.</p>
   <div class="table-wrap">
   <table>
     <thead><tr><th>Tenant</th><th>Slug</th><th>Holds</th><th>Who subscribed, to what</th><th>Invoices it raised</th></tr></thead>
@@ -171,6 +171,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
       <tr><td>Acme Ltd</td><td><code>acme</code></td><td>atlas, boreas, ceres, delos, plan</td><td><strong>user1</strong> · Plan, Pro monthly<br><strong>user1</strong> · Atlas, Pro monthly<br><strong>user4</strong> · Plan, Lecture monthly<br>Ceres and Delos: held, nothing bought</td><td><code>2026-000001</code> — paid by card, at the second attempt<br><code>2026-000002</code>, <code>2026-000003</code> — paid</td></tr>
       <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td><strong>user1</strong> · Boreas, Starter monthly<br><strong>user2</strong> · Atlas, Pro monthly — ordered, <em>card refused</em>, so no seat<br><strong>user2</strong> · Plan, Freemium — five free days, <em>no order, no invoice, no payment</em></td><td><code>2026-000001</code> — paid by card<br><code>2026-000002</code> — issued, still owed</td></tr>
       <tr><td>Initech SARL</td><td><code>initech</code></td><td>plan</td><td><strong>user1</strong> · Plan, Starter monthly</td><td><code>2026-000001</code> — paid</td></tr>
+      <tr><td>Parso <em>(Parso SAS)</em></td><td><code>parso</code></td><td>atlas, boreas, ceres, delos, plan</td><td><strong>user1</strong> · Plan, Pro monthly<br><strong>user1</strong> · Atlas, Pro monthly<br><strong>user4</strong> · Plan, Lecture monthly<br>Ceres and Delos: held, nothing bought</td><td><code>2026-000001</code> — paid by card, at the second attempt<br><code>2026-000002</code>, <code>2026-000003</code> — paid</td></tr>
     </tbody>
   </table>
   </div>
@@ -179,10 +180,11 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <p><strong>And the money arrives both ways it can</strong> (2026-09-26). Three of the five are transfers that landed outside the platform, which the organisation's administrator records by marking the invoice <em>paid</em>. Two were collected: an attempt against the invoice, the provider's word applied, and the invoice settled by that — Acme's <code>2026-000001</code> at the second attempt, because the first was refused for want of funds and stays FAILED for ever, since it is the record of what happened. Beside them sits a debt: Globex's user2 ordered an Atlas seat, the card was declined, and <code>2026-000002</code> is issued and owed with no seat behind it. That is the state <em>Try again</em> on the Payments screen exists for — a retry against an invoice already paid is refused, so a world where every failure sat on a settled document would offer a button that could only answer with an error.</p>
   <p class="note">A seeded payment is the <strong>stub</strong> provider's, and says so in <code>payments.provider</code>: nothing in this world moved money, and the seeder deliberately calls no provider — a deployment configured with Stripe would otherwise have its demonstration create payment intents at a PSP, and one configured with none could not seed at all. Everything under that seam is the real path: the amount is the document's, the status machine is the real one, each delivery is recorded once in <code>payment_events</code>, and a success settles its invoice in the same transaction.</p>
   <p><strong>And one person is trying the product for free</strong> (2026-09-27). Globex&rsquo;s <em>user2</em> — the same member Starter on Boreas does not cover, and whose card was refused for Atlas — holds Plan&rsquo;s <strong>Freemium</strong>: the lowest plan on the ladder, price 0, one user, one project, <strong>five days</strong>, and it does not renew. It raised <strong>no order, no invoice and no payment at all</strong>: numbering is gapless, so a &euro;0 invoice would be the permanent, unremovable record of a transaction that never happened, in the middle of a series a tax authority reads. So it has its own door rather than the checkout&rsquo;s, and the checkout declines the offer outright. It is given <strong>once and once for all</strong>, terminated ones included — an index with no filter on status, because five free days retaken every five days is a product given away by recurrence.</p>
+  <p><strong>Parso is Acme's twin</strong> (2026-11-17): the same five products, Plan as its default and Forest ledger in Plan, the same four people under its own names, the same seats, payments and projects — Plan's real parcel document included, under Parso's names. It is there so a second organisation at Acme's level can be shown beside it, and it is the first organisation a deployment already seeded receives <strong>without a reset</strong>: the upgrade on <code>/setup.php</code>, or <code>bin/demo-upgrade.php</code>, adds whatever organisation the world names and the database lacks (DEPLOY.md, §9).</p>
   <p><strong>Each organisation numbers from one</strong>, because a gapless series belongs to whoever issues it (2026-09-25). Acme sold three seats and its invoices run 1, 2, 3; Globex and Initech sold one each and both hold a <code>2026-000001</code>. Until that day there was a single platform-wide counter, and it showed: Initech's only invoice came out <code>2026-000005</code>, telling its customer about four documents Initech never wrote — while Acme's own series was missing the two that had gone to the other companies, which is the gap the rule exists to prevent.</p>
   <p class="note">A reseed after a reset starts every series again at <code>000001</code>. The platform keeps a series of its own, with nothing in it here: in this world the platform sells nothing directly.</p>
 
-  <h2>The six projects</h2>
+  <h2>The nine projects</h2>
   <p>Made through the workspace by the people who would make them — so each one was counted against a quota somebody bought, by an author that purchase covers, and stored under the schema version the product declares — rather than inserted. No administrator made one: they bought nothing, so they are entitled to nothing. Plan's carry what Plan keeps for a parcel; the other two show the platform's own workspace with something in it.</p>
   <div class="table-wrap">
   <table>
@@ -194,12 +196,15 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
       <tr><td>Acme</td><td>atlas</td><td>North wall</td><td>ACME user1</td></tr>
       <tr><td>Globex</td><td>boreas</td><td>Site survey</td><td>Globex user1</td></tr>
       <tr><td>Globex</td><td>plan</td><td>Terrasse à l’essai</td><td>Globex user2 — on the free period, whose quota is exactly one</td></tr>
+      <tr><td>Parso</td><td>plan</td><td>Parcelle AE 101 — étude Parso <em>(the same real Plan document)</em></td><td>Parso user1</td></tr>
+      <tr><td>Parso</td><td>plan</td><td>Abri de jardin Parso — parcelle AE 101</td><td>Parso user2 — on user1's seat</td></tr>
+      <tr><td>Parso</td><td>atlas</td><td>North wall — Parso</td><td>Parso user1</td></tr>
     </tbody>
   </table>
   </div>
 
-  <h2>The nine people</h2>
-  <p>Each organisation has its administrator and at least one member — Acme and Globex two, Initech one — and the platform has its one administrator. Nobody holds two authorities at once: a platform role never grants a tenant membership, and the reverse (non-negotiable #22). <span class="chip tenant">tenant</span> roles sign in to an organisation's screens; <span class="chip platform">platform</span> roles land in the console. The addresses are the operator's own (2026-09-19), so a reset link or an invitation the platform sends lands somewhere real.</p>
+  <h2>The thirteen people</h2>
+  <p>Each organisation has its administrator and at least one member — Acme and Parso three, Globex two, Initech one — and the platform has its one administrator. Nobody holds two authorities at once: a platform role never grants a tenant membership, and the reverse (non-negotiable #22). <span class="chip tenant">tenant</span> roles sign in to an organisation's screens; <span class="chip platform">platform</span> roles land in the console. The addresses are the operator's own (2026-09-19), so a reset link or an invitation the platform sends lands somewhere real.</p>
 
   <p><strong>Everybody with a membership opens on Plan.</strong> Their profile's <em>default product</em> names it, so signing in at an address that mentions no product lands on the one deployed beside the platform — the only one whose screens are elsewhere, and so the only one whose card, link and subscription have anything to show. Change it on your own profile and the next sign-in obeys. The platform administrator has none: a default product is a choice among memberships, and staff hold none.</p>
 
@@ -257,6 +262,12 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
       <span class="mail"><code>initech-user1@raillard.org</code></span>
       <p class="sees">Holds Initech's only seat — Plan, Starter, so three projects at most — and made <em>Terrasse du restaurant</em>.</p>
       <p class="start">Start with: open Plan from the switcher — the cookie signs you in there — then try a fourth project once three exist and read the refusal.</p>
+    </div>
+    <div class="person">
+      <span class="who">Parso tenant admin · Parso user1 · Parso user2 · Parso user4 (lecture)</span><span class="chip tenant">TENANT_ADMIN · USER</span>
+      <span class="mail"><code>parso-admin@raillard.org</code> · <code>parso-user1@raillard.org</code> · <code>parso-user2@raillard.org</code> · <code>parso-user4@raillard.org</code></span>
+      <p class="sees">Acme's four, at <code>/parso/</code>: the administrator who bought nothing, user1 who holds Pro on Plan and Atlas and covers user2 on both, and user4 who reads Plan on a Lecture seat. Their documents are Parso's own series, raised by Parso SAS.</p>
+      <p class="start">Start with: the same walk as Acme's, side by side with it.</p>
     </div>
   </div>
 

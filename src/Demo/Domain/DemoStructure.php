@@ -31,6 +31,14 @@ final class DemoStructure
          * @var list<array{0: string, 1: string}>
          */
         public readonly array $pictures = [],
+        /**
+         * The people who already had an account under their address when
+         * the rows were written, by key (2026-11-17): reused as they were,
+         * their own password included, rather than written a second time.
+         *
+         * @var list<string>
+         */
+        public readonly array $existingPeople = [],
     ) {
     }
 

@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Upload this file into public_html/ alongside index.php. Visit it, fill in the
  * database Site Tools just created, and it writes backprod-app/.env, runs the
  * migrations, and seeds the demonstration world — `App\Demo\Service\DemoSeeder`,
- * the same one `composer run demo:seed` builds: five products, three organisations,
+ * the same one `composer run demo:seed` builds: five products, four organisations,
  * one person per role. It asks for no product and no account of your own:
  * the platform is demonstrated from that world, and the accounts it creates
  * are the ones you sign in with. Their password is in this platform's source,
@@ -38,6 +38,14 @@ declare(strict_types=1);
  * refuses and asks for a reload. **Forward only**: no migration is ever
  * undone here, and a database *ahead* of the code is reported, with no
  * button, because the remedy is deploying the code that matches it.
+ *
+ * **Completing the demonstration** (2026-11-17), on the same button. A
+ * deployment is seeded once and never reset, so when the demonstration world
+ * gains an organisation — Parso — this page says so beside the migrations
+ * ("adds organisation Parso") and, once they have run, adds it through
+ * `DemoSeeder::complete()`: the organisation, its people and its seats,
+ * without touching anything that exists. The page offers nothing when the
+ * schema is current and nothing is missing.
  *
  * **Changing an account's password**, gated on the same database
  * credentials Site Tools gave you — because the seeded accounts' password is
@@ -458,22 +466,96 @@ function versionsSummary(): string
             . 'undone here: deploy the code that matches the database (or a newer one).</p>';
     }
 
-    if ($status['pending'] === []) {
+    $missing = demoMissing();
+
+    if ($status['pending'] === [] && ($missing ?? []) === []) {
         return '<h2>Versions</h2><p class="ok">The database is up to date with the code. Nothing to apply.</p>';
     }
 
     $count = count($status['pending']);
+    $waiting = $count === 0 ? '' : '<strong>' . $count . ' migration' . ($count > 1 ? 's' : '') . ' waiting.</strong> ';
 
-    return '<h2>Versions</h2><p><strong>' . $count . ' migration' . ($count > 1 ? 's' : '') . ' waiting.</strong> '
-        . 'A platform administrator sees which, and approves them, on the next page.</p>'
+    return '<h2>Versions</h2><p>' . $waiting . demoSentence($missing ?? [])
+        . 'A platform administrator sees what, and approves it, on the next page.</p>'
         . '<form method="post">'
         . '<input type="hidden" name="action" value="show-versions">'
         . '<fieldset><legend>Review, as a platform administrator</legend>'
         . inputRow('Email', 'admin_email', 'email', 'backprod@example.org')
         . inputRow('Password', 'admin_password', 'password')
         . '</fieldset>'
-        . '<button type="submit">Show the migrations</button>'
+        . '<button type="submit">Show what will change</button>'
         . '</form>';
+}
+
+/**
+ * The demonstration's organisations this deployment lacks, by slug — or null
+ * when that cannot be read, or the deployment is not the demonstration's
+ * (then nothing is offered). Read through the application's own seeder, so
+ * the page and `bin/demo-upgrade.php` answer from one definition.
+ *
+ * @return list<string>|null
+ */
+function demoMissing(): ?array
+{
+    try {
+        return demoSeeder()->missing();
+    } catch (\Throwable) {
+        return null;
+    }
+}
+
+/**
+ * "The demonstration will be completed: adds organisation Parso. ", or nothing.
+ *
+ * @param list<string> $missing
+ */
+function demoSentence(array $missing): string
+{
+    if ($missing === []) {
+        return '';
+    }
+
+    return '<strong>The demonstration will be completed:</strong> '
+        . htmlspecialchars(implode('; ', array_map(DemoWorld::describeAddition(...), $missing))) . '. ';
+}
+
+/** The application's container, built from `backprod-app/.env` the way the app builds it. */
+function appContainer(): \Psr\Container\ContainerInterface
+{
+    // The container needs .env, which is on disk but not necessarily in
+    // this process's environment: this page builds its own connection.
+    Dotenv::createImmutable(BACKPROD_APP)->safeLoad();
+
+    $containerFactory = require BACKPROD_APP . '/config/container.php';
+
+    if (!is_callable($containerFactory)) {
+        throw new \RuntimeException('config/container.php did not return a factory.');
+    }
+
+    $container = $containerFactory();
+
+    if (!$container instanceof \Psr\Container\ContainerInterface) {
+        throw new \RuntimeException('config/container.php did not build a container.');
+    }
+
+    return $container;
+}
+
+function demoSeeder(): DemoSeeder
+{
+    static $seeder = null;
+
+    if ($seeder instanceof DemoSeeder) {
+        return $seeder;
+    }
+
+    $seeder = appContainer()->get(DemoSeeder::class);
+
+    if (!$seeder instanceof DemoSeeder) {
+        throw new \RuntimeException('the container did not answer with the demo seeder.');
+    }
+
+    return $seeder;
 }
 
 /**
@@ -481,8 +563,9 @@ function versionsSummary(): string
  * Shown only past {@see requirePlatformAdmin()}.
  *
  * @param array{latest: string, current: string, pending: list<array{version: string, description: string}>, ahead: list<string>} $status
+ * @param list<string>                                                                                                     $missing the demonstration's organisations this deployment lacks
  */
-function versionsPanel(array $status): string
+function versionsPanel(array $status, array $missing = []): string
 {
     $html = '<h2>Versions</h2><table class="versions">'
         . '<tr><th>Code</th><td>build <code>' . htmlspecialchars(buildStamp()) . '</code><br>schema up to <code>'
@@ -497,31 +580,56 @@ function versionsPanel(array $status): string
             . 'here: deploy the code that matches the database (or a newer one).</p>';
     }
 
-    if ($status['pending'] === []) {
-        return $html . '<p class="ok">The database is up to date with the code. Nothing to apply.</p>';
-    }
-
-    $list = '';
-
-    foreach ($status['pending'] as $migration) {
-        $list .= '<li><code>' . htmlspecialchars(versionLabel($migration['version'])) . '</code> — '
-            . htmlspecialchars($migration['description']) . '</li>';
+    if ($status['pending'] === [] && $missing === []) {
+        return $html . '<p class="ok">The database is up to date with the code, and the demonstration holds '
+            . 'everything this code describes. Nothing to apply.</p>';
     }
 
     $count = count($status['pending']);
+    $html .= '<p class="hint">Take a backup first (Site Tools → Security → Backups): nothing here goes back.</p>';
 
-    return $html . '<p><strong>' . $count . ' migration' . ($count > 1 ? 's' : '') . ' waiting</strong>, in the order '
-        . 'they will run:</p><ol>' . $list . '</ol>'
-        . '<p class="hint">They run together in one transaction: all of them, or none if one fails. They only move '
-        . 'forward — there is no button to go back — so take a backup first (Site Tools → Security → Backups).</p>'
+    if ($count > 0) {
+        $list = '';
+
+        foreach ($status['pending'] as $migration) {
+            $list .= '<li><code>' . htmlspecialchars(versionLabel($migration['version'])) . '</code> — '
+                . htmlspecialchars($migration['description']) . '</li>';
+        }
+
+        $html .= '<p><strong>' . $count . ' migration' . ($count > 1 ? 's' : '') . ' waiting</strong>, in the order '
+            . 'they will run:</p><ol>' . $list . '</ol>'
+            . '<p class="hint">They run together in one transaction: all of them, or none if one fails. They only move '
+            . 'forward — there is no button to go back.</p>';
+    }
+
+    if ($missing !== []) {
+        $items = '';
+
+        foreach ($missing as $slug) {
+            $items .= '<li>' . htmlspecialchars(DemoWorld::describeAddition($slug)) . ' — its people, seats, invoices '
+                . 'and projects, as the demonstration describes them</li>';
+        }
+
+        $html .= '<p><strong>The demonstration will be completed</strong>' . ($count > 0 ? ', after the migrations' : '')
+            . ':</p><ul>' . $items . '</ul>'
+            . '<p class="hint">In one transaction of its own. Nothing that exists is changed: no other organisation, '
+            . 'person, page or setting. Its new accounts get the demonstration\'s public password.</p>';
+    }
+
+    $label = trim(($count > 0 ? 'Apply ' . $count . ' migration' . ($count > 1 ? 's' : '') : '')
+        . ($count > 0 && $missing !== [] ? ' and ' : '')
+        . ($missing !== [] ? ($count > 0 ? 'complete' : 'Complete') . ' the demonstration' : ''));
+
+    return $html
         . '<form method="post">'
         . '<input type="hidden" name="action" value="upgrade-database">'
         . '<input type="hidden" name="target" value="' . htmlspecialchars($status['latest']) . '">'
+        . '<input type="hidden" name="demo" value="' . htmlspecialchars(implode(',', $missing)) . '">'
         . '<fieldset><legend>Approve, as a platform administrator</legend>'
         . inputRow('Email', 'admin_email', 'email', 'backprod@example.org')
         . inputRow('Password', 'admin_password', 'password')
         . '</fieldset>'
-        . '<button type="submit">Apply ' . $count . ' migration' . ($count > 1 ? 's' : '') . '</button>'
+        . '<button type="submit">' . htmlspecialchars($label) . '</button>'
         . '</form>';
 }
 
@@ -578,7 +686,7 @@ function handleShowVersions(): void
         fail(500, 'The migration status could not be read: ' . $e->getMessage());
     }
 
-    render('Backprod — versions', STYLE_BLOCK . versionsPanel($status)
+    render('Backprod — versions', STYLE_BLOCK . versionsPanel($status, demoMissing() ?? [])
         . '<p><a href="' . htmlspecialchars(basename(__FILE__)) . '">Back</a></p>');
 }
 
@@ -604,35 +712,73 @@ function handleUpgradeDatabase(): void
         fail(409, 'The code changed since this page was shown. Reload it, read the list again, and approve that.');
     }
 
-    if ($status['pending'] === []) {
-        render('Nothing to apply', STYLE_BLOCK . '<p class="ok">The database was already up to date.</p>'
+    // The same for the demonstration: complete what was listed, and nothing
+    // the page did not show — a newer bundle naming another organisation, or
+    // somebody else completing it in between, sends the reader back.
+    $missing = demoMissing() ?? [];
+
+    if (!hash_equals(implode(',', $missing), field($_POST, 'demo'))) {
+        fail(409, 'What the demonstration lacks changed since this page was shown. Reload it, read it again, and approve that.');
+    }
+
+    if ($status['pending'] === [] && $missing === []) {
+        render('Nothing to apply', STYLE_BLOCK . '<p class="ok">The database was already up to date, and the '
+            . 'demonstration already complete.</p>'
             . '<p><a href="' . htmlspecialchars(basename(__FILE__)) . '">Back to the versions</a></p>');
 
         return;
     }
 
-    try {
-        $status['factory']->getMigrator()->migrate(
-            $status['plan'],
-            (new MigratorConfiguration())->setDryRun(false)->setAllOrNothing(true),
-        );
-    } catch (\Throwable $e) {
-        // A migration failure names a table or a constraint, never a
-        // credential, and whoever pressed the button needs to know which.
-        fail(500, 'The migrations failed and were rolled back, so the database is as it was: ' . $e->getMessage());
+    $report = '';
+
+    if ($status['pending'] !== []) {
+        try {
+            $status['factory']->getMigrator()->migrate(
+                $status['plan'],
+                (new MigratorConfiguration())->setDryRun(false)->setAllOrNothing(true),
+            );
+        } catch (\Throwable $e) {
+            // A migration failure names a table or a constraint, never a
+            // credential, and whoever pressed the button needs to know which.
+            fail(500, 'The migrations failed and were rolled back, so the database is as it was: ' . $e->getMessage());
+        }
+
+        $list = '';
+
+        foreach ($status['pending'] as $migration) {
+            $list .= '<li><code>' . htmlspecialchars(versionLabel($migration['version'])) . '</code> — '
+                . htmlspecialchars($migration['description']) . '</li>';
+        }
+
+        $report .= '<p class="ok">Applied ' . count($status['pending']) . ' migration(s). The database is at <code>'
+            . htmlspecialchars(versionLabel($status['latest'])) . '</code>, the same as the code.</p>'
+            . '<ol>' . $list . '</ol>';
     }
 
-    $list = '';
+    if ($missing !== []) {
+        // After the migrations, never before: the code that adds the
+        // organisation is written against the schema they just produced.
+        try {
+            $completed = demoSeeder()->complete();
+        } catch (\Throwable $e) {
+            fail(500, ($status['pending'] !== [] ? 'The migrations were applied, but the' : 'The')
+                . ' demonstration could not be completed, and nothing of it was changed: ' . $e->getMessage());
+        }
 
-    foreach ($status['pending'] as $migration) {
-        $list .= '<li><code>' . htmlspecialchars(versionLabel($migration['version'])) . '</code> — '
-            . htmlspecialchars($migration['description']) . '</li>';
+        $lines = '';
+
+        foreach ($completed->summary() as $line) {
+            $lines .= '<li>' . htmlspecialchars($line) . '</li>';
+        }
+
+        $report .= $completed->addedNothing()
+            ? '<p class="ok">The demonstration was already complete.</p>'
+            : '<p class="ok">Completed the demonstration. Every check held.</p><ul>' . $lines . '</ul>'
+              . ($completed->people === [] ? '' : '<p>The new accounts sign in with the password <code>'
+                  . htmlspecialchars(DemoWorld::PASSWORD) . '</code>, which is in this platform\'s source: change the ones you keep.</p>');
     }
 
-    render('Database upgraded', STYLE_BLOCK
-        . '<p class="ok">Applied ' . count($status['pending']) . ' migration(s). The database is at <code>'
-        . htmlspecialchars(versionLabel($status['latest'])) . '</code>, the same as the code.</p>'
-        . '<ol>' . $list . '</ol>'
+    render('Deployment upgraded', STYLE_BLOCK . $report
         . '<p>Flush the cache (Site Tools → Speed → Caching), then sign in and look.</p>'
         . '<p><a href="' . htmlspecialchars(basename(__FILE__)) . '">Back to the versions</a></p>');
 }
@@ -782,10 +928,11 @@ function setupForm(): string
         . inputRow('Password', 'db_pass', 'password')
         . '</fieldset>'
         . '<fieldset><legend>What this creates</legend>'
-        . '<p class="hint" style="margin:0">The demonstration world: five products (<code>atlas</code>, '
-        . '<code>boreas</code>, <code>ceres</code>, <code>delos</code>, <code>plan</code> — the last deployed beside the platform), each with a catalogue, three '
-        . 'organisations holding them, one person per role — two tenant roles, four platform roles — '
-        . 'five seats bought by five people with the invoices their organisations raised, and five projects. No product or account of your own is asked '
+        . '<p class="hint" style="margin:0">The demonstration world: ' . count(DemoWorld::PRODUCTS) . ' products (<code>'
+        . implode('</code>, <code>', DemoWorld::productCodes()) . '</code> — Plan deployed beside the platform), each with a catalogue, '
+        . count(DemoWorld::TENANTS) . ' organisations holding them, one person per role — two tenant roles, four platform roles — '
+        . count(DemoWorld::SEATS) . ' seats bought by their holders with the invoices their organisations raised, and '
+        . count(DemoWorld::PROJECTS) . ' projects. No product or account of your own is asked '
         . 'for: you sign in as those people. Their password is in this platform\'s source, and the next '
         . 'page is where you change it. See <code>docs/demo-world.html</code> in the bundle.</p>'
         . '</fieldset>'
@@ -1028,30 +1175,7 @@ function handleSetup(): void
     // refuses to seed on top of itself (a resubmission after a failure
     // further down would otherwise double every catalogue).
     try {
-        // The container needs .env, which is on disk but not in this
-        // process's environment — nothing here has loaded it, because until
-        // now this page only ever needed the connection it built by hand.
-        Dotenv::createImmutable(BACKPROD_APP)->safeLoad();
-
-        $containerFactory = require BACKPROD_APP . '/config/container.php';
-
-        if (!is_callable($containerFactory)) {
-            throw new \RuntimeException('config/container.php did not return a factory.');
-        }
-
-        $container = $containerFactory();
-
-        if (!$container instanceof \Psr\Container\ContainerInterface) {
-            throw new \RuntimeException('config/container.php did not build a container.');
-        }
-
-        $seeder = $container->get(DemoSeeder::class);
-
-        if (!$seeder instanceof DemoSeeder) {
-            throw new \RuntimeException('the container did not answer with the demo seeder.');
-        }
-
-        $world = $seeder->seed();
+        $world = demoSeeder()->seed();
 
         if (!$world->holds()) {
             // The seeder verifies what it made. A world that does not hold
@@ -1070,7 +1194,9 @@ function handleSetup(): void
     $host = htmlspecialchars(is_string($rawHost) ? $rawHost : 'your-domain');
 
     render('Set up', STYLE_BLOCK . '<p class="ok">Done. Migrations ran and the demonstration world is seeded: '
-        . 'five products, three organisations, nine people, five seats with the invoices their organisations raised, five projects.</p>'
+        . count(DemoWorld::PRODUCTS) . ' products, ' . count(DemoWorld::TENANTS) . ' organisations, ' . count(DemoWorld::PEOPLE)
+        . ' people, ' . count(DemoWorld::SEATS) . ' seats with the invoices their organisations raised, '
+        . count(DemoWorld::PROJECTS) . ' projects.</p>'
         . accountsTable($world, $host)
         . '<p class="error"><strong>Change the platform administrator\'s password now.</strong> Every account '
         . 'above has the password printed there, and it is in this platform\'s public source — anybody who '
