@@ -237,7 +237,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             ['slugs' => self::textArray(array_keys(DemoWorld::TENANTS))],
         );
 
-        return array_values(array_diff(array_keys(DemoWorld::TENANTS), $present));
+        return array_values(array_diff(array_keys(DemoWorld::TENANTS), array_filter($present, 'is_string')));
     }
 
     public function extend(array $slugs, string $passwordHash): DemoStructure
