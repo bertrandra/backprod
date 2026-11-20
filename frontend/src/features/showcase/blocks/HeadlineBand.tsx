@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import { useReveal } from '../useReveal';
 import type { BandHeading, HeadlineRow, ShowcaseRow } from './content';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * The hero: what this is, for whom, and the one thing to do about it.
@@ -48,6 +48,14 @@ export function HeadlineBand({
   const headline = row?.content.headline ?? null;
   const subline = row?.content.subline ?? null;
   const reassurance = row?.content.reassurance ?? null;
+  // Three ways to open a page (2026-11-20). `split` is the one it has always
+  // had: the words beside the picture. `centered` puts the words in the
+  // middle and the picture under them, for a product whose picture is wide.
+  // `stacked` keeps the words to the left and gives the picture the full
+  // width beneath — the screenshot as the hero, for a product that sells by
+  // being seen. Below `lg` all three are one column, because a phone has
+  // room for one.
+  const layout = layoutOf('HEADLINE', heading?.layout);
 
   return (
     <section
@@ -57,12 +65,19 @@ export function HeadlineBand({
       data-band={BAND_META.HEADLINE.anchor}
       data-revealed={revealed ? 'true' : 'false'}
       data-testid="showcase-hero"
+      data-layout={layout}
       className="scroll-mt-28 bg-canvas px-4 pt-10 pb-16 md:px-8 md:pt-16 md:pb-28"
     >
-      <div className="mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-16">
+      <div
+        className={[
+          'mx-auto grid w-full max-w-6xl gap-10',
+          layout === 'split' ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-16' : 'lg:gap-14',
+        ].join(' ')}
+      >
         <div
           className={[
             'space-y-6 transition-[opacity,transform] duration-[400ms] ease-out-quart motion-reduce:transition-none',
+            layout === 'centered' ? 'mx-auto max-w-3xl text-center' : layout === 'stacked' ? 'max-w-3xl' : '',
             revealed ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
           ].join(' ')}
         >
@@ -84,12 +99,17 @@ export function HeadlineBand({
           </h1>
 
           {subline !== null && subline !== '' && (
-            <p data-testid="showcase-subline" className="max-w-prose text-lg text-muted md:text-xl">
+            <p
+              data-testid="showcase-subline"
+              className={`max-w-prose text-lg text-muted md:text-xl ${layout === 'centered' ? 'mx-auto' : ''}`}
+            >
               {subline}
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 pt-1">{action}</div>
+          <div className={`flex flex-wrap items-center gap-3 pt-1 ${layout === 'centered' ? 'justify-center' : ''}`}>
+            {action}
+          </div>
 
           {/* Under the buttons, where somebody hesitating over one is
               looking (2026-09-28): what it does not cost, what it does not

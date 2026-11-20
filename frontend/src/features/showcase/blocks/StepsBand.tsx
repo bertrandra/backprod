@@ -3,7 +3,7 @@ import { t } from '@/i18n';
 import { ShowcaseBand } from '../ShowcaseBand';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import type { BandHeading, ShowcaseRow, StepRow } from './content';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * How it works, in as many moves as the operator wrote.
@@ -34,6 +34,12 @@ export function StepsBand({
     return null;
   }
 
+  // `columns` is three side by side, as it has always been. `timeline` is
+  // one column with a line down the numbers (2026-11-20): for five or six
+  // steps, where a grid wraps and the eye loses which comes next.
+  const layout = layoutOf('STEPS', heading?.layout);
+  const timeline = layout === 'timeline';
+
   return (
     <ShowcaseBand
       id={BAND_META.STEPS.anchor}
@@ -43,12 +49,15 @@ export function StepsBand({
       lede={heading?.lede ?? undefined}
       data-testid="showcase-steps"
     >
-      <ol className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">
+      <ol
+        data-layout={layout}
+        className={timeline ? 'mx-auto max-w-2xl space-y-10 border-l border-line pl-8' : 'grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10'}
+      >
         {rows.map((row, index) => (
           <li key={row.id} data-step={index + 1} className="relative space-y-3">
             <span
               aria-hidden="true"
-              className="flex size-10 items-center justify-center rounded-full border border-line bg-canvas text-lg font-semibold text-accent"
+              className={`flex size-10 items-center justify-center rounded-full border border-line bg-canvas text-lg font-semibold text-accent ${timeline ? 'absolute -left-[3.25rem] top-0' : ''}`}
             >
               {index + 1}
             </span>

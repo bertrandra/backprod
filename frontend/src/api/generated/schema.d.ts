@@ -4510,15 +4510,23 @@ export interface components {
             subline?: string;
             /** @description HEADLINE: the line under the buttons that takes the risk out of pressing one — what it does not cost, what it does not install. */
             reassurance?: string;
-            /** @description STEPS: the move. PROBLEM: what the reader lives with, in a few words. */
+            /** @description STEPS: the move. PROBLEM: what the reader lives with, in a few words. FEATURE: what the product includes, named. CTA: the last sentence on the page, above the call to action. */
             title?: string;
-            /** @description STEPS: what happens in it. PROBLEM: why it costs them. */
+            /** @description STEPS: what happens in it. PROBLEM: why it costs them. FEATURE: what that gives the customer. CTA: one line under the title. */
             body?: string;
             /**
-             * @description PROBLEM: which of the drawn icons sits above the point. A **code, not a sentence** — the frontend draws it, so it has no French and is refused in a translation, the way a price is refused in a band.
+             * @description PROBLEM and FEATURE: which of the drawn icons sits above the point. A **code, not a sentence** — the frontend draws it, so it has no French and is refused in a translation, the way a price is refused in a band.
              * @enum {string}
              */
-            icon?: "clock" | "cross" | "house" | "coin" | "ruler" | "paper" | "warning" | "repeat";
+            icon?: "clock" | "cross" | "house" | "coin" | "ruler" | "paper" | "warning" | "repeat" | "check" | "bolt" | "shield" | "layers";
+            /** @description TRUST: who already uses or vouches for the product — a customer, a label, a certification. It is also what a screen reader says for the row's logo, so the row carries no `alt`. */
+            name?: string;
+            /** @description STATS: the figure, as it is to be read — `3 min`, `1 200`, `−40 %`. Text and not a number: the unit is part of it, and nothing computes with it. */
+            value?: string;
+            /** @description STATS: what the figure counts. */
+            label?: string;
+            /** @description STATS: where the figure comes from, or what it is compared with. One line. */
+            detail?: string;
             /** @description QUOTE: what the customer said, in their words. */
             quote?: string;
             /** @description QUOTE: who said it, and what they do. One line, under the quote. */
@@ -4548,10 +4556,10 @@ export interface components {
         /** @description A band as the console writes it. The English is `content` and is the key and the fallback; `translations` holds the four other languages, field by field — a French headline with no French subline reads French above and English below, which is the honest rendering of a page somebody is still working through. */
         ShowcaseBlockInput: {
             /**
-             * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page.
+             * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE and one CTA per page.
              * @enum {string}
              */
-            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION";
+            block: "HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION" | "CTA";
             /**
              * @description Within its kind. In tens, so one can be slipped between two others without renumbering anybody.
              * @default 10
@@ -4576,7 +4584,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION";
+            block: "HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION" | "CTA";
             position: number;
             content: components["schemas"]["ShowcaseBlockContent"];
             /**
@@ -4603,6 +4611,11 @@ export interface components {
             eyebrow?: string;
             title?: string;
             lede?: string;
+            /**
+             * @description How the band is laid out (2026-11-20), where it has more than one way. A **code, not a sentence**: English only and refused in a translation, like a problem's icon. Which values a band takes depends on the band — HEADLINE `split`, `centered`, `stacked`; STEPS `columns`, `timeline`; FEATURE `grid`, `list`; QUOTE `grid`, `single`; PROOF `alternate`, `grid` — and the first of each is what an absent value means, so no page moved the day this was added. One sent for a band that is drawn one way is refused rather than stored and ignored.
+             * @enum {string}
+             */
+            layout?: "split" | "centered" | "stacked" | "columns" | "timeline" | "grid" | "list" | "single" | "alternate";
         };
         /** @description Each band's heading in one language, keyed by section — for a reader. Resolved field by field, so a title translated and a lede not reads translated above and English below. */
         ShowcaseBandHeadings: {
@@ -4627,7 +4640,7 @@ export interface components {
          *
          *     `PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.
          */
-        ShowcaseSectionOrder: ("HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "PRICING" | "QUESTION")[];
+        ShowcaseSectionOrder: ("HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "PRICING" | "QUESTION" | "CTA")[];
         /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
         Showcase: {
             product: {
@@ -4642,7 +4655,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION";
+                block: "HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION" | "CTA";
                 position: number;
                 content: components["schemas"]["ShowcaseBlockContent"];
                 /** @description Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them. */

@@ -67,46 +67,72 @@ const QUESTIONS: readonly TemplateBlock[] = [
   row('QUESTION', ['question', 'What do I need to start?'], ['answer', 'What they must have, and what they need not.']),
 ];
 
+const CTA: TemplateBlock = row(
+  'CTA',
+  ['title', 'The one thing to do now, said as an invitation'],
+  ['body', 'What it costs to try, in a line.'],
+);
+
+const STATS: readonly TemplateBlock[] = [
+  row('STATS', ['value', '3 min'], ['label', 'What this figure counts'], ['detail', 'Where it comes from.']),
+  row('STATS', ['value', '−40 %'], ['label', 'What went down'], ['detail', 'Compared with what.']),
+  row('STATS', ['value', '1 200'], ['label', 'How many already use it']),
+];
+
+const FEATURES: readonly TemplateBlock[] = [
+  row('FEATURE', ['title', 'The thing it includes that others charge for'], ['body', 'What that gives the customer.'], ['icon', 'check']),
+  row('FEATURE', ['title', 'What makes it fast'], ['body', 'What that gives the customer.'], ['icon', 'bolt']),
+  row('FEATURE', ['title', 'What keeps their work safe'], ['body', 'What that gives the customer.'], ['icon', 'shield']),
+];
+
 export const STORY_TEMPLATES: readonly StoryTemplate[] = [
   {
     id: 'complete',
     name: 'The whole story',
-    description: 'The promise, the trouble it ends, how it works, who it is for, what they say, the proof, the prices and the questions. For a product people have not heard of.',
-    sections: ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION'],
+    description: 'Every band the page has: who trusts it, the trouble it ends, its numbers, how it works, what it includes, who it is for, the proof, the prices, the questions and a last call to action. For a product people have not heard of.',
+    sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
     blocks: [
       HEADLINE,
+      row('TRUST', ['name', 'A customer people know']),
+      row('TRUST', ['name', 'A second one']),
+      row('TRUST', ['name', 'A label or a certification']),
       row('PROBLEM', ['title', 'What it costs them today'], ['body', 'The hours, the money or the mistake.'], ['icon', 'clock']),
       row('PROBLEM', ['title', 'What goes wrong because of it'], ['body', 'The consequence they already know.'], ['icon', 'warning']),
       row('PROBLEM', ['title', 'Why the usual answer does not work'], ['body', 'What they tried, and where it stops.'], ['icon', 'repeat']),
+      ...STATS,
       ...STEPS,
+      ...FEATURES,
       row('USE_CASE', ['who', 'A first kind of customer'], ['before', 'What they were doing before.'], ['after', 'What they do now.']),
       row('USE_CASE', ['who', 'A second kind of customer'], ['before', 'What they were doing before.'], ['after', 'What they do now.']),
       row('QUOTE', ['quote', 'What a customer said, in their own words.'], ['author', 'Their name, and what they do']),
       row('PROOF', ['caption', 'What this screenshot shows, and why it matters.']),
       row('PROOF', ['caption', 'A second thing worth seeing, said in one sentence.']),
       ...QUESTIONS,
+      CTA,
     ],
   },
   {
     id: 'proof-first',
     name: 'Proof first',
-    description: 'The product itself straight after the promise, then what customers say, then how it works. For a product that convinces by being seen.',
-    sections: ['HEADLINE', 'PROOF', 'DEMO', 'QUOTE', 'STEPS', 'PRICING', 'QUESTION', 'PROBLEM', 'USE_CASE'],
+    description: 'The product itself straight after the promise, then what customers say, its numbers and how it works. For a product that convinces by being seen.',
+    sections: ['HEADLINE', 'PROOF', 'DEMO', 'QUOTE', 'STATS', 'STEPS', 'FEATURE', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'USE_CASE'],
     blocks: [
       HEADLINE,
       row('PROOF', ['caption', 'The one screen that makes somebody say “I want that”.']),
       row('PROOF', ['caption', 'What it looks like when the work is done.']),
       row('QUOTE', ['quote', 'What a customer said, in their own words.'], ['author', 'Their name, and what they do']),
       row('QUOTE', ['quote', 'A second voice, from a different kind of customer.'], ['author', 'Their name, and what they do']),
+      ...STATS,
       ...STEPS,
       ...QUESTIONS,
+      CTA,
     ],
   },
   {
     id: 'short',
     name: 'Short',
-    description: 'The promise, three steps, the prices and two questions. For a product that explains itself, or a page to publish today and grow later.',
-    sections: ['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'PROBLEM', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO'],
-    blocks: [HEADLINE, ...STEPS, ...QUESTIONS.slice(0, 2)],
+    description: 'The promise, three steps, the prices, two questions and a last call to action. For a product that explains itself, or a page to publish today and grow later.',
+    sections: ['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'STATS', 'FEATURE', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO'],
+    blocks: [HEADLINE, ...STEPS, ...QUESTIONS.slice(0, 2), CTA],
   },
 ];

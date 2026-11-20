@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Product\Domain\ShowcaseSections;
 use App\Tests\Support\FakeAuthProvider;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
@@ -160,11 +161,11 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         $fresh = $this->request('GET', '/api/v1/staff/products/' . $this->plan . '/showcase', ['Authorization' => 'Bearer ola-token']);
         self::assertSame(200, $fresh->getStatusCode());
         self::assertSame(
-            ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION'],
+            ShowcaseSections::DEFAULT_ORDER,
             $this->decode($fresh)['sections'] ?? null,
         );
 
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST'];
 
         $written = $this->request(
             'PUT',
@@ -200,7 +201,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
     {
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST'];
 
         $this->request(
             'PUT',
@@ -217,8 +218,11 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         // A subset, a section named twice, and one nobody has heard of.
         foreach ([
             ['HEADLINE', 'STEPS'],
-            ['HEADLINE', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING'],
-            ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'TESTIMONIAL'],
+            // The right length, so what is refused is the content and not
+            // the count: the last section replaced by a repeat, then by a
+            // name nobody has heard of.
+            [...array_slice(ShowcaseSections::DEFAULT_ORDER, 0, -1), 'HEADLINE'],
+            [...array_slice(ShowcaseSections::DEFAULT_ORDER, 0, -1), 'TESTIMONIAL'],
         ] as $sections) {
             $refused = $this->request(
                 'PUT',
@@ -658,6 +662,125 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
     }
 
     // --- Helpers ---------------------------------------------------------------------
+
+    /**
+     * Four bands that sell (2026-11-20): who trusts it, its numbers, what it
+     * includes, and a last call to action.
+     */
+    public function testTheFourBandsThatSellAreWrittenAndReadBack(): void
+    {
+        $written = $this->write([
+            self::headline(),
+            ['block' => 'TRUST', 'content' => ['name' => 'Atelier Durand']],
+            ['block' => 'STATS', 'content' => ['value' => '3 min', 'label' => 'to a printable plan', 'detail' => 'Measured on 200 projects.']],
+            ['block' => 'FEATURE', 'content' => ['title' => 'Exports to DXF', 'body' => 'With its layers.', 'icon' => 'layers']],
+            ['block' => 'CTA', 'content' => ['title' => 'Draw your first terrace', 'body' => 'Free to start.'], 'translations' => ['fr' => ['title' => 'Dessinez votre première terrasse']]],
+        ]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $kinds = [];
+
+        foreach ($this->listIn($written, 'blocks') as $block) {
+            self::assertIsArray($block);
+            $kinds[] = $block['block'] ?? null;
+        }
+
+        // Whatever order the rows come back in: the page orders bands by
+        // `sections`, never by the order of this list.
+        sort($kinds);
+        self::assertSame(['CTA', 'FEATURE', 'HEADLINE', 'STATS', 'TRUST'], $kinds);
+
+        // A figure is text with its unit in it, and what it counts is
+        // required: a number with nothing beside it says nothing.
+        $bare = $this->write([['block' => 'STATS', 'content' => ['value' => '3 min']]]);
+        self::assertSame(400, $bare->getStatusCode());
+
+        // The icon comes from the closed set a problem draws from, and a
+        // code is refused in a translation: an icon has no French.
+        $drawn = $this->write([['block' => 'FEATURE', 'content' => ['title' => 'Exports', 'icon' => 'rocket']]]);
+        self::assertSame(400, $drawn->getStatusCode());
+
+        $translated = $this->write([[
+            'block' => 'FEATURE',
+            'content' => ['title' => 'Exports', 'icon' => 'check'],
+            'translations' => ['fr' => ['icon' => 'check']],
+        ]]);
+        self::assertSame(400, $translated->getStatusCode());
+
+        // A logo's name is what a screen reader says for it, so the row
+        // takes no second description.
+        $described = $this->write([['block' => 'TRUST', 'content' => ['name' => 'Durand', 'alt' => 'Their logo']]]);
+        self::assertSame(400, $described->getStatusCode());
+    }
+
+    public function testAPageHasOneCallToAction(): void
+    {
+        $twice = $this->write([
+            self::headline(),
+            ['block' => 'CTA', 'position' => 10, 'content' => ['title' => 'Start now']],
+            ['block' => 'CTA', 'position' => 20, 'content' => ['title' => 'Or start later']],
+        ]);
+
+        // In words, before the index says it with a constraint's name.
+        self::assertSame(400, $twice->getStatusCode());
+        self::assertSame('VALIDATION_FAILED', $this->errorOf($twice)['code'] ?? null);
+    }
+
+    /**
+     * How a band is laid out is a code beside its heading (2026-11-20): one
+     * of the layouts that band has, in English only.
+     */
+    public function testABandIsLaidOutOneOfTheWaysItHas(): void
+    {
+        $bands = static fn (array $bands): array => ['blocks' => [self::headline()], 'bands' => $bands];
+        $put = fn (array $body): ResponseInterface => $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json($body),
+        );
+
+        $written = $put($bands([
+            'HEADLINE' => ['content' => ['layout' => 'centered']],
+            'STEPS' => ['content' => ['title' => 'Three moves', 'layout' => 'timeline']],
+        ]));
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $stored = $this->decode($written)['bands'] ?? null;
+        self::assertIsArray($stored);
+        // A layout with no title beside it is still a band that said
+        // something, so it is stored and answered.
+        self::assertSame('centered', $this->sentenceAt($stored, ['HEADLINE', 'content', 'layout']));
+        self::assertSame('timeline', $this->sentenceAt($stored, ['STEPS', 'content', 'layout']));
+
+        // A stranger is told, in whatever language they read: a layout has
+        // no translation to fall back from.
+        $this->publish(true);
+        $public = $this->request('GET', '/api/v1/public/products/plan/showcase', ['Accept-Language' => 'fr']);
+        $showcase = $this->decode($public)['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        self::assertSame('centered', $this->sentenceAt($showcase, ['bands', 'HEADLINE', 'layout']));
+
+        foreach ([
+            // A layout this band does not have.
+            ['HEADLINE' => ['content' => ['layout' => 'timeline']]],
+            // A band that is drawn one way.
+            ['QUESTION' => ['content' => ['layout' => 'grid']]],
+            // A layout in a translation.
+            ['STEPS' => ['content' => ['title' => 'Three moves'], 'translations' => ['fr' => ['layout' => 'timeline']]]],
+        ] as $refused) {
+            $answer = $put($bands($refused));
+
+            self::assertSame(400, $answer->getStatusCode(), json_encode($refused) ?: '');
+        }
+
+        // None of the refusals moved it.
+        $after = $this->decode($this->read())['bands'] ?? null;
+        self::assertIsArray($after);
+        self::assertSame('centered', $this->sentenceAt($after, ['HEADLINE', 'content', 'layout']));
+    }
 
     /**
      * @return array<string, mixed>

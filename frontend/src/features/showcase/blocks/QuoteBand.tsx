@@ -2,7 +2,7 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import type { BandHeading, QuoteRow, ShowcaseRow } from './content';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * Somebody saying it worked, in their own words (2026-09-28).
@@ -32,6 +32,11 @@ export function QuoteBand({
     return null;
   }
 
+  // `grid` is the cards two across. `single` is one column of large quotes,
+  // centred (2026-11-20): for one or two voices that deserve the width.
+  const layout = layoutOf('QUOTE', heading?.layout);
+  const single = layout === 'single';
+
   return (
     <ShowcaseBand
       id={BAND_META.QUOTE.anchor}
@@ -41,12 +46,12 @@ export function QuoteBand({
       lede={heading?.lede ?? undefined}
       data-testid="showcase-quotes"
     >
-      <div className="grid gap-5 md:grid-cols-2 lg:gap-6">
+      <div data-layout={layout} className={single ? 'mx-auto max-w-3xl space-y-8' : 'grid gap-5 md:grid-cols-2 lg:gap-6'}>
         {rows.map((row) => (
           <figure
             key={row.id}
             data-quote={row.id}
-            className="rounded-card border border-line bg-canvas p-7 shadow-raise md:p-8"
+            className={single ? 'text-center' : 'rounded-card border border-line bg-canvas p-7 shadow-raise md:p-8'}
           >
             <span
               aria-hidden="true"
@@ -56,7 +61,13 @@ export function QuoteBand({
             </span>
 
             <blockquote className="mt-3">
-              <p className="display-type max-w-prose text-xl font-medium leading-snug md:text-2xl">
+              <p
+                className={
+                  single
+                    ? 'display-type mx-auto max-w-prose text-2xl font-medium leading-snug md:text-3xl'
+                    : 'display-type max-w-prose text-xl font-medium leading-snug md:text-2xl'
+                }
+              >
                 {row.content.quote}
               </p>
             </blockquote>

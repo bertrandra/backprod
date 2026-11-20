@@ -7,11 +7,15 @@ import type { BandKind } from './meta';
 import { HeadlineBand } from './HeadlineBand';
 import { PricingBand } from './PricingBand';
 import { ProblemBand } from './ProblemBand';
+import { CtaBand } from './CtaBand';
 import { DemoBand } from './DemoBand';
+import { FeaturesBand } from './FeaturesBand';
 import { ProofBand } from './ProofBand';
 import { QuestionsBand } from './QuestionsBand';
 import { QuoteBand } from './QuoteBand';
+import { StatsBand } from './StatsBand';
 import { StepsBand } from './StepsBand';
+import { TrustBand } from './TrustBand';
 import { UseCasesBand } from './UseCasesBand';
 
 /**
@@ -85,6 +89,22 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
         action={p.action}
       />
     ),
+  },
+  TRUST: {
+    speaks: (p) => p.content.trust.length > 0,
+    view: (p) => <TrustBand rows={p.content.trust} heading={heading(p, 'TRUST')} />,
+  },
+  STATS: {
+    speaks: (p) => p.content.stats.length > 0,
+    view: (p) => <StatsBand rows={p.content.stats} heading={heading(p, 'STATS')} />,
+  },
+  FEATURE: {
+    speaks: (p) => p.content.features.length > 0,
+    view: (p) => <FeaturesBand rows={p.content.features} heading={heading(p, 'FEATURE')} />,
+  },
+  CTA: {
+    speaks: (p) => p.content.cta.length > 0,
+    view: (p) => <CtaBand row={p.content.cta[0] ?? null} action={p.action} />,
   },
   PROBLEM: {
     speaks: (p) => p.content.problems.length > 0,

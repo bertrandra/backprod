@@ -61,6 +61,17 @@ final class ShowcaseBlocks
         // below refuses on the way in, and it would be the same hole the
         // other way round — an operator writing a description of nothing.
         ShowcaseBlock::QUESTION => ['required' => ['question', 'answer'], 'optional' => []],
+        // The four that sell (2026-11-20). `TRUST` is a name and, optionally,
+        // a logo: the name is what a screen reader says for the picture, so
+        // it carries no `alt` — two descriptions of one logo would be two
+        // sentences that could disagree. `STATS` is a figure and what it
+        // counts. `FEATURE` is what the product includes, with an icon from
+        // the same closed set a problem draws from. `CTA` is the last word
+        // on the page, and there is one of it.
+        ShowcaseBlock::TRUST => ['required' => ['name'], 'optional' => []],
+        ShowcaseBlock::STATS => ['required' => ['value', 'label'], 'optional' => ['detail']],
+        ShowcaseBlock::FEATURE => ['required' => ['title'], 'optional' => ['body']],
+        ShowcaseBlock::CTA => ['required' => ['title'], 'optional' => ['body']],
     ];
 
     /**
@@ -75,6 +86,7 @@ final class ShowcaseBlocks
      */
     private const CODES = [
         ShowcaseBlock::PROBLEM => ['icon' => ShowcaseBlock::ICONS],
+        ShowcaseBlock::FEATURE => ['icon' => ShowcaseBlock::ICONS],
         ShowcaseBlock::DEMO => ['ratio' => ShowcaseBlock::RATIOS],
     ];
 

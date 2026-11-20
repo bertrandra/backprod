@@ -32,6 +32,20 @@ final class ShowcaseBlock
     public const QUESTION = 'QUESTION';
 
     /**
+     * Four bands that sell (2026-11-20): who already trusts it, what it
+     * amounts to in numbers, what it includes, and a last place to act.
+     *
+     * The page could say what a product does and prove it with screenshots,
+     * and had nowhere to put the three things a hesitating reader looks for
+     * next — a name they recognise, a figure, a list of what they get — nor
+     * anything after the questions but the end of the page.
+     */
+    public const TRUST = 'TRUST';
+    public const STATS = 'STATS';
+    public const FEATURE = 'FEATURE';
+    public const CTA = 'CTA';
+
+    /**
      * Every kind an operator writes rows for.
      *
      * `PRICING` is absent and must stay absent: it is a position in the
@@ -43,13 +57,17 @@ final class ShowcaseBlock
      */
     public const KINDS = [
         self::HEADLINE,
+        self::TRUST,
         self::PROBLEM,
+        self::STATS,
         self::STEPS,
+        self::FEATURE,
         self::USE_CASE,
         self::QUOTE,
         self::PROOF,
         self::DEMO,
         self::QUESTION,
+        self::CTA,
     ];
 
     /**
@@ -63,7 +81,13 @@ final class ShowcaseBlock
      *
      * @var list<string>
      */
-    public const ICONS = ['clock', 'cross', 'house', 'coin', 'ruler', 'paper', 'warning', 'repeat'];
+    public const ICONS = [
+        'clock', 'cross', 'house', 'coin', 'ruler', 'paper', 'warning', 'repeat',
+        // Four that say something good (2026-11-20). The first eight were
+        // drawn for the problem band, and a feature list illustrated only
+        // with a warning triangle and a cross reads as a list of faults.
+        'check', 'bolt', 'shield', 'layers',
+    ];
 
     /**
      * The shapes a `DEMO` row may reserve, as width over height.
@@ -93,7 +117,7 @@ final class ShowcaseBlock
      *
      * @var list<string>
      */
-    public const SINGLETONS = [self::HEADLINE];
+    public const SINGLETONS = [self::HEADLINE, self::CTA];
 
     /**
      * @param array<string, mixed>                $content      the English

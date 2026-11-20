@@ -10,7 +10,7 @@ import type {
 import type { LocaleCode } from '@/i18n';
 import type { Translated } from '@/ui/TranslatedField';
 
-import { HEADING_FIELDS } from './BandHeading';
+import { headingFieldsOf } from './BandHeading';
 
 /**
  * The story as the console holds it while somebody is writing it.
@@ -138,7 +138,7 @@ export function headingsToDraft(bands: ShowcaseBandHeadings | undefined): Headin
     >;
 
     draft[block] = Object.fromEntries(
-      HEADING_FIELDS.map((field) => [
+      headingFieldsOf(block as BandKind).map((field) => [
         field.name,
         {
           en: content[field.name] ?? '',
@@ -170,7 +170,7 @@ export function headingsToInput(headings: HeadingDraft): ShowcaseBandHeadings {
     const content: Record<string, string> = {};
     const translations: Record<string, Record<string, string>> = {};
 
-    for (const field of HEADING_FIELDS) {
+    for (const field of headingFieldsOf(block as BandKind)) {
       const value = fields?.[field.name] ?? EMPTY;
       const english = value.en.trim();
 
