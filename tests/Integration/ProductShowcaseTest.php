@@ -733,18 +733,18 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testABandIsLaidOutOneOfTheWaysItHas(): void
     {
-        $bands = static fn (array $bands): array => ['blocks' => [self::headline()], 'bands' => $bands];
-        $put = fn (array $body): ResponseInterface => $this->request(
+        /** @param array<string, mixed> $bands */
+        $put = fn (array $bands): ResponseInterface => $this->request(
             'PUT',
             '/api/v1/staff/products/' . $this->plan . '/showcase',
             ['Authorization' => 'Bearer ola-token'],
-            $this->json($body),
+            $this->json(['blocks' => [self::headline()], 'bands' => $bands]),
         );
 
-        $written = $put($bands([
+        $written = $put([
             'HEADLINE' => ['content' => ['layout' => 'centered']],
             'STEPS' => ['content' => ['title' => 'Three moves', 'layout' => 'timeline']],
-        ]));
+        ]);
 
         self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
 
@@ -771,7 +771,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
             // A layout in a translation.
             ['STEPS' => ['content' => ['title' => 'Three moves'], 'translations' => ['fr' => ['layout' => 'timeline']]]],
         ] as $refused) {
-            $answer = $put($bands($refused));
+            $answer = $put($refused);
 
             self::assertSame(400, $answer->getStatusCode(), json_encode($refused) ?: '');
         }
