@@ -624,3 +624,47 @@ hope for:
 motion — never on decorative abstraction, stock photography, device
 mockups, parallax or scroll-jacking. Desktop and mobile both, from 375 px
 up, both themes, axe clean, and complete at rest.
+
+## 12. Writing it with the page beside the form (2026-11-20)
+
+The console had a form and no page: an operator wrote, saved, published and
+opened the product's address in another tab to find out what it looked like,
+and a draft could not be looked at at all. Two additions, both in the
+frontend and neither touching the contract.
+
+### 12.1 The preview
+
+*Edit with the preview* opens the form and the page side by side, filling
+the window (`StoryScreen`, `StoryPreview`).
+
+- **It is the real page.** The draft is turned into the shape the public
+  read sends (`draftAsPage`) and goes through `contentFrom()` and
+  `<Showcase>` — the parser and the component a stranger's browser runs. A
+  preview with its own renderer would be a second opinion about what a band
+  looks like.
+- **In a frame, so a phone is a phone.** Every band is laid out by the width
+  of the viewport, so the page is portalled into an iframe 1280 or 390
+  pixels wide and scaled to fit. Its breakpoints read the frame and not the
+  window; `e2e/story-studio.spec.ts` proves that in a browser.
+- **In any of the five languages**, falling back to English field by field
+  as `ShowcaseBlock::contentIn()` does.
+- **The prices are the product's public offers**, read as a stranger reads
+  them. Nothing in the preview is saved and nothing in it can buy.
+- A picture is shown from the operator's own file the moment it is chosen;
+  the platform's address for it answers nothing until the page is published.
+
+### 12.2 Templates
+
+*Start from a template* fills the draft with an order and with sentences
+that say what goes where (`blocks/templates.ts`): *The whole story*, *Proof
+first*, *Short*.
+
+- **Not stored, and not a fact about any product.** Applying one produces an
+  ordinary draft, saved by the ordinary write; adding a template is adding
+  an entry to one file.
+- **English only**, because the English is what a page is published from
+  (§11.2) and a translated placeholder would be published as though chosen.
+- **Replacing what is written takes a second press.**
+- No template carries a `DEMO` row: that band is refused without an address
+  or a picture, and a template whose first save fails teaches nothing. Each
+  template is tested against what the endpoint requires.

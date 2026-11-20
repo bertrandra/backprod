@@ -35,7 +35,13 @@ export function BandPicture({
    */
   image: string | null;
   assetId: string | null;
-  onChoose: (assetId: string | null) => void;
+  /**
+   * The picture chosen, and where it can be shown **now**: the file the
+   * operator just picked, read from their own machine, because the
+   * platform's address for it answers nothing until the page is published.
+   * Null where there is no picture, or nothing to show yet.
+   */
+  onChoose: (assetId: string | null, shownAt: string | null) => void;
 }) {
   const upload = useUploadShowcaseAsset(productId);
   const input = useRef<HTMLInputElement>(null);
@@ -55,7 +61,7 @@ export function BandPicture({
             const file = event.target.files?.[0];
 
             if (file !== undefined) {
-              upload.mutate(file, { onSuccess: (asset) => onChoose(asset.id) });
+              upload.mutate(file, { onSuccess: (asset) => onChoose(asset.id, localAddressOf(file)) });
             }
 
             // Cleared, so choosing the same file twice fires twice: a
@@ -75,7 +81,7 @@ export function BandPicture({
         </Button>
 
         {assetId !== null && (
-          <Button type="button" variant="secondary" data-testid="clear-picture" onClick={() => onChoose(null)}>
+          <Button type="button" variant="secondary" data-testid="clear-picture" onClick={() => onChoose(null, null)}>
             {t("Remove the picture")}</Button>
         )}
       </div>
@@ -96,4 +102,15 @@ export function BandPicture({
         ))}
     </div>
   );
+}
+
+/**
+ * An address for a file still on the operator's machine.
+ *
+ * So the form and the preview can show a picture the moment it is chosen,
+ * rather than after a publish. It is never sent anywhere: what is saved is
+ * the asset's id, and this address means something to this tab only.
+ */
+function localAddressOf(file: File): string | null {
+  return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : null;
 }
