@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BAND_FIELDS } from '@/features/showcase/blocks/editors';
 import { contentFrom } from '@/features/showcase/blocks/fromApi';
-import { BAND_META, bandsInOrder, type BandKind } from '@/features/showcase/blocks/meta';
+import { BAND_META, bandsInOrder, layoutsOf, type BandKind } from '@/features/showcase/blocks/meta';
 import { STORY_TEMPLATES } from '@/features/showcase/blocks/templates';
 
 import { draftAsPage, draftFromTemplate, toInput, type DraftBlock } from './storyDraft';
@@ -89,6 +89,12 @@ describe.each(STORY_TEMPLATES)('the template “$name”', (template) => {
 
     expect(kinds.filter((kind) => kind === 'HEADLINE')).toHaveLength(1);
     expect(kinds).not.toContain('DEMO');
+  });
+
+  it('lays out only bands that have that layout', () => {
+    for (const [block, layout] of Object.entries(template.layouts ?? {})) {
+      expect(layoutsOf(block as BandKind), `${block}: ${layout}`).toContain(layout);
+    }
   });
 
   it('becomes a draft in English only, which the write sends with no translations', () => {

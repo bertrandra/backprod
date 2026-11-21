@@ -717,7 +717,7 @@ page moved the day this was added.
 | `STEPS` | `columns` · `timeline` |
 | `FEATURE` | `grid` · `list` |
 | `QUOTE` | `grid` · `single` |
-| `PROOF` | `alternate` · `grid` |
+| `PROOF` | `alternate` · `grid` · `carousel` |
 
 - **A closed set and a code**, like a problem's icon: English only, refused
   in a translation, and refused on a band that is drawn one way. A free
@@ -737,3 +737,24 @@ page moved the day this was added.
 fields the endpoint accepts. It now also compares the three closed sets both
 sides spell — the kinds, the icons, and the layouts each band has, in order —
 and fails when one is changed in TypeScript or in PHP only.
+
+### 13.4 The carousel (2026-11-21)
+
+`PROOF` gained a third layout: the screenshots large and one at a time
+(`ProofCarousel`), for a product with five things to show on one screen.
+
+- **A scrolling list, and buttons that scroll it.** The row scrolls sideways
+  and snaps; no slide is hidden and none is mounted late. A finger, a
+  trackpad, the keyboard and a screen reader reach every picture with what
+  they already do, and a browser with scripts off still has a carousel. No
+  library: the part that is hard, the browser does.
+- **It never moves by itself.** No autoplay and no timer (§4). Under
+  `prefers-reduced-motion` the buttons jump instead of gliding.
+- **Where the reader is, in words**: "2 of 5", in a live region. The buttons
+  stop at both ends, and one picture gets no buttons.
+- From `md` up a slide is not quite the full width, so the edge of the next
+  picture shows — the hint that there is one.
+
+A template may now name layouts (`StoryTemplate.layouts`): *Proof first*
+opens centred and shows its screenshots in the carousel. A band the template
+does not name keeps the layout it had.

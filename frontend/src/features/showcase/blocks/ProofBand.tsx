@@ -4,6 +4,7 @@ import { ShowcaseBand } from '../ShowcaseBand';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import type { BandHeading, ProofRow, ShowcaseRow } from './content';
 import { BAND_META, layoutOf } from './meta';
+import { ProofCarousel } from './ProofCarousel';
 
 /**
  * The product itself, cropped to the thing being discussed.
@@ -36,7 +37,26 @@ export function ProofBand({
   // `alternate` is one screenshot per row, picture and caption swapping
   // sides. `grid` is a gallery, the caption under each (2026-11-20): for a
   // product with six small things to show rather than two large ones.
+  // `carousel` shows them large and one at a time, moved by the reader
+  // (2026-11-21): for five things to show on one screen.
   const layout = layoutOf('PROOF', heading?.layout);
+
+  if (layout === 'carousel') {
+    const title = heading?.title ?? t("See it");
+
+    return (
+      <ShowcaseBand
+        id={BAND_META.PROOF.anchor}
+        surface={BAND_META.PROOF.surface}
+        eyebrow={heading?.eyebrow ?? undefined}
+        title={title}
+        lede={heading?.lede ?? undefined}
+        data-testid="showcase-proof"
+      >
+        <ProofCarousel rows={rows} label={title} />
+      </ShowcaseBand>
+    );
+  }
 
   if (layout === 'grid') {
     return (
