@@ -606,14 +606,18 @@ function versionsPanel(array $status, array $missing = []): string
         $items = '';
 
         foreach ($missing as $slug) {
-            $items .= '<li>' . htmlspecialchars(DemoWorld::describeAddition($slug)) . ' — its people, seats, invoices '
-                . 'and projects, as the demonstration describes them</li>';
+            // A part of a product's page says everything in its own sentence;
+            // an organisation brings a world with it, and says so.
+            $items .= '<li>' . htmlspecialchars(DemoWorld::describeAddition($slug))
+                . (DemoWorld::isStoryKey($slug) ? '' : ' — its people, seats, invoices and projects, as the demonstration describes them')
+                . '</li>';
         }
 
         $html .= '<p><strong>The demonstration will be completed</strong>' . ($count > 0 ? ', after the migrations' : '')
             . ':</p><ul>' . $items . '</ul>'
             . '<p class="hint">In one transaction of its own. Nothing that exists is changed: no other organisation, '
-            . 'person, page or setting. Its new accounts get the demonstration\'s public password.</p>';
+            . 'person or setting, and on a product\'s page no band that already has rows, no heading and no layout '
+            . 'somebody wrote. New accounts get the demonstration\'s public password.</p>';
     }
 
     $label = trim(($count > 0 ? 'Apply ' . $count . ' migration' . ($count > 1 ? 's' : '') : '')

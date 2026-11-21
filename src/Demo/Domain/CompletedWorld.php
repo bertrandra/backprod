@@ -34,6 +34,13 @@ final class CompletedWorld
         public readonly array $subscriptions,
         public readonly array $invoices,
         public readonly array $checks,
+        /**
+         * What the product's page gained, as the keys
+         * `DemoFixtures::missingStory()` named (2026-11-21).
+         *
+         * @var list<string>
+         */
+        public readonly array $story = [],
     ) {
     }
 
@@ -44,7 +51,7 @@ final class CompletedWorld
 
     public function addedNothing(): bool
     {
-        return $this->tenants === [];
+        return $this->tenants === [] && $this->story === [];
     }
 
     public function holds(): bool
@@ -69,6 +76,10 @@ final class CompletedWorld
 
         foreach ($this->tenants as $slug) {
             $lines[] = DemoWorld::describeAddition($slug);
+        }
+
+        foreach ($this->story as $key) {
+            $lines[] = DemoWorld::describeAddition($key);
         }
 
         foreach ($this->people as $key) {

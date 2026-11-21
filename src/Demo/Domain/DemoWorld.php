@@ -2073,10 +2073,54 @@ final class DemoWorld
         return $tenant['legal_name'] ?? $tenant['name'];
     }
 
-    /** How completing a deployment says it adds an organisation: "adds organisation Parso". */
+    /** The prefix of a key that names a part of a product's page rather than an organisation. */
+    public const STORY_KEY = 'story';
+
+    /**
+     * How completing a deployment says what it adds: "adds organisation
+     * Parso", or — for a key of {@see DemoFixtures::missingStory()} — "adds
+     * the TRUST band to Plan's page (3 rows)".
+     *
+     * One sentence per key, the same on the installer's page, in
+     * `bin/demo-upgrade.php` and in the answer afterwards, because what was
+     * announced and what was done have to be comparable line by line.
+     */
     public static function describeAddition(string $slug): string
     {
-        return 'adds organisation ' . (self::TENANTS[$slug]['name'] ?? $slug);
+        $parts = explode(':', $slug);
+
+        if (count($parts) !== 4 || $parts[0] !== self::STORY_KEY) {
+            return 'adds organisation ' . (self::TENANTS[$slug]['name'] ?? $slug);
+        }
+
+        [, $code, $what, $band] = $parts;
+        $product = self::PRODUCTS[$code]['name'] ?? $code;
+
+        if ($what === 'rows') {
+            $rows = count(array_filter(
+                self::SHOWCASE[$code] ?? [],
+                static fn (array $block): bool => $block['block'] === $band,
+            ));
+
+            return sprintf('adds the %s band to %s\'s page (%d row%s)', $band, $product, $rows, $rows === 1 ? '' : 's');
+        }
+
+        if ($what === 'layout') {
+            return sprintf(
+                'lays out the %s band of %s\'s page as "%s"',
+                $band,
+                $product,
+                self::SHOWCASE_HEADINGS[$code][$band]['content']['layout'] ?? 'default',
+            );
+        }
+
+        return sprintf('adds the heading of the %s band on %s\'s page', $band, $product);
+    }
+
+    /** Whether a key of a completion names a part of a page rather than an organisation. */
+    public static function isStoryKey(string $key): bool
+    {
+        return str_starts_with($key, self::STORY_KEY . ':');
     }
 
     /** The address a seeded person signs in with. */
