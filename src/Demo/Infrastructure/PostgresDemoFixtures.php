@@ -288,7 +288,7 @@ final class PostgresDemoFixtures implements DemoFixtures
                 }
             }
 
-            foreach (DemoWorld::SHOWCASE_HEADINGS[$code] ?? [] as $band => $heading) {
+            foreach (self::headingsOf($code) as $band => $heading) {
                 if (!isset($headings[$band])) {
                     $missing[] = self::storyKey($code, 'heading', $band);
                 } elseif (isset($heading['content']['layout']) && !$headings[$band]) {
@@ -370,6 +370,22 @@ final class PostgresDemoFixtures implements DemoFixtures
                 ['product' => $product, 'block' => $band, 'layout' => $heading['content']['layout'] ?? ''],
             );
         }
+    }
+
+    /**
+     * What the world titles on one product's page; nothing for a product it
+     * titles nothing on.
+     *
+     * A method taking the code as a string, because read inside a loop over
+     * the story's own keys the code is a literal the analyser knows — and a
+     * product with a story and no headings is a state this must answer, not
+     * one the present data happens to exclude.
+     *
+     * @return array<string, array{content: array<string, string>, translations: array<string, array<string, string>>}>
+     */
+    private static function headingsOf(string $code): array
+    {
+        return DemoWorld::SHOWCASE_HEADINGS[$code] ?? [];
     }
 
     private static function storyKey(string $code, string $what, string $band): string
