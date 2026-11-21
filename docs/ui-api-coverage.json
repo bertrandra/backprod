@@ -231,7 +231,7 @@
     },
     "console.admin.invoicing": {
       "authority": "platform",
-      "$comment": "A product's configuration desk. ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with BILLING_NOT_CONFIGURED: an invoice must name its issuer, and the issuer lives in product_configuration, which only the demo seeder ever wrote. Three named keys rather than a JSONB editor, because every key in that table is read by code that names it and a typo would store configuration nothing reads. The third, project_schema_versions, closed the same hole one layer down (2026-09-29): creating a product wrote no configuration at all, and a product that has declared no versions accepts no project of any version. It sits here and not on the Products screen because showStaffConfiguration is the read that carries it, and two screens fetching one desk is how two answers to one question start. showProductManifest joined it on 2026-10-01 and is a fourth kind of thing: the only staff read that leaves this host. The product serves what it accepts at its own /.well-known/product.json, the screen shows that beside what the database holds, and applying stays the deliberate PUT — a fetch that wrote would let a product\u0027s host re-open a version the platform had retired. It is fetched on its own and never with the configuration beside it, so a product whose server is down does not make the billing settings unopenable.",
+      "$comment": "A product's configuration desk. ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with BILLING_NOT_CONFIGURED: an invoice must name its issuer, and the issuer lives in product_configuration, which only the demo seeder ever wrote. Three named keys rather than a JSONB editor, because every key in that table is read by code that names it and a typo would store configuration nothing reads. The third, project_schema_versions, closed the same hole one layer down (2026-09-29): creating a product wrote no configuration at all, and a product that has declared no versions accepts no project of any version. It sits here and not on the Products screen because showStaffConfiguration is the read that carries it, and two screens fetching one desk is how two answers to one question start. showProductManifest joined it on 2026-10-01 and is a fourth kind of thing: the only staff read that leaves this host. The product serves what it accepts at its own /.well-known/product.json, the screen shows that beside what the database holds, and applying stays the deliberate PUT — a fetch that wrote would let a product's host re-open a version the platform had retired. It is fetched on its own and never with the configuration beside it, so a product whose server is down does not make the billing settings unopenable. The accepted document versions and the manifest read left this area on 2026-11-20 for console.admin.products: they are a fact about the product and not about invoicing, and the operator whose product refused every save looked for them there. This screen still reads showStaffConfiguration, which carries the list, and no longer shows it.",
       "routes": [
         "/console/invoicing"
       ],
@@ -239,9 +239,7 @@
         "showStaffConfiguration",
         "setBillingIdentity",
         "setTaxSettings",
-        "setRenewal",
-        "setProjectSchemaVersions",
-        "showProductManifest"
+        "setRenewal"
       ]
     },
     "console.admin.metrics": {
@@ -289,7 +287,7 @@
     },
     "console.admin.products": {
       "authority": "platform",
-      "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document. The demonstration world is reset from here too, behind staff.demo.reset: the products are what it is made of, and it is refused while one that is not the demo's exists.",
+      "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document. The demonstration world is reset from here too, behind staff.demo.reset: the products are what it is made of, and it is refused while one that is not the demo's exists. Since 2026-11-20 each product's row also carries the document versions it accepts (setProjectSchemaVersions) and what the product declares about itself (showProductManifest), behind a disclosure fetched only when opened. They were on the invoicing screen because showStaffConfiguration is the read that carries the list; that is where the API keeps it, not where anybody looks.",
       "routes": [
         "/console/products"
       ],
@@ -302,7 +300,9 @@
         "revokeProductCredential",
         "issueWebhookSecret",
         "listWebhookDeliveries",
-        "retryWebhookDelivery"
+        "retryWebhookDelivery",
+        "setProjectSchemaVersions",
+        "showProductManifest"
       ]
     },
     "console.admin.queue": {
@@ -704,7 +704,7 @@
   },
   "not_in_ui": {
     "getPublicShowcaseAsset": "The bytes of a picture on a published product page (2026-09-24). Reached by the browser as an <img src> whose address the *server* composed — both showProductStory and getPublicShowcase answer it as a field — so the generated client never fetches these bytes itself and no screen spells the route. The same story as downloadAsset, minus the signature: the reader has no session to mint one with, and the page is public by the operator's own act.",
-    "downloadAsset":"Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
+    "downloadAsset": "Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
     "einvoiceWebhook": "Server-to-server callback from the e-invoicing platform. No human origin, so no screen.",
     "health": "Monitoring probe consumed by infrastructure, not by a person.",
     "healthReady": "Readiness probe consumed by an outside monitor, not by a person: a verdict and nothing else. The detail is /admin/queue, which the console shows.",

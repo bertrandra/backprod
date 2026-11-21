@@ -379,18 +379,46 @@ describe('changing one', () => {
     expect(useSessionStore.getState().productCode).toBe('atlas');
   });
 
-  it('takes somebody from a product straight to the document versions it accepts', async () => {
-    const view = renderAtRoute(<ProductsScreen />, clientFor(), {
-      path: '/console/products',
-      product: 'orbit',
-    });
+  it('keeps the document versions a product accepts on the product itself', async () => {
+    renderAtRoute(
+      <ProductsScreen />,
+      clientFor({
+        'GET /api/v1/staff/configuration': {
+          data: {
+            product: ATLAS,
+            billing_supplier: {},
+            tax: {},
+            project_schema_versions: [1, 2, 3],
+            renewal: { automatic: false, lead_days: 7 },
+            can_invoice: false,
+            missing: [],
+          },
+        },
+        'GET /api/v1/staff/configuration/product-manifest': {
+          data: {
+            product: { ...ATLAS, app_url: null },
+            declared: null,
+            error: 'NO_ADDRESS',
+            project_schema_versions: [1, 2, 3],
+            adds: [],
+          },
+        },
+      }),
+      { path: '/console/products', product: 'orbit' },
+    );
 
     await waitFor(() => expect(screen.getByTestId('product-list')).toBeTruthy());
-    fireEvent.click(screen.getAllByTestId('document-versions')[0] as HTMLElement);
 
-    // Where a release's new version is added: the invoicing screen's section,
-    // for the product on the row, and not a second copy of the list here.
-    await waitFor(() => expect(view.location()).toContain('/console/invoicing#document-versions'));
-    expect(useSessionStore.getState().productCode).toBe('atlas');
+    // Closed until asked for: nothing is fetched to draw a list of names.
+    expect(screen.queryByTestId('schema-versions')).toBeNull();
+
+    const panel = screen.getByTestId<HTMLDetailsElement>('versions-atlas');
+    panel.open = true;
+    fireEvent(panel, new Event('toggle', { bubbles: true }));
+
+    // Where somebody whose product refuses every save comes to look: the
+    // list, and the field a new version is typed into, on the product's row.
+    await waitFor(() => expect(screen.getByTestId('schema-versions').textContent).toMatch(/1.*2.*3/s));
+    expect(screen.getByLabelText('Add a version')).toBeTruthy();
   });
 });
