@@ -1109,6 +1109,63 @@ final class DemoWorld
                 ],
                 'picture' => 'proof-telephone-maison-3d.webp',
             ],
+            // Before and after (2026-11-22): one plot, two projects of the
+            // demonstration — the house as it stands, then with a pool and
+            // a pergola. Embedded rather than pictured, so the reader turns
+            // each one; both start together and play the same day.
+            [
+                'block' => 'COMPARE',
+                'content' => [
+                    'label' => 'Today',
+                    'caption' => 'The house as it stands, on its plot.',
+                    'embed_url' => 'https://plan.raillard.org/?mode=demo&file=1&x={width}&y={height}&heureauto=y&hrsstart=9&hrsend=19&duree=30&orthophoto=y',
+                    'ratio' => '4:3',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'label' => 'Aujourd’hui',
+                        'caption' => 'La maison telle qu’elle est, sur sa parcelle.',
+                    ],
+                    'es' => [
+                        'label' => 'Hoy',
+                        'caption' => 'La casa tal como está, en su parcela.',
+                    ],
+                    'de' => [
+                        'label' => 'Heute',
+                        'caption' => 'Das Haus, wie es steht, auf seinem Grundstück.',
+                    ],
+                    'it' => [
+                        'label' => 'Oggi',
+                        'caption' => 'La casa così com’è, sul suo lotto.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'COMPARE',
+                'content' => [
+                    'label' => 'With the project',
+                    'caption' => 'The same plot with a pool and a pergola.',
+                    'embed_url' => 'https://plan.raillard.org/?mode=demo&file=4&x={width}&y={height}&heureauto=y&hrsstart=9&hrsend=19&duree=30&orthophoto=y',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'label' => 'Avec le projet',
+                        'caption' => 'La même parcelle avec une piscine et une pergola.',
+                    ],
+                    'es' => [
+                        'label' => 'Con el proyecto',
+                        'caption' => 'La misma parcela con piscina y pérgola.',
+                    ],
+                    'de' => [
+                        'label' => 'Mit dem Projekt',
+                        'caption' => 'Dasselbe Grundstück mit Pool und Pergola.',
+                    ],
+                    'it' => [
+                        'label' => 'Con il progetto',
+                        'caption' => 'Lo stesso lotto con piscina e pergola.',
+                    ],
+                ],
+            ],
             [
                 'block' => 'DEMO',
                 'content' => [
