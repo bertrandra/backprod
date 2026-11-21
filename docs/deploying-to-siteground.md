@@ -554,8 +554,28 @@ upgrade adds it:
   without the flag it adds it.
 
 One transaction, idempotent (a second run adds nothing), and nothing existing
-is touched — no other organisation, person, page or setting. Refused on a
+is touched — no other organisation, person or setting. Refused on a
 deployment hosting a product that is not the demonstration's.
+
+**A product's page grows the same way (2026-11-21).** When a bundle teaches
+the page something — the four bands that sell and the layouts of
+`home-showcase-spec.md` §13 are the first — the same upgrade brings the
+demonstration's use of it to Plan's page, said line by line before it is
+applied:
+
+```text
+adds the TRUST band to Plan's page (3 rows)
+adds the heading of the STATS band on Plan's page
+lays out the HEADLINE band of Plan's page as "stacked"
+```
+
+It adds what was **never said** and corrects nothing: a band that already has
+rows gets none, and a heading or a layout somebody wrote is left as they wrote
+it. So a page an operator has edited keeps every edit, and gains only the bands
+it had no row of. Bands whose rows carry a picture are not added this way —
+their bytes go through the upload a seed does — and none of the new four does.
+The order of the page needs nothing: a stored order written before a band
+existed puts it back beside the band it follows.
 
 ---
 

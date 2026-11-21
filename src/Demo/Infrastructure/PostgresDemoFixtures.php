@@ -240,6 +240,237 @@ final class PostgresDemoFixtures implements DemoFixtures
         return array_values(array_diff(array_keys(DemoWorld::TENANTS), array_filter($present, 'is_string')));
     }
 
+    public function missingStory(): array
+    {
+        $products = $this->productIds();
+        $missing = [];
+
+        foreach (DemoWorld::SHOWCASE as $code => $blocks) {
+            $product = $products[$code] ?? null;
+
+            if ($product === null) {
+                continue;
+            }
+
+            $written = array_filter($this->connection->fetchFirstColumn(
+                'SELECT DISTINCT block FROM product_showcase WHERE product_id = :product',
+                ['product' => $product],
+            ), 'is_string');
+
+            // In the world's own order, and never a band whose rows name a
+            // picture: those bytes go through the showcase module's upload,
+            // which a seed does and this does not.
+            $pictured = [];
+            $kinds = [];
+
+            foreach ($blocks as $block) {
+                $kinds[$block['block']] = true;
+
+                if (DemoWorld::pictureOf($block) !== null) {
+                    $pictured[$block['block']] = true;
+                }
+            }
+
+            foreach (array_keys($kinds) as $kind) {
+                if (!isset($pictured[$kind]) && !in_array($kind, $written, true)) {
+                    $missing[] = self::storyKey($code, 'rows', $kind);
+                }
+            }
+
+            $headings = [];
+
+            foreach ($this->connection->fetchAllAssociative(
+                // `jsonb_exists`, not the `?` operator it is the function behind:
+                // the database layer reads a bare question mark as a
+                // positional parameter and refuses the statement.
+                "SELECT block, jsonb_exists(content, 'layout') AS laid_out FROM product_showcase_bands WHERE product_id = :product",
+                ['product' => $product],
+            ) as $row) {
+                if (is_string($row['block'])) {
+                    $headings[$row['block']] = (bool) $row['laid_out'];
+                }
+            }
+
+            foreach (self::headingsOf($code) as $band => $heading) {
+                if (!isset($headings[$band])) {
+                    $missing[] = self::storyKey($code, 'heading', $band);
+                } elseif (isset($heading['content']['layout']) && !$headings[$band]) {
+                    $missing[] = self::storyKey($code, 'layout', $band);
+                }
+            }
+        }
+
+        return $missing;
+    }
+
+    public function extendStory(array $keys): void
+    {
+        if ($keys === []) {
+            return;
+        }
+
+        // Asked again, here, of the database as it is now: a key that stopped
+        // being true since it was listed is skipped, never written over.
+        $still = $this->missingStory();
+        $products = $this->productIds();
+
+        foreach ($keys as $key) {
+            if (!in_array($key, $still, true)) {
+                continue;
+            }
+
+            $parts = explode(':', $key);
+
+            if (count($parts) !== 4) {
+                continue;
+            }
+
+            [, $code, $what, $band] = $parts;
+            $product = $products[$code] ?? null;
+
+            if ($product === null) {
+                continue;
+            }
+
+            if ($what === 'rows') {
+                $position = 0;
+
+                foreach (DemoWorld::SHOWCASE[$code] ?? [] as $block) {
+                    if ($block['block'] === $band) {
+                        $position += 10;
+                        $this->storyRow($product, $block, $position);
+                    }
+                }
+
+                continue;
+            }
+
+            $heading = DemoWorld::SHOWCASE_HEADINGS[$code][$band] ?? null;
+
+            if ($heading === null) {
+                continue;
+            }
+
+            if ($what === 'heading') {
+                $this->storyHeading($product, $band, $heading);
+
+                continue;
+            }
+
+            // The layout alone, on a heading somebody already has: merged in
+            // as one key, and only where the row says nothing about it — the
+            // condition is in the statement, so two runs at once cannot both
+            // decide it was absent.
+            $this->connection->executeStatement(
+                <<<'SQL'
+                UPDATE product_showcase_bands
+                   SET content = content || jsonb_build_object('layout', CAST(:layout AS text)),
+                       updated_at = now()
+                 WHERE product_id = :product
+                   AND block = :block
+                   AND NOT jsonb_exists(content, 'layout')
+                SQL,
+                ['product' => $product, 'block' => $band, 'layout' => $heading['content']['layout'] ?? ''],
+            );
+        }
+    }
+
+    /**
+     * What the world titles on one product's page; nothing for a product it
+     * titles nothing on.
+     *
+     * A method taking the code as a string, because read inside a loop over
+     * the story's own keys the code is a literal the analyser knows — and a
+     * product with a story and no headings is a state this must answer, not
+     * one the present data happens to exclude.
+     *
+     * @return array<string, array{content: array<string, string>, translations: array<string, array<string, string>>}>
+     */
+    private static function headingsOf(string $code): array
+    {
+        return DemoWorld::SHOWCASE_HEADINGS[$code] ?? [];
+    }
+
+    private static function storyKey(string $code, string $what, string $band): string
+    {
+        return implode(':', [DemoWorld::STORY_KEY, $code, $what, $band]);
+    }
+
+    /**
+     * One row of a product's story, with its translations.
+     *
+     * @param array{block: string, content: array<string, string>, translations: array<string, array<string, string>>, picture?: string} $block
+     *
+     * @return string the row's id
+     */
+    private function storyRow(string $product, array $block, int $position): string
+    {
+        $id = $this->id(
+            <<<'SQL'
+            INSERT INTO product_showcase (product_id, block, position, content)
+            VALUES (:product, :block, :position, CAST(:content AS jsonb))
+            RETURNING id
+            SQL,
+            [
+                'product' => $product,
+                'block' => $block['block'],
+                'position' => $position,
+                'content' => json_encode($block['content'], JSON_THROW_ON_ERROR),
+            ],
+        );
+
+        foreach ($block['translations'] as $locale => $content) {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                INSERT INTO product_showcase_translations (block_id, locale, content)
+                VALUES (:block, :locale, CAST(:content AS jsonb))
+                SQL,
+                [
+                    'block' => $id,
+                    'locale' => $locale,
+                    'content' => json_encode($content, JSON_THROW_ON_ERROR),
+                ],
+            );
+        }
+
+        return $id;
+    }
+
+    /**
+     * One band's heading, with its translations.
+     *
+     * @param array{content: array<string, string>, translations: array<string, array<string, string>>} $heading
+     */
+    private function storyHeading(string $product, string $band, array $heading): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+            INSERT INTO product_showcase_bands (product_id, block, content)
+            VALUES (:product, :block, CAST(:content AS jsonb))
+            SQL,
+            [
+                'product' => $product,
+                'block' => $band,
+                'content' => json_encode($heading['content'], JSON_THROW_ON_ERROR),
+            ],
+        );
+
+        foreach ($heading['translations'] as $locale => $content) {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                INSERT INTO product_showcase_band_translations (product_id, block, locale, content)
+                VALUES (:product, :block, :locale, CAST(:content AS jsonb))
+                SQL,
+                [
+                    'product' => $product,
+                    'block' => $band,
+                    'locale' => $locale,
+                    'content' => json_encode($content, JSON_THROW_ON_ERROR),
+                ],
+            );
+        }
+    }
+
     public function extend(array $slugs, string $passwordHash): DemoStructure
     {
         return $this->connection->transactional(function () use ($slugs, $passwordHash): DemoStructure {
@@ -1086,76 +1317,17 @@ final class PostgresDemoFixtures implements DemoFixtures
         foreach ($blocks as $block) {
             $positions[$block['block']] = ($positions[$block['block']] ?? 0) + 10;
 
-            $id = $this->id(
-                <<<'SQL'
-                INSERT INTO product_showcase (product_id, block, position, content)
-                VALUES (:product, :block, :position, CAST(:content AS jsonb))
-                RETURNING id
-                SQL,
-                [
-                    'product' => $product,
-                    'block' => $block['block'],
-                    'position' => $positions[$block['block']],
-                    'content' => json_encode($block['content'], JSON_THROW_ON_ERROR),
-                ],
-            );
+            $id = $this->storyRow($product, $block, $positions[$block['block']]);
 
-            // Named here, uploaded by the seeder: a picture is bytes in
-            // storage and a sniffed row, which is the showcase module's
-            // door and not a table these fixtures write.
             $picture = DemoWorld::pictureOf($block);
 
             if ($picture !== null) {
                 $this->pictures[] = [$id, $picture];
             }
-
-            foreach ($block['translations'] as $locale => $content) {
-                $this->connection->executeStatement(
-                    <<<'SQL'
-                    INSERT INTO product_showcase_translations (block_id, locale, content)
-                    VALUES (:block, :locale, CAST(:content AS jsonb))
-                    SQL,
-                    [
-                        'block' => $id,
-                        'locale' => $locale,
-                        'content' => json_encode($content, JSON_THROW_ON_ERROR),
-                    ],
-                );
-            }
         }
 
-        // Each band's own heading, which is one row per band where the
-        // blocks above are one per row: the section is called "How it
-        // works" once, however many steps it holds. `PRICING` gets one and
-        // has no block at all, which is the whole reason headings are their
-        // own table.
         foreach (DemoWorld::SHOWCASE_HEADINGS[$code] ?? [] as $band => $heading) {
-            $this->connection->executeStatement(
-                <<<'SQL'
-                INSERT INTO product_showcase_bands (product_id, block, content)
-                VALUES (:product, :block, CAST(:content AS jsonb))
-                SQL,
-                [
-                    'product' => $product,
-                    'block' => $band,
-                    'content' => json_encode($heading['content'], JSON_THROW_ON_ERROR),
-                ],
-            );
-
-            foreach ($heading['translations'] as $locale => $content) {
-                $this->connection->executeStatement(
-                    <<<'SQL'
-                    INSERT INTO product_showcase_band_translations (product_id, block, locale, content)
-                    VALUES (:product, :block, :locale, CAST(:content AS jsonb))
-                    SQL,
-                    [
-                        'product' => $product,
-                        'block' => $band,
-                        'locale' => $locale,
-                        'content' => json_encode($content, JSON_THROW_ON_ERROR),
-                    ],
-                );
-            }
+            $this->storyHeading($product, $band, $heading);
         }
 
         $this->connection->executeStatement(

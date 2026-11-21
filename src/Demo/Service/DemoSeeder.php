@@ -252,7 +252,9 @@ final class DemoSeeder
      */
     public function missing(): array
     {
-        return $this->isDemoDeployment() ? $this->fixtures->missingTenants() : [];
+        return $this->isDemoDeployment()
+            ? [...$this->fixtures->missingTenants(), ...$this->fixtures->missingStory()]
+            : [];
     }
 
     /**
@@ -299,15 +301,29 @@ final class DemoSeeder
         }
 
         $missing = $this->fixtures->missingTenants();
+        $story = $this->fixtures->missingStory();
 
-        if ($missing === []) {
+        if ($missing === [] && $story === []) {
             return CompletedWorld::nothing();
         }
 
-        return $this->fixtures->atomically(function () use ($missing): CompletedWorld {
+        // The page alone (2026-11-21): the world gained bands and no
+        // organisation, which is the ordinary case after a release that
+        // teaches the page something. No sale, no people, no invoice — the
+        // rows, and the one check that they are there.
+        if ($missing === []) {
+            return $this->fixtures->atomically(function () use ($story): CompletedWorld {
+                $this->fixtures->extendStory($story);
+
+                return self::held(new CompletedWorld([], [], [], [], [], $this->storyChecks(), $story));
+            });
+        }
+
+        return $this->fixtures->atomically(function () use ($missing, $story): CompletedWorld {
             $structure = $this->fixtures->extend($missing, PasswordHashing::hash(DemoWorld::PASSWORD));
+            $this->fixtures->extendStory($story);
             $sold = $this->sell($structure, $missing);
-            $checks = $this->checksFor($structure, $missing, $sold);
+            $checks = $this->checksFor($structure, $missing, $sold) + $this->storyChecks();
 
             $created = array_values(array_diff(
                 array_keys(array_filter(
@@ -324,18 +340,40 @@ final class DemoSeeder
                 array_values($sold['subscriptions']),
                 array_values($sold['invoices']),
                 $checks,
+                $story,
             );
 
-            if (!$completed->holds()) {
-                // Thrown inside, so the deployment is as it was.
-                throw new RuntimeException(
-                    'The organisations were added but a check failed, so nothing was changed: '
-                    . implode(', ', $completed->failures()) . '.',
-                );
-            }
-
-            return $completed;
+            return self::held($completed);
         });
+    }
+
+    /**
+     * The completion, or an exception that rolls its transaction back.
+     *
+     * Thrown inside the transaction, so the deployment is as it was: half a
+     * demonstration is the one outcome nobody can explain.
+     */
+    private static function held(CompletedWorld $completed): CompletedWorld
+    {
+        if (!$completed->holds()) {
+            throw new RuntimeException(
+                'The demonstration was extended but a check failed, so nothing was changed: '
+                . implode(', ', $completed->failures()) . '.',
+            );
+        }
+
+        return $completed;
+    }
+
+    /**
+     * Asked again after writing, of the database and not of what was meant:
+     * the page lacks nothing the world gives it.
+     *
+     * @return array<string, bool>
+     */
+    private function storyChecks(): array
+    {
+        return ['the product\'s page has every band, heading and layout the world gives it' => $this->fixtures->missingStory() === []];
     }
 
     /**

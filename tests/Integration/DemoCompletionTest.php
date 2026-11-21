@@ -168,6 +168,127 @@ final class DemoCompletionTest extends DatabaseApiTestCase
 
     // --- Fixtures ----------------------------------------------------------------
 
+    /**
+     * A release that teaches the page something reaches a deployment that is
+     * never reset (2026-11-21).
+     *
+     * The world as an older deployment holds it: Plan's page written before
+     * the bands that sell existed, its headline heading saying nothing about
+     * a layout. Completing brings exactly what was never said.
+     */
+    public function testCompletingBringsThePageWhatTheWorldGainedAndNothingElse(): void
+    {
+        $seeder = $this->seeder();
+        self::assertTrue($seeder->seed()->holds());
+
+        $plan = $this->id("SELECT id::text FROM products WHERE code = 'plan'");
+        $rows = fn (string $block): int => $this->rowCount(
+            'SELECT count(*) FROM product_showcase WHERE product_id = :product AND block = :block',
+            ['product' => $plan, 'block' => $block],
+        );
+
+        // The page as it was before 2026-11-20.
+        $this->connection->executeStatement(
+            "DELETE FROM product_showcase WHERE product_id = :product AND block IN ('TRUST', 'STATS', 'FEATURE', 'CTA')",
+            ['product' => $plan],
+        );
+        $this->connection->executeStatement(
+            "DELETE FROM product_showcase_bands WHERE product_id = :product AND block IN ('TRUST', 'STATS', 'FEATURE', 'QUOTE')",
+            ['product' => $plan],
+        );
+        $this->connection->executeStatement(
+            "UPDATE product_showcase_bands SET content = content - 'layout' WHERE product_id = :product AND block = 'HEADLINE'",
+            ['product' => $plan],
+        );
+
+        // And something an operator wrote since, which must survive: their
+        // own title on the steps, and a step of their own.
+        $this->connection->executeStatement(
+            "UPDATE product_showcase_bands SET content = jsonb_build_object('title', 'Ours') WHERE product_id = :product AND block = 'STEPS'",
+            ['product' => $plan],
+        );
+        $steps = $rows('STEPS');
+
+        $missing = $seeder->missing();
+
+        self::assertContains('story:plan:rows:TRUST', $missing);
+        self::assertContains('story:plan:rows:CTA', $missing);
+        self::assertContains('story:plan:heading:STATS', $missing);
+        self::assertContains('story:plan:layout:HEADLINE', $missing);
+        // A band that has rows is offered none, whatever the world says of it.
+        self::assertNotContains('story:plan:rows:STEPS', $missing);
+        self::assertNotContains('story:plan:heading:STEPS', $missing);
+
+        $completed = $seeder->complete();
+
+        self::assertSame([], $completed->failures());
+        self::assertSame([], $completed->tenants, 'no organisation was missing, so none was added');
+        self::assertSame($missing, $completed->story);
+        self::assertFalse($completed->addedNothing());
+        self::assertContains('adds the CTA band to Plan\'s page (1 row)', $completed->summary());
+        self::assertContains('lays out the HEADLINE band of Plan\'s page as "stacked"', $completed->summary());
+
+        $expected = static fn (string $block): int => count(array_filter(
+            DemoWorld::SHOWCASE['plan'],
+            static fn (array $row): bool => $row['block'] === $block,
+        ));
+
+        foreach (['TRUST', 'STATS', 'FEATURE', 'CTA'] as $block) {
+            self::assertSame($expected($block), $rows($block), $block);
+        }
+
+        // Every new row says itself in the four other languages, like the
+        // ones a seed writes.
+        self::assertSame(0, $this->rowCount(
+            <<<'SQL'
+            SELECT count(*) FROM product_showcase s
+             WHERE s.product_id = :product
+               AND (SELECT count(*) FROM product_showcase_translations t WHERE t.block_id = s.id) <> 4
+            SQL,
+            ['product' => $plan],
+        ));
+
+        self::assertSame('stacked', $this->id(
+            "SELECT content ->> 'layout' FROM product_showcase_bands WHERE product_id = :product AND block = 'HEADLINE'",
+            ['product' => $plan],
+        ));
+
+        // What the operator wrote is as they wrote it.
+        self::assertSame($steps, $rows('STEPS'));
+        self::assertSame('Ours', $this->id(
+            "SELECT content ->> 'title' FROM product_showcase_bands WHERE product_id = :product AND block = 'STEPS'",
+            ['product' => $plan],
+        ));
+
+        // Idempotent: nothing is missing, and a second run adds nothing.
+        self::assertSame([], $seeder->missing());
+        self::assertTrue($seeder->complete()->addedNothing());
+        self::assertSame($expected('FEATURE'), $rows('FEATURE'));
+    }
+
+    /**
+     * A layout somebody chose is not replaced by the world's.
+     */
+    public function testALayoutSomebodyChoseIsLeftAlone(): void
+    {
+        $seeder = $this->seeder();
+        self::assertTrue($seeder->seed()->holds());
+
+        $plan = $this->id("SELECT id::text FROM products WHERE code = 'plan'");
+
+        $this->connection->executeStatement(
+            "UPDATE product_showcase_bands SET content = content || jsonb_build_object('layout', 'centered') WHERE product_id = :product AND block = 'HEADLINE'",
+            ['product' => $plan],
+        );
+
+        self::assertSame([], $seeder->missing());
+        self::assertTrue($seeder->complete()->addedNothing());
+        self::assertSame('centered', $this->id(
+            "SELECT content ->> 'layout' FROM product_showcase_bands WHERE product_id = :product AND block = 'HEADLINE'",
+            ['product' => $plan],
+        ));
+    }
+
     private function seeder(): DemoSeeder
     {
         $seeder = $this->container()->get(DemoSeeder::class);

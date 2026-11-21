@@ -108,6 +108,43 @@ interface DemoFixtures
     public function extend(array $slugs, string $passwordHash): DemoStructure;
 
     /**
+     * What the story the world tells has and this deployment's page lacks, as
+     * keys {@see DemoWorld::describeAddition()} can say aloud (2026-11-21).
+     *
+     * Three kinds of thing, each **absent** rather than different:
+     *
+     *  - `story:<product>:rows:<BAND>` — the world writes rows for this band
+     *    and the product has none of that kind;
+     *  - `story:<product>:heading:<BAND>` — the world titles this band and the
+     *    product has no heading row for it;
+     *  - `story:<product>:layout:<BAND>` — the world lays this band out and
+     *    the product's heading row says nothing about its layout.
+     *
+     * A band with rows is never offered more rows, and a heading or a layout
+     * somebody wrote is never offered another: completing adds what was never
+     * said and corrects nothing. Bands whose rows name a picture are left to
+     * a seed — the bytes go through the showcase module's upload, which is
+     * the seeder's business on a build and nobody's here.
+     *
+     * Empty where the product is not on this deployment.
+     *
+     * @return list<string>
+     */
+    public function missingStory(): array;
+
+    /**
+     * Writes what {@see missingStory()} named, and nothing else (2026-11-21).
+     *
+     * Each key is re-checked against the database as it is written, so a key
+     * that stopped being true between the question and the answer — somebody
+     * wrote that band in the console meanwhile — is skipped rather than
+     * written over.
+     *
+     * @param list<string> $keys
+     */
+    public function extendStory(array $keys): void;
+
+    /**
      * Hangs an uploaded picture on a showcase block (2026-10-08).
      *
      * The bytes and the asset row are the showcase module's to write —
