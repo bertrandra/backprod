@@ -22,6 +22,10 @@ use Psr\Container\ContainerInterface;
  * upgrade button runs after the migrations, for whoever has SSH. Nothing that
  * exists is changed, and a second run adds nothing.
  *
+ * Since 2026-11-21 it brings a product's page what the world gained too — the
+ * bands that sell and the layouts — and only what the page never said: a band
+ * that has rows gets none, a heading or a layout somebody wrote stays theirs.
+ *
  * Run it **after** the migrations (`bin/upgrade.php`, or `setup.php`): it is
  * written against the schema of the code it ships with. Refused on a
  * deployment that is not the demonstration's — one hosting a product the
