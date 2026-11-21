@@ -4612,10 +4612,10 @@ export interface components {
             title?: string;
             lede?: string;
             /**
-             * @description How the band is laid out (2026-11-20), where it has more than one way. A **code, not a sentence**: English only and refused in a translation, like a problem's icon. Which values a band takes depends on the band — HEADLINE `split`, `centered`, `stacked`; STEPS `columns`, `timeline`; FEATURE `grid`, `list`; QUOTE `grid`, `single`; PROOF `alternate`, `grid` — and the first of each is what an absent value means, so no page moved the day this was added. One sent for a band that is drawn one way is refused rather than stored and ignored.
+             * @description How the band is laid out (2026-11-20), where it has more than one way. A **code, not a sentence**: English only and refused in a translation, like a problem's icon. Which values a band takes depends on the band — HEADLINE `split`, `centered`, `stacked`; STEPS `columns`, `timeline`; FEATURE `grid`, `list`; QUOTE `grid`, `single`; PROOF `alternate`, `grid`, `carousel` — and the first of each is what an absent value means, so no page moved the day this was added. One sent for a band that is drawn one way is refused rather than stored and ignored.
              * @enum {string}
              */
-            layout?: "split" | "centered" | "stacked" | "columns" | "timeline" | "grid" | "list" | "single" | "alternate";
+            layout?: "split" | "centered" | "stacked" | "columns" | "timeline" | "grid" | "list" | "single" | "alternate" | "carousel";
         };
         /** @description Each band's heading in one language, keyed by section — for a reader. Resolved field by field, so a title translated and a lede not reads translated above and English below. */
         ShowcaseBandHeadings: {

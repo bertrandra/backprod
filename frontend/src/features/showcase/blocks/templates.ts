@@ -34,6 +34,12 @@ export interface StoryTemplate {
   readonly description: string;
   readonly sections: readonly BandKind[];
   readonly blocks: readonly TemplateBlock[];
+  /**
+   * How the template lays out the bands it has an opinion about
+   * (2026-11-21). A code from `BAND_LAYOUTS`; a band left out keeps
+   * whatever layout it already had, which for a new page is the usual one.
+   */
+  readonly layouts?: Readonly<Partial<Record<BandKind, string>>>;
 }
 
 export interface TemplateBlock {
@@ -116,10 +122,14 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
     name: 'Proof first',
     description: 'The product itself straight after the promise, then what customers say, its numbers and how it works. For a product that convinces by being seen.',
     sections: ['HEADLINE', 'PROOF', 'DEMO', 'QUOTE', 'STATS', 'STEPS', 'FEATURE', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'USE_CASE'],
+    // The screenshots are the argument, so they get the hero's width and
+    // the reader's own pace; the page opens centred on the promise above.
+    layouts: { HEADLINE: 'centered', PROOF: 'carousel' },
     blocks: [
       HEADLINE,
       row('PROOF', ['caption', 'The one screen that makes somebody say “I want that”.']),
       row('PROOF', ['caption', 'What it looks like when the work is done.']),
+      row('PROOF', ['caption', 'A third thing worth seeing, in one sentence.']),
       row('QUOTE', ['quote', 'What a customer said, in their own words.'], ['author', 'Their name, and what they do']),
       row('QUOTE', ['quote', 'A second voice, from a different kind of customer.'], ['author', 'Their name, and what they do']),
       ...STATS,

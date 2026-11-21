@@ -157,7 +157,7 @@ export const BAND_LAYOUTS = {
   STEPS: ['columns', 'timeline'],
   FEATURE: ['grid', 'list'],
   QUOTE: ['grid', 'single'],
-  PROOF: ['alternate', 'grid'],
+  PROOF: ['alternate', 'grid', 'carousel'],
 } as const satisfies Partial<Record<BandKind, readonly string[]>>;
 
 /** The layouts one band has, the usual one first; empty where it has one way. */

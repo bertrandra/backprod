@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { Showcase } from './Showcase';
@@ -706,5 +706,60 @@ describe('how a band is laid out', () => {
 
     expect(content.headings.HEADLINE).toEqual({ eyebrow: null, title: null, lede: null, layout: 'centered' });
     expect(content.headings.STEPS?.layout).toBe('timeline');
+  });
+});
+
+/**
+ * The proof band's third layout (2026-11-21): the screenshots large, one at
+ * a time, and moved only by the reader.
+ */
+describe('the proof carousel', () => {
+  const three: ShowcaseContent = {
+    ...FULL,
+    proof: [
+      row('p1', { caption: 'The plot, as it arrives' }),
+      row('p2', { caption: 'The terrace, placed' }),
+      row('p3', { caption: 'The plan, as it prints' }),
+    ],
+    headings: { PROOF: { eyebrow: null, title: 'See it work', lede: null, layout: 'carousel' } },
+  };
+
+  it('keeps every picture in the document, so nothing is reachable by button only', () => {
+    renderStory(three);
+
+    const carousel = within(screen.getByTestId('proof-carousel'));
+
+    // All three captions at once: the row scrolls, no slide is hidden or
+    // mounted late, so a screen reader and a swipe reach each of them.
+    expect(carousel.getByText('The plot, as it arrives')).toBeTruthy();
+    expect(carousel.getByText('The terrace, placed')).toBeTruthy();
+    expect(carousel.getByText('The plan, as it prints')).toBeTruthy();
+    expect(screen.getByTestId('proof-carousel').getAttribute('aria-label')).toBe('See it work');
+  });
+
+  it('says where the reader is in words, and stops at both ends', () => {
+    renderStory(three);
+
+    const previous = screen.getByTestId<HTMLButtonElement>('carousel-previous');
+    const next = screen.getByTestId<HTMLButtonElement>('carousel-next');
+    const position = screen.getByTestId('carousel-position');
+
+    expect(position.textContent).toBe('1 of 3');
+    expect(position.getAttribute('aria-live')).toBe('polite');
+    expect(previous.disabled).toBe(true);
+
+    fireEvent.click(next);
+    fireEvent.click(next);
+
+    expect(position.textContent).toBe('3 of 3');
+    expect(next.disabled).toBe(true);
+    expect(previous.disabled).toBe(false);
+  });
+
+  it('offers no buttons for one picture, which has nowhere to go', () => {
+    renderStory({ ...three, proof: [row('p1', { caption: 'The plot, as it arrives' })] });
+
+    expect(screen.getByTestId('proof-carousel')).toBeTruthy();
+    expect(screen.queryByTestId('carousel-next')).toBeNull();
   });
 });

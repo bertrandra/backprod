@@ -743,3 +743,35 @@ describe('choosing how a band is laid out', () => {
     expect(body.bands.HEADLINE).toEqual({ content: { layout: 'centered' }, translations: {} });
   });
 });
+
+describe('a template that has an opinion about layout', () => {
+  it('sends its layouts with the page, beside the bands it wrote', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: { product: PRODUCT, published_at: null, blocks: [] },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { blocks: [] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('use-template-proof-first')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('use-template-proof-first'));
+
+    // The select already says what the template chose, before anything is
+    // saved: a layout applied and not shown would be a surprise on the page.
+    await waitFor(() =>
+      expect(screen.getByTestId<HTMLSelectElement>('choice-heading-PROOF-layout').value).toBe('carousel'),
+    );
+
+    fireEvent.click(screen.getByTestId('save-story'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const body = requests.find((r) => r.method === 'PUT')?.body as {
+      bands: Record<string, { content: Record<string, string> }>;
+    };
+
+    expect(body.bands.PROOF?.content.layout).toBe('carousel');
+    expect(body.bands.HEADLINE?.content.layout).toBe('centered');
+  });
+});

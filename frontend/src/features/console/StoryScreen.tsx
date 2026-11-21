@@ -122,6 +122,17 @@ export function StoryScreen({
   const applyTemplate = (template: StoryTemplate) => {
     setDraft(draftFromTemplate(template));
     setOrder(bandsInOrder(template.sections));
+    // The layouts the template has an opinion about, and no other: a band
+    // it does not name keeps the layout and the heading it had.
+    setHeadings((current) => {
+      const next = { ...(current ?? {}) };
+
+      for (const [block, layout] of Object.entries(template.layouts ?? {})) {
+        next[block] = { ...(next[block] ?? {}), layout: { en: layout } };
+      }
+
+      return next;
+    });
   };
 
   const editor = (

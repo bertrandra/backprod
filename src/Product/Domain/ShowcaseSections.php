@@ -88,7 +88,7 @@ final class ShowcaseSections
         ShowcaseBlock::STEPS => ['columns', 'timeline'],
         ShowcaseBlock::FEATURE => ['grid', 'list'],
         ShowcaseBlock::QUOTE => ['grid', 'single'],
-        ShowcaseBlock::PROOF => ['alternate', 'grid'],
+        ShowcaseBlock::PROOF => ['alternate', 'grid', 'carousel'],
     ];
 
     /**

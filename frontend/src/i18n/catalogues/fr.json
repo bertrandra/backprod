@@ -64,6 +64,7 @@
   "{count} used": "{count} utilisés",
   "{count} version": "{count} version",
   "{count} versions": "{count} versions",
+  "{current} of {total}": "{current} sur {total}",
   "{email} had no account: one was made, and a link to choose a password has been sent to that address. It is good for seven days.": "{email} n'avait pas de compte : un a été créé, et un lien pour choisir un mot de passe a été envoyé à cette adresse. Il est valable sept jours.",
   "{field} in {language}": "{field} en {language}",
   "{from}–{to} of {total}": "{from}–{to} sur {total}",
