@@ -824,6 +824,53 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
     }
 
     /**
+     * Whether the page draws its menu is a code on the headline's heading
+     * (2026-11-22), and on no other.
+     */
+    public function testAPageMayHideItsMenu(): void
+    {
+        /** @param array<string, mixed> $bands */
+        $put = fn (array $bands): ResponseInterface => $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => [self::headline()], 'bands' => $bands]),
+        );
+
+        $written = $put(['HEADLINE' => ['content' => ['menu' => 'hidden']]]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $stored = $this->decode($written)['bands'] ?? null;
+        self::assertIsArray($stored);
+        self::assertSame('hidden', $this->sentenceAt($stored, ['HEADLINE', 'content', 'menu']));
+
+        $this->publish(true);
+        $public = $this->request('GET', '/api/v1/public/products/plan/showcase', ['Accept-Language' => 'fr']);
+        $showcase = $this->decode($public)['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        self::assertSame('hidden', $this->sentenceAt($showcase, ['bands', 'HEADLINE', 'menu']));
+
+        foreach ([
+            // A value the page cannot draw.
+            ['HEADLINE' => ['content' => ['menu' => 'tabs']]],
+            // A section that does not carry it.
+            ['STEPS' => ['content' => ['menu' => 'hidden']]],
+            // In a translation.
+            ['HEADLINE' => ['content' => ['menu' => 'hidden'], 'translations' => ['fr' => ['menu' => 'hidden']]]],
+        ] as $refused) {
+            $answer = $put($refused);
+
+            self::assertSame(400, $answer->getStatusCode(), json_encode($refused) ?: '');
+        }
+
+        // A comparison may be laid out side by side, the layout it gained
+        // the same day.
+        $beside = $put(['COMPARE' => ['content' => ['layout' => 'beside']]]);
+        self::assertSame(200, $beside->getStatusCode(), (string) $beside->getBody());
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function headline(): array

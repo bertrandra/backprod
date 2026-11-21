@@ -7,6 +7,7 @@ import {
   BAND_META,
   carriesAPicture,
   layoutsOf,
+  menuIsHidden,
   SECTIONS_WITH_A_HEADING,
   SINGLE_BANDS,
   type AuthoredBandKind,
@@ -438,6 +439,15 @@ export function StoryEditor({
               state={state}
               present={present}
               published={published}
+              onMenu={(hidden) => {
+                const headline = state.headings.HEADLINE ?? {};
+
+                // The usual one is stored as no choice at all, like a layout.
+                change({
+                  ...state,
+                  headings: { ...state.headings, HEADLINE: { ...headline, menu: { en: hidden ? 'hidden' : '' } } },
+                });
+              }}
               onTemplate={(template) => {
                 change(withTemplate(state, template));
                 setSelected(null);
@@ -586,6 +596,8 @@ const LAYOUT_NAMES: Record<string, string> = {
   single: 'One at a time',
   alternate: 'Alternating sides',
   carousel: 'As a carousel',
+  overlay: 'One over the other',
+  beside: 'Next to each other',
 };
 
 /**
@@ -843,14 +855,17 @@ function PagePanel({
   state,
   present,
   published,
+  onMenu,
   onTemplate,
 }: {
   state: StoryState;
   present: readonly BandKind[];
   published: boolean;
+  onMenu: (hidden: boolean) => void;
   onTemplate: (template: StoryTemplate) => void;
 }) {
   const left = untranslated(state);
+  const hidden = menuIsHidden(state.headings.HEADLINE?.menu?.en);
 
   return (
     <div data-testid="panel-page">
@@ -862,6 +877,29 @@ function PagePanel({
           {published ? t("Published") : t("Draft — nobody outside can read it")}
         </p>
       </div>
+
+      <PanelSection title={t("Menu under the headline")}>
+        <p className="text-sm text-muted">
+          {t("The bar naming the bands of the page, pinned as the reader scrolls. Drawn on a wide screen, once the page has three bands to name.")}
+        </p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("Menu under the headline")}>
+          {[false, true].map((choice) => (
+            <button
+              key={String(choice)}
+              type="button"
+              aria-pressed={hidden === choice}
+              data-testid={choice ? 'menu-hidden' : 'menu-shown'}
+              onClick={() => onMenu(choice)}
+              className={cn(
+                'rounded-control border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2',
+                hidden === choice ? 'border-accent bg-accent-wash font-semibold text-ink' : 'border-line text-ink hover:bg-well',
+              )}
+            >
+              {choice ? t("Hidden") : t("Shown")}
+            </button>
+          ))}
+        </div>
+      </PanelSection>
 
       <PanelSection title={t("Languages")}>
         <Languages left={left} />

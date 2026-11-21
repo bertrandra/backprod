@@ -174,9 +174,23 @@ export const BAND_LAYOUTS = {
   FEATURE: ['grid', 'list'],
   QUOTE: ['grid', 'single'],
   PROOF: ['alternate', 'grid', 'carousel'],
+  COMPARE: ['overlay', 'beside'],
 } as const satisfies Partial<Record<BandKind, readonly string[]>>;
 
 /** The layouts one band has, the usual one first; empty where it has one way. */
+/**
+ * Whether the page draws its menu — the bar naming its bands, pinned under
+ * the headline (2026-11-22). The first is the usual one and what an absent
+ * value means. Mirrored by `ShowcaseSections::MENUS`; it is carried by the
+ * headline's heading, beside its layout, because the bar is the headline's.
+ */
+export const PAGE_MENUS = ['bar', 'hidden'] as const;
+
+/** Whether a stored code asks for the menu to be left out. */
+export function menuIsHidden(stored: string | null | undefined): boolean {
+  return stored === 'hidden';
+}
+
 export function layoutsOf(kind: BandKind): readonly string[] {
   return (BAND_LAYOUTS as Partial<Record<BandKind, readonly string[]>>)[kind] ?? [];
 }

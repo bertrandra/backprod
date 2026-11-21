@@ -1,5 +1,5 @@
 import { BandFieldEditor, type BandField } from '@/features/showcase/blocks/editors';
-import { BAND_META, layoutsOf, type BandKind } from '@/features/showcase/blocks/meta';
+import { BAND_META, layoutsOf, PAGE_MENUS, type BandKind } from '@/features/showcase/blocks/meta';
 import type { Translated } from '@/ui/TranslatedField';
 import { t } from '@/i18n';
 
@@ -52,25 +52,56 @@ export const HEADING_FIELDS: readonly BandField[] = [
  * Its *None* is the band's usual layout, which is what an absent value
  * means everywhere this is read.
  */
+/**
+ * The fields one band's heading is edited in: the three sentences, and its
+ * layout where the band has more than one (2026-11-20).
+ *
+ * The layout is a `choices` field, so the editor draws one select and no
+ * language button — it is a code, and the server refuses it in a locale.
+ * Its *None* is the band's usual layout, which is what an absent value
+ * means everywhere this is read.
+ */
 export function headingFieldsOf(block: BandKind): readonly BandField[] {
   const layouts = layoutsOf(block);
 
-  if (layouts.length === 0) {
-    return HEADING_FIELDS;
-  }
-
   return [
     ...HEADING_FIELDS,
-    {
-      name: 'layout',
-      label: 'Layout',
-      required: false,
-      choices: layouts.slice(1),
-      hint: 'How this band is laid out. None is the usual one.',
-    },
+    ...(layouts.length === 0
+      ? []
+      : [
+          {
+            name: 'layout',
+            label: 'Layout',
+            required: false,
+            choices: layouts.slice(1),
+            hint: 'How this band is laid out. None is the usual one.',
+          },
+        ]),
+    // The page's menu is the headline's (2026-11-22): the bar sits under it,
+    // and a page has one of each.
+    ...(block === 'HEADLINE'
+      ? [
+          {
+            name: 'menu',
+            label: 'Menu under the headline',
+            required: false,
+            choices: PAGE_MENUS.slice(1),
+            hint: 'The bar naming the bands of the page. None is the usual one: it is drawn.',
+          },
+        ]
+      : []),
   ];
 }
 
+/**
+ * The fields one band's heading is edited in: the three sentences, and its
+ * layout where the band has more than one (2026-11-20).
+ *
+ * The layout is a `choices` field, so the editor draws one select and no
+ * language button — it is a code, and the server refuses it in a locale.
+ * Its *None* is the band's usual layout, which is what an absent value
+ * means everywhere this is read.
+ */
 export function BandHeadingEditor({
   block,
   fields,

@@ -6,7 +6,7 @@ import { cn } from '@/utils/cn';
 import { ShowcaseBand } from '../ShowcaseBand';
 import type { BandHeading, CompareRow, ShowcaseRow } from './content';
 import { DEMO_RATIOS, Frame } from './DemoBand';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * One plot twice: before, and after (2026-11-21).
@@ -51,7 +51,13 @@ export function CompareBand({
       lede={heading?.lede ?? undefined}
       data-testid="showcase-compare"
     >
-      {pictures ? <Slider before={before} after={after} /> : <Switch before={before} after={after} />}
+      {layoutOf('COMPARE', heading?.layout) === 'beside' ? (
+        <Beside before={before} after={after} />
+      ) : pictures ? (
+        <Slider before={before} after={after} />
+      ) : (
+        <Switch before={before} after={after} />
+      )}
     </ShowcaseBand>
   );
 }
@@ -153,20 +159,31 @@ function Slider({ before, after }: { before: ShowcaseRow<CompareRow>; after: Sho
 /**
  * One side at a time, and a switch.
  *
- * A side is mounted the first time it is chosen and kept: an embedded 3D
- * view is a whole application, so loading both at once would double the
- * wait for a reader who may never look at the second — and unloading the
- * first on switching back would throw away the angle they had turned it to.
+ * **Both sides are loaded together, and both keep running** (2026-11-22).
+ * A side used to be mounted the first time it was chosen, which halved the
+ * wait for a reader who never looked at the second — and meant the second
+ * started its life whenever it was first asked for. Two embedded views
+ * that turn by themselves, or play a day's sun, were then never at the
+ * same moment: switching showed the same garden from another angle at
+ * another hour, which is not a comparison.
+ *
+ * Started together they begin from the same moment, which is as close as
+ * the page can put them. The one not shown is transparent rather than
+ * removed from layout: a browser stops animating a frame it does not draw,
+ * and it would fall behind the other for as long as it was hidden.
+ *
+ * **Close, not locked** — measured on the two Plan projects this was built
+ * for: the views turn at the same angle, and the hour each plays differs by
+ * however much longer one scene took to load, because each starts its
+ * clock when it is ready. The page cannot reach inside a frame from
+ * another origin, so it can neither correct that nor follow a view the
+ * reader turns by hand. Both take the embedded product: animating from the
+ * wall clock rather than from its own start, and telling the page where it
+ * is looking.
  */
 function Switch({ before, after }: { before: ShowcaseRow<CompareRow>; after: ShowcaseRow<CompareRow> }) {
   const sides = [before, after] as const;
   const [shown, setShown] = useState(0);
-  const [visited, setVisited] = useState<readonly number[]>([0]);
-
-  const show = (index: number) => {
-    setShown(index);
-    setVisited((seen) => (seen.includes(index) ? seen : [...seen, index]));
-  };
 
   return (
     <figure className="grid gap-4" data-compare="switch">
@@ -184,36 +201,81 @@ function Switch({ before, after }: { before: ShowcaseRow<CompareRow>; after: Sho
                 ? 'border-accent bg-accent-wash text-accent-strong'
                 : 'border-line bg-surface text-muted hover:text-ink',
             )}
-            onClick={() => show(index)}
+            onClick={() => setShown(index)}
           >
             {side.content.label}
           </button>
         ))}
       </div>
 
-      {sides.map((side, index) =>
-        visited.includes(index) ? (
-          <div key={side.id} hidden={shown !== index} data-compare-side={index}>
-            <Frame
-              row={{
-                id: side.id,
-                image: side.image,
-                content: {
-                  caption: side.content.label,
-                  embedUrl: side.content.embedUrl,
-                  // One shape for both, the first side's: a box that
-                  // changed size on switching would move the page under
-                  // the reader's finger.
-                  ratio: before.content.ratio,
-                },
-              }}
-            />
+      {/* One cell, both sides in it: the box keeps one size and the two
+          views sit exactly over each other. */}
+      <div className="grid">
+        {sides.map((side, index) => (
+          <div
+            key={side.id}
+            data-compare-side={index}
+            data-shown={shown === index ? 'true' : 'false'}
+            // Out of reach as well as out of sight: not focusable, not
+            // read aloud, and no pointer lands on it.
+            inert={shown !== index}
+            className={cn(
+              'col-start-1 row-start-1 transition-opacity duration-300 motion-reduce:transition-none',
+              shown === index ? 'opacity-100' : 'pointer-events-none opacity-0',
+            )}
+          >
+            <Side side={side} ratio={before.content.ratio} />
           </div>
-        ) : null,
-      )}
+        ))}
+      </div>
 
       <Captions before={before} after={after} only={shown} />
     </figure>
+  );
+}
+
+/**
+ * Both sides at once, next to each other (2026-11-22).
+ *
+ * For two views worth watching together — two embedded scenes turning in
+ * step, or two pictures that do not line up well enough for a slider. On a
+ * narrow screen they stack, before above after: two columns of a 3D view on
+ * a phone are two views nobody can read.
+ */
+function Beside({ before, after }: { before: ShowcaseRow<CompareRow>; after: ShowcaseRow<CompareRow> }) {
+  return (
+    <figure className="grid gap-4" data-compare="beside">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[before, after].map((side, index) => (
+          <div key={side.id} className="relative" data-compare-side={index}>
+            <Side side={side} ratio={before.content.ratio} />
+            <Label side="left">{side.content.label}</Label>
+          </div>
+        ))}
+      </div>
+
+      <Captions before={before} after={after} />
+    </figure>
+  );
+}
+
+/** One side, drawn as the demonstration band draws a frame. */
+function Side({ side, ratio }: { side: ShowcaseRow<CompareRow>; ratio: CompareRow['ratio'] }) {
+  return (
+    <Frame
+      row={{
+        id: side.id,
+        image: side.image,
+        content: {
+          caption: side.content.label,
+          embedUrl: side.content.embedUrl,
+          // One shape for both, the first side's: a box that changed size
+          // from one side to the other would move the page under the
+          // reader's finger.
+          ratio,
+        },
+      }}
+    />
   );
 }
 

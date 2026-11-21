@@ -237,6 +237,24 @@ describe('the page editor', () => {
     });
   });
 
+  it('hides the page’s menu from the page panel, as a code on the headline’s heading', async () => {
+    const { requests } = open();
+    await editor();
+
+    expect(screen.getByTestId('menu-shown').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('menu-hidden'));
+    expect(screen.getByTestId('menu-hidden').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('editor-save'));
+    fireEvent.click(screen.getByTestId('confirm-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    expect((requests.find((r) => r.method === 'PUT')?.body as { bands: object }).bands).toEqual({
+      HEADLINE: { content: { menu: 'hidden' }, translations: {} },
+    });
+  });
+
   it('says a published page changes for its visitors when it is saved', async () => {
     open({}, '2026-11-19T17:42:00Z');
     await editor();

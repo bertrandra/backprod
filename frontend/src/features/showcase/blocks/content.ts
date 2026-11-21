@@ -177,6 +177,12 @@ export interface BandHeading {
    * layout for anything it cannot draw.
    */
   readonly layout?: string | null | undefined;
+  /**
+   * Whether the page draws its menu, as stored — on the headline's heading
+   * alone (`PAGE_MENUS`). Absent, or a code this bundle does not know, is
+   * the bar.
+   */
+  readonly menu?: string | null | undefined;
 }
 
 export const NO_CONTENT: ShowcaseContent = {
