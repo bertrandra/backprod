@@ -606,6 +606,10 @@ describe('editing with the preview', () => {
       expect(inFrame()?.querySelector('[data-testid="showcase-headline"]')?.textContent).toBe('Draw a terrace'),
     );
 
+    // The band's own panel holds its fields (2026-11-21): chosen from the
+    // list, as it would be by clicking it on the page.
+    fireEvent.click(screen.getByTestId('structure-HEADLINE'));
+
     // Typed, not saved: the page beside the form already says it.
     const headline = screen.getByDisplayValue('Draw a terrace');
     fireEvent.change(headline, { target: { value: 'Draw a pergola' } });
@@ -647,6 +651,7 @@ describe('editing with the preview', () => {
 
     await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
     fireEvent.click(screen.getByTestId('open-studio'));
+    fireEvent.click(screen.getByTestId('structure-HEADLINE'));
     fireEvent.change(screen.getByDisplayValue('Draw a terrace'), { target: { value: 'Draw a pergola' } });
     fireEvent.keyDown(document, { key: 'Escape' });
 

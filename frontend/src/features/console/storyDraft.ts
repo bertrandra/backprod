@@ -1,5 +1,5 @@
 import { BAND_FIELDS } from '@/features/showcase/blocks/editors';
-import type { AuthoredBandKind, BandKind } from '@/features/showcase/blocks/meta';
+import { bandsInOrder, type AuthoredBandKind, type BandKind } from '@/features/showcase/blocks/meta';
 import type { StoryTemplate } from '@/features/showcase/blocks/templates';
 import type {
   Showcase,
@@ -209,6 +209,26 @@ export function draftFromTemplate(template: StoryTemplate): DraftBlock[] {
       BAND_FIELDS[block.block].map((field) => [field.name, { en: block.content[field.name] ?? '' }]),
     ),
   }));
+}
+
+/**
+ * A page with a template applied to it.
+ *
+ * The rows and the order are the template's. The headings are kept, and
+ * only the layouts the template has an opinion about are changed: a band it
+ * does not name keeps the layout and the title it had.
+ */
+export function withTemplate<S extends { readonly headings: HeadingDraft }>(
+  state: S,
+  template: StoryTemplate,
+): S & { draft: DraftBlock[]; order: readonly BandKind[]; headings: HeadingDraft } {
+  const headings: HeadingDraft = { ...state.headings };
+
+  for (const [block, layout] of Object.entries(template.layouts ?? {})) {
+    headings[block] = { ...(headings[block] ?? {}), layout: { en: layout } };
+  }
+
+  return { ...state, draft: draftFromTemplate(template), order: bandsInOrder(template.sections), headings };
 }
 
 /**

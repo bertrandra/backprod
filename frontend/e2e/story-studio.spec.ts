@@ -3,7 +3,8 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './support/app';
 
 /**
- * The product's page, written with the page beside the form (2026-11-20).
+ * The product's page, written in the page editor (2026-11-21; with the page
+ * beside the form since 2026-11-20).
  *
  * In a browser and not only in Vitest because the two claims that matter
  * here are about a real one: that a React tree portalled into a frame is
@@ -78,9 +79,54 @@ test.describe('editing a product’s page with its preview', () => {
 
     expect(size).toBeGreaterThan(36);
 
-    // Typed, not saved: the page beside the form already says it.
+    // Typed in the band's panel, not saved: the page already says it. On a
+    // narrow window the panes take turns, so the band is chosen from the
+    // list, which shows its panel.
+    const bands = page.getByTestId('studio-show-structure');
+
+    if (await bands.isVisible()) {
+      await bands.click();
+    }
+
+    await page.getByTestId('structure-HEADLINE').click();
     await page.locator('#b-1-headline').fill('Draw a pergola');
     await expect(headline).toHaveText('Draw a pergola');
+  });
+
+  test('rewrites a sentence where it is read, and takes it back', async ({ page }) => {
+    const inside = await openStudio(page);
+    const turn = page.getByTestId('studio-show-page');
+
+    if (await turn.isVisible()) {
+      await turn.click();
+    }
+
+    // A real browser, because this is its claim: an element inside a frame
+    // becomes editable, takes the keys, and React keeps drawing it after.
+    const headline = inside.getByTestId('showcase-headline');
+
+    await headline.dblclick();
+    await expect(headline).toHaveAttribute('data-rewriting', '');
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type('Draw a pergola');
+    await page.keyboard.press('Enter');
+
+    await expect(headline).toHaveText('Draw a pergola');
+    await expect(headline).not.toHaveAttribute('contenteditable');
+    await expect(page.getByTestId('editor-state')).toHaveAttribute('data-dirty', 'true');
+
+    // And again, on the sentence React has since redrawn.
+    await headline.dblclick();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type('Draw a carport');
+    await page.keyboard.press('Enter');
+    await expect(headline).toHaveText('Draw a carport');
+
+    await page.getByTestId('editor-undo').click();
+    await expect(headline).toHaveText('Draw a pergola');
+    await page.getByTestId('editor-undo').click();
+    await expect(headline).toHaveText('Draw a terrace');
+    await expect(page.getByTestId('editor-state')).toHaveAttribute('data-dirty', 'false');
   });
 
   test('previews a phone as a phone: the breakpoints read the frame, not the window', async ({ page }) => {
