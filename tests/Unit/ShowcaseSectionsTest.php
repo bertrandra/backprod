@@ -58,7 +58,11 @@ final class ShowcaseSectionsTest extends TestCase
         ]);
 
         self::assertSame(ShowcaseBlock::PROOF, $read[0]);
-        self::assertSame(ShowcaseBlock::DEMO, $read[1]);
+        // The comparison sits between the proof and the demo since
+        // 2026-11-21, so it follows the proof and the demo follows it: each
+        // goes after the nearest section before it that is there.
+        self::assertSame(ShowcaseBlock::COMPARE, $read[1]);
+        self::assertSame(ShowcaseBlock::DEMO, $read[2]);
     }
 
     public function testASectionWithNothingBeforeItOpensThePage(): void
