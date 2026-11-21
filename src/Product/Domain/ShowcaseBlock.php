@@ -46,6 +46,17 @@ final class ShowcaseBlock
     public const CTA = 'CTA';
 
     /**
+     * Two bands that show rather than say (2026-11-21).
+     *
+     * `TOUR` is what the product includes, each with its own screenshot, one
+     * shown at a time: six things in the room of one. `COMPARE` is one plot
+     * twice — before and after — as two pictures a reader slides between, or
+     * as two embedded pages they switch between and move around in.
+     */
+    public const TOUR = 'TOUR';
+    public const COMPARE = 'COMPARE';
+
+    /**
      * Every kind an operator writes rows for.
      *
      * `PRICING` is absent and must stay absent: it is a position in the
@@ -62,13 +73,28 @@ final class ShowcaseBlock
         self::STATS,
         self::STEPS,
         self::FEATURE,
+        self::TOUR,
         self::USE_CASE,
         self::QUOTE,
         self::PROOF,
+        self::COMPARE,
         self::DEMO,
         self::QUESTION,
         self::CTA,
     ];
+
+    /**
+     * The kinds a page has a bounded number of rows of, beyond the ones it
+     * has exactly one of.
+     *
+     * `COMPARE` is two sides and no third: a comparison of three things is
+     * a gallery, which the proof band already is. Said by the validator in
+     * words; nothing in the database counts it, because two saves at once
+     * cannot add rows to a story that is replaced whole.
+     *
+     * @var array<string, int>
+     */
+    public const AT_MOST = [self::COMPARE => 2];
 
     /**
      * The icons a `PROBLEM` row may carry.

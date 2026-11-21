@@ -72,6 +72,12 @@ final class ShowcaseBlocks
         ShowcaseBlock::STATS => ['required' => ['value', 'label'], 'optional' => ['detail']],
         ShowcaseBlock::FEATURE => ['required' => ['title'], 'optional' => ['body']],
         ShowcaseBlock::CTA => ['required' => ['title'], 'optional' => ['body']],
+        // Two that show (2026-11-21). `TOUR` is a feature with its own
+        // screenshot. `COMPARE` is one side of a before-and-after: what the
+        // side is called, then — exactly as `DEMO` — an address to embed or a
+        // picture, never both.
+        ShowcaseBlock::TOUR => ['required' => ['title'], 'optional' => ['body', 'alt']],
+        ShowcaseBlock::COMPARE => ['required' => ['label'], 'optional' => ['caption', 'alt']],
     ];
 
     /**
@@ -88,6 +94,7 @@ final class ShowcaseBlocks
         ShowcaseBlock::PROBLEM => ['icon' => ShowcaseBlock::ICONS],
         ShowcaseBlock::FEATURE => ['icon' => ShowcaseBlock::ICONS],
         ShowcaseBlock::DEMO => ['ratio' => ShowcaseBlock::RATIOS],
+        ShowcaseBlock::COMPARE => ['ratio' => ShowcaseBlock::RATIOS],
     ];
 
     /**
@@ -104,6 +111,7 @@ final class ShowcaseBlocks
      */
     private const ADDRESSES = [
         ShowcaseBlock::DEMO => ['embed_url'],
+        ShowcaseBlock::COMPARE => ['embed_url'],
     ];
 
     /**
@@ -136,6 +144,7 @@ final class ShowcaseBlocks
     {
         $blocks = [];
         $seen = [];
+        $counted = [];
 
         foreach ($body->optionalObjectList($field, self::MAXIMUM) as $index => $raw) {
             $block = self::one($raw, $index);
@@ -149,6 +158,16 @@ final class ShowcaseBlocks
                 }
 
                 $seen[$block->block] = true;
+            }
+
+            $most = ShowcaseBlock::AT_MOST[$block->block] ?? null;
+
+            if ($most !== null) {
+                $counted[$block->block] = ($counted[$block->block] ?? 0) + 1;
+
+                if ($counted[$block->block] > $most) {
+                    throw self::invalid($index, 'block', sprintf('at most %d %s on a page', $most, $block->block));
+                }
             }
 
             $blocks[] = $block;
@@ -231,7 +250,7 @@ final class ShowcaseBlocks
         // shows the product working or a picture of it, and a row carrying
         // both would leave the screen choosing — which is a decision about
         // somebody's shop window made in a component.
-        if ($kind === ShowcaseBlock::DEMO) {
+        if (in_array($kind, [ShowcaseBlock::DEMO, ShowcaseBlock::COMPARE], true)) {
             $embeds = isset($content['embed_url']);
 
             if ($embeds === ($assetId !== null)) {

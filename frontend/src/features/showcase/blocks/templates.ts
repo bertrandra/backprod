@@ -96,7 +96,7 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
     id: 'complete',
     name: 'The whole story',
     description: 'Every band the page has: who trusts it, the trouble it ends, its numbers, how it works, what it includes, who it is for, the proof, the prices, the questions and a last call to action. For a product people have not heard of.',
-    sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
+    sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'TOUR', 'USE_CASE', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
     blocks: [
       HEADLINE,
       row('TRUST', ['name', 'A customer people know']),
@@ -121,7 +121,7 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
     id: 'proof-first',
     name: 'Proof first',
     description: 'The product itself straight after the promise, then what customers say, its numbers and how it works. For a product that convinces by being seen.',
-    sections: ['HEADLINE', 'PROOF', 'DEMO', 'QUOTE', 'STATS', 'STEPS', 'FEATURE', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'USE_CASE'],
+    sections: ['HEADLINE', 'PROOF', 'COMPARE', 'DEMO', 'TOUR', 'QUOTE', 'STATS', 'STEPS', 'FEATURE', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'USE_CASE'],
     // The screenshots are the argument, so they get the hero's width and
     // the reader's own pace; the page opens centred on the promise above.
     layouts: { HEADLINE: 'centered', PROOF: 'carousel' },
@@ -142,7 +142,7 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
     id: 'short',
     name: 'Short',
     description: 'The promise, three steps, the prices, two questions and a last call to action. For a product that explains itself, or a page to publish today and grow later.',
-    sections: ['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'STATS', 'FEATURE', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO'],
+    sections: ['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'STATS', 'FEATURE', 'TOUR', 'USE_CASE', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO'],
     blocks: [HEADLINE, ...STEPS, ...QUESTIONS.slice(0, 2), CTA],
   },
 ];

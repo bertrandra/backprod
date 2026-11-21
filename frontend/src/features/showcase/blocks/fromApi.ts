@@ -139,6 +139,27 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
 
       return title === null ? null : { title, body: text(c.body) };
     }),
+    tour: pick('TOUR', (c) => {
+      const title = text(c.title);
+
+      return title === null ? null : { title, body: text(c.body) };
+    }),
+    compare: pick('COMPARE', (c) => {
+      const label = text(c.label);
+
+      if (label === null) {
+        return null;
+      }
+
+      const ratio = text(c.ratio);
+
+      return {
+        label,
+        caption: text(c.caption),
+        embedUrl: text(c.embed_url),
+        ratio: ratio !== null && ratio in DEMO_RATIOS ? (ratio as DemoRatio) : null,
+      };
+    }),
     headings: headingsFrom(showcase.bands),
   };
 }

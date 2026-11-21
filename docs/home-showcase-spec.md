@@ -758,3 +758,53 @@ and fails when one is changed in TypeScript or in PHP only.
 A template may now name layouts (`StoryTemplate.layouts`): *Proof first*
 opens centred and shows its screenshots in the carousel. A band the template
 does not name keeps the layout it had.
+
+## 14. Two bands that show rather than say (2026-11-21)
+
+Added the way §6 promises: migration `Version20261121090000`, the
+validator's field table, a view, an editor row, one line in the registry.
+
+### 14.1 `TOUR` — the product, one screenshot at a time
+
+What the product includes, each with its own screenshot: a list of things to
+see and, beside it, the picture of the one chosen. Rows: `title`, `body`, a
+picture and its `alt`.
+
+- **Tabs, in the sense assistive technology means**: a `tablist`, arrow keys
+  that move and wrap, one tab in the tab order, each naming the panel it
+  controls.
+- **Every panel is in the document**; the ones not chosen are `hidden`, not
+  unmounted, so all the text is there for a search engine and find-in-page.
+- **Nothing rotates.** The reader chooses.
+- Below `lg` the list sits above the panel: the same tabs, one column.
+
+### 14.2 `COMPARE` — one plot, before and after
+
+Two rows, read in their order: the first is before, the second after. Each
+is — exactly as a `DEMO` row — **an address to embed or a picture, never
+both**, with a `label` (required), a `caption` and a `ratio`.
+
+| The two sides are | The reader gets |
+| --- | --- |
+| two pictures | one over the other, and a handle to drag |
+| an embedded page, on either side | one at a time, and a switch |
+
+- **The handle is a range input**, stretched over the pictures and
+  invisible: a mouse and a finger drag it, the arrow keys move it, and it is
+  announced as a slider with a value. What is drawn only follows it, and
+  shows the focus the input holds.
+- **Two live 3D views are not overlaid.** Their cameras are each their own,
+  so a handle across them would compare two different angles. They are shown
+  one at a time; a side is loaded the first time it is chosen and then kept,
+  so switching back finds the angle the reader left.
+- **At most two** (`ShowcaseBlock::AT_MOST`): a comparison of three is a
+  gallery, which `PROOF` is. Said by the validator in words; nothing in the
+  database counts it, because the story is replaced whole on every write.
+- **One side is not a comparison** and draws nothing — no band, and no entry
+  in the page's menu.
+- The embedded address is held to what a demo's is (§ `DEMO`): `https`, no
+  credentials, refused in a translation, and its origin named to
+  `bin/build-dist.sh --embed`, or the browser refuses the frame.
+
+For Plan, the two sides are two projects on one plot — `…&file=<before>` and
+`…&file=<after>` — or two screenshots of them.

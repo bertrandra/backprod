@@ -7,6 +7,7 @@ import type { BandKind } from './meta';
 import { HeadlineBand } from './HeadlineBand';
 import { PricingBand } from './PricingBand';
 import { ProblemBand } from './ProblemBand';
+import { CompareBand, isAComparison } from './CompareBand';
 import { CtaBand } from './CtaBand';
 import { DemoBand } from './DemoBand';
 import { FeaturesBand } from './FeaturesBand';
@@ -15,6 +16,7 @@ import { QuestionsBand } from './QuestionsBand';
 import { QuoteBand } from './QuoteBand';
 import { StatsBand } from './StatsBand';
 import { StepsBand } from './StepsBand';
+import { TourBand } from './TourBand';
 import { TrustBand } from './TrustBand';
 import { UseCasesBand } from './UseCasesBand';
 
@@ -101,6 +103,16 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
   FEATURE: {
     speaks: (p) => p.content.features.length > 0,
     view: (p) => <FeaturesBand rows={p.content.features} heading={heading(p, 'FEATURE')} />,
+  },
+  TOUR: {
+    speaks: (p) => p.content.tour.length > 0,
+    view: (p) => <TourBand rows={p.content.tour} heading={heading(p, 'TOUR')} />,
+  },
+  COMPARE: {
+    // Two sides or nothing: one row is not a comparison, and a band that
+    // drew half of one would be a picture with a label and no point.
+    speaks: (p) => isAComparison(p.content.compare),
+    view: (p) => <CompareBand rows={p.content.compare} heading={heading(p, 'COMPARE')} />,
   },
   CTA: {
     speaks: (p) => p.content.cta.length > 0,

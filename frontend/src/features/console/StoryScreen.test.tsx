@@ -55,9 +55,11 @@ describe('the editor', () => {
       'add-STATS',
       'add-STEPS',
       'add-FEATURE',
+      'add-TOUR',
       'add-USE_CASE',
       'add-QUOTE',
       'add-PROOF',
+      'add-COMPARE',
       'add-DEMO',
       'add-QUESTION',
       'add-CTA',
@@ -128,7 +130,7 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
+      sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'TOUR', 'USE_CASE', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
       // Nothing retitled, so nothing sent: a band left out of the map reads
       // the words its component was written with.
       bands: {},
@@ -427,6 +429,9 @@ describe('the order the page is read in', () => {
     // and impossible with a screen reader, so the buttons are the real
     // interface — and this test is the one that would fail if they became
     // decoration.
+    // Three presses: past the demo, past the comparison that sits between
+    // it and the proof since 2026-11-21, and past the proof.
+    fireEvent.click(screen.getByTestId('up-PRICING'));
     fireEvent.click(screen.getByTestId('up-PRICING'));
     fireEvent.click(screen.getByTestId('up-PRICING'));
 
@@ -773,5 +778,23 @@ describe('a template that has an opinion about layout', () => {
 
     expect(body.bands.PROOF?.content.layout).toBe('carousel');
     expect(body.bands.HEADLINE?.content.layout).toBe('centered');
+  });
+});
+
+describe('a comparison has two sides', () => {
+  it('stops offering a side once there are two', async () => {
+    renderWith(<StoryScreen productId="p-1" />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+
+    const add = screen.getByTestId<HTMLButtonElement>('add-COMPARE');
+
+    fireEvent.click(add);
+    expect(add.disabled).toBe(false);
+
+    fireEvent.click(add);
+
+    // A courtesy: the server refuses a third in words either way.
+    await waitFor(() => expect(screen.getByTestId<HTMLButtonElement>('add-COMPARE').disabled).toBe(true));
   });
 });
