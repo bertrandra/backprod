@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState } from 'react';
 
 import {
   authoredBandsInOrder,
@@ -14,7 +14,7 @@ import {
   SINGLE_BANDS,
   type BandKind,
 } from '@/features/showcase/blocks/meta';
-import { STORY_TEMPLATES, type StoryTemplate } from '@/features/showcase/blocks/templates';
+import type { StoryTemplate } from '@/features/showcase/blocks/templates';
 import {
   useProductStory,
   usePublishProductStory,
@@ -22,25 +22,26 @@ import {
 } from '@/queries/showcase';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
-import { Button, buttonClass } from '@/ui/Field';
+import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { Section } from '@/ui/Page';
 
 import { BandHeadingEditor } from './BandHeading';
 import { BandPicture } from './BandPicture';
 import { SectionOrder } from './SectionOrder';
-import { StoryPreview } from './StoryPreview';
+import { StoryEditor } from './StoryEditor';
 import {
   blank,
-  draftFromTemplate,
   EMPTY,
   headingsToDraft,
   headingsToInput,
   toDraft,
   toInput,
+  withTemplate,
   type DraftBlock,
   type HeadingDraft,
 } from './storyDraft';
+import { TemplateChoice } from './TemplateChoice';
 import { t } from '@/i18n';
 
 /**
@@ -121,20 +122,21 @@ export function StoryScreen({
   const published = story.data.published_at !== null;
 
   const applyTemplate = (template: StoryTemplate) => {
-    setDraft(draftFromTemplate(template));
-    setOrder(bandsInOrder(template.sections));
-    // The layouts the template has an opinion about, and no other: a band
-    // it does not name keeps the layout and the heading it had.
-    setHeadings((current) => {
-      const next = { ...(current ?? {}) };
+    const next = withTemplate({ draft, order, headings }, template);
 
-      for (const [block, layout] of Object.entries(template.layouts ?? {})) {
-        next[block] = { ...(next[block] ?? {}), layout: { en: layout } };
-      }
-
-      return next;
-    });
+    setDraft([...next.draft]);
+    setOrder(next.order);
+    setHeadings(next.headings);
   };
+
+  // One write for the whole page, order included: two writes for one
+  // afternoon's work is two chances to leave it half changed.
+  const save = () =>
+    write.mutate({
+      blocks: draft.map(toInput),
+      sections: [...order],
+      bands: headingsToInput(headings),
+    });
 
   const editor = (
     <div className="space-y-8">
@@ -150,7 +152,7 @@ export function StoryScreen({
                 data-testid="open-studio"
                 onClick={() => setStudio(true)}
               >
-                {t("Edit with the preview")}</Button>
+                {t("Open the page editor")}</Button>
             )}
             <Button
               type="button"
@@ -164,16 +166,7 @@ export function StoryScreen({
               type="button"
               pending={write.isPending}
               data-testid="save-story"
-              // One write for the whole page, order included: two writes
-              // for one afternoon's work is two chances to leave it half
-              // changed.
-              onClick={() =>
-                write.mutate({
-                  blocks: draft.map(toInput),
-                  sections: [...order],
-                  bands: headingsToInput(headings),
-                })
-              }
+              onClick={save}
             >
               {t("Save")}</Button>
           </>
@@ -325,156 +318,38 @@ export function StoryScreen({
     return editor;
   }
 
+  // The editor instead of the form, not over it: the two hold the same
+  // draft, and two sets of fields for one sentence would be two ids for
+  // one label.
   return (
-    <Studio
-      onClose={() => setStudio(false)}
-      editor={editor}
-      preview={<StoryPreview product={product} draft={draft} order={order} headings={headings} />}
-    />
-  );
-}
-
-/**
- * The templates, each a card with one button.
- *
- * **Replacing what is written takes a second press.** A template overwrites
- * the draft — an afternoon's sentences — and nothing here is optimistic or
- * undoable, so the button that would do it says so first and waits. With an
- * empty draft there is nothing to lose and one press is enough.
- */
-function TemplateChoice({
-  replaces,
-  onChoose,
-}: {
-  replaces: boolean;
-  onChoose: (template: StoryTemplate) => void;
-}) {
-  const [asking, setAsking] = useState<string | null>(null);
-
-  return (
-    <ul className="grid gap-3" data-testid="story-templates">
-      {STORY_TEMPLATES.map((template) => (
-        <li
-          key={template.id}
-          data-template={template.id}
-          className="space-y-2 rounded-card border border-line bg-surface p-4 shadow-raise"
-        >
-          <h3 className="font-medium">{t(template.name)}</h3>
-          <p className="text-sm text-muted">{t(template.description)}</p>
-
-          {asking === template.id ? (
-            <div className="flex flex-wrap items-center gap-2" role="alert">
-              <span className="text-sm">{t("This replaces everything written above.")}</span>
-              <Button
-                type="button"
-                variant="danger"
-                data-testid={`confirm-template-${template.id}`}
-                onClick={() => {
-                  setAsking(null);
-                  onChoose(template);
-                }}
-              >
-                {t("Replace it")}</Button>
-              <Button type="button" variant="secondary" onClick={() => setAsking(null)}>
-                {t("Cancel")}</Button>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              data-testid={`use-template-${template.id}`}
-              onClick={() => (replaces ? setAsking(template.id) : onChoose(template))}
-            >
-              {t("Use this template")}</Button>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/**
- * The form and the page, side by side, filling the window.
- *
- * A dialog over the console rather than a wider column in it: the form
- * lives inside a product's row on a narrow screen, and a page drawn at a
- * believable size needs the whole window. Escape closes it, focus starts
- * on the way out, and what was being written stays written — the draft is
- * the screen's, not the dialog's.
- *
- * **On a narrow window the two take turns.** Side by side on a phone would
- * be two unreadable columns, so one is shown and a switch at the top
- * chooses which; nothing disappears, it changes presentation (ui-spec, the
- * rule about regions).
- */
-function Studio({
-  editor,
-  preview,
-  onClose,
-}: {
-  editor: ReactNode;
-  preview: ReactNode;
-  onClose: () => void;
-}) {
-  const close = useRef<HTMLButtonElement>(null);
-  const [pane, setPane] = useState<'form' | 'page'>('form');
-
-  useEffect(() => {
-    close.current?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
+    <StoryEditor
+      productId={productId}
+      product={product}
+      state={{ draft, order, headings }}
+      saved={{
+        draft: (loaded ?? []).map(toDraft),
+        order: bandsInOrder(story.data.sections),
+        headings: headingsToDraft(story.data.bands),
+      }}
+      onChange={(next) => {
+        setDraft([...next.draft]);
+        setOrder(next.order);
+        setHeadings(next.headings);
+      }}
+      published={published}
+      saving={write.isPending}
+      onSave={save}
+      publishing={publish.isPending}
+      onPublish={() => publish.mutate(!published)}
+      problem={
+        (write.error !== null || publish.error !== null) && (
+          <div className="border-b border-line bg-surface px-3 py-2">
+            {write.error !== null && <ErrorSurface error={write.error} />}
+            {publish.error !== null && <ErrorSurface error={publish.error} />}
+          </div>
+        )
       }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("The product's page, with its preview")}
-      data-testid="story-studio"
-      className="fixed inset-0 z-40 flex flex-col bg-canvas"
-    >
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
-        <div role="group" aria-label={t("What to show")} className="flex gap-1 lg:hidden">
-          <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={pane === 'form'}
-            data-testid="studio-show-form"
-            onClick={() => setPane('form')}
-          >
-            {t("The form")}</Button>
-          <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={pane === 'page'}
-            data-testid="studio-show-page"
-            onClick={() => setPane('page')}
-          >
-            {t("The page")}</Button>
-        </div>
-
-        <button
-          ref={close}
-          type="button"
-          className={`${buttonClass('secondary')} ml-auto`}
-          data-testid="close-studio"
-          onClick={onClose}
-        >
-          {t("Close the preview")}</button>
-      </div>
-
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
-        <div className={`min-h-0 overflow-y-auto p-4 ${pane === 'form' ? '' : 'hidden lg:block'}`}>{editor}</div>
-        <div className={`min-h-0 border-line lg:border-l ${pane === 'page' ? '' : 'hidden lg:block'}`}>{preview}</div>
-      </div>
-    </div>
+      onClose={() => setStudio(false)}
+    />
   );
 }

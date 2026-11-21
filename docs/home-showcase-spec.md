@@ -808,3 +808,36 @@ both**, with a `label` (required), a `caption` and a `ratio`.
 
 For Plan, the two sides are two projects on one plot — `…&file=<before>` and
 `…&file=<after>` — or two screenshots of them.
+
+## 15. The page editor (2026-11-21)
+
+The console's form with a preview beside it became an editor arranged around
+the page. Same draft, same single write (`PUT …/showcase`), same registry of
+bands; no change to the contract or the database.
+
+```text
+left     the bands a reader meets, in order — drag, or choose one
+middle   the page itself, in a frame at 1280 / 820 / 390 px, in any language
+right    the chosen band: layout, rows, pictures, heading — or the page as a whole
+```
+
+- **A click on the page chooses a band; a double click rewrites a sentence
+  where it is read**, in the language being read. The sentence is found by
+  what it says among that band's own fields, so the band components carry no
+  mark for the editor and a new band is editable by existing. What the draft
+  does not hold (a price, a default title) is not editable there.
+- **Only the bands on the page are listed.** The stored order still names all
+  fifteen; a move is relative to the next band a reader would see.
+- **A band is added from a library** — its shape and one line about it — and
+  lands after the band being looked at. A band already on the page grows from
+  its own panel.
+- **Undo and redo** cover every change made in the editor, for as long as it
+  is open. Typing is one step per pause.
+- **Saving is reviewed first**: what changes band by band (compared as the
+  contract would carry it), the required English still missing — which holds
+  the save — and how much each language still reads in English. On a published
+  page the review says what it is: saving changes what visitors read at once.
+
+Not built, because each needs the server to keep something it does not keep:
+a draft separate from the published page, a history of versions to restore,
+hiding a band without removing it, and cropping a picture.
