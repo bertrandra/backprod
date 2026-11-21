@@ -474,7 +474,7 @@ function ProductRow({
 
         {storyOpen && (
           <div className="mt-4">
-            <StoryScreen productId={product.id} />
+            <StoryScreen productId={product.id} product={{ code: product.code, name: product.name }} />
           </div>
         )}
       </details>

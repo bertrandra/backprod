@@ -561,3 +561,126 @@ describe('publishing', () => {
     expect(screen.getByTestId('publish-story').textContent).toContain('Take it down');
   });
 });
+
+/**
+ * The page beside the form (2026-11-20). What matters is that it is the
+ * draft that is drawn - what somebody has typed and not yet saved - and
+ * that it is drawn by the page's own component, inside a frame.
+ */
+describe('editing with the preview', () => {
+  const OFFERS = { 'GET /api/v1/public/offers': { data: { product: PRODUCT, offers: [] } } };
+  const inFrame = () => screen.getByTestId<HTMLIFrameElement>('preview-frame').contentDocument;
+
+  it('is not offered where the screen was given no product to read prices for', async () => {
+    renderWith(<StoryScreen productId="p-1" />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+
+    expect(screen.queryByTestId('open-studio')).toBeNull();
+  });
+
+  it('draws the draft as the page, inside a frame, and follows what is typed', async () => {
+    renderWith(<StoryScreen productId="p-1" product={PRODUCT} />, clientFor(OFFERS));
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('open-studio'));
+
+    await waitFor(() =>
+      expect(inFrame()?.querySelector('[data-testid="showcase-headline"]')?.textContent).toBe('Draw a terrace'),
+    );
+
+    // Typed, not saved: the page beside the form already says it.
+    const headline = screen.getByDisplayValue('Draw a terrace');
+    fireEvent.change(headline, { target: { value: 'Draw a pergola' } });
+
+    await waitFor(() =>
+      expect(inFrame()?.querySelector('[data-testid="showcase-headline"]')?.textContent).toBe('Draw a pergola'),
+    );
+  });
+
+  it('previews a phone as a phone: the frame is the width a phone is', async () => {
+    renderWith(<StoryScreen productId="p-1" product={PRODUCT} />, clientFor(OFFERS));
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('open-studio'));
+
+    expect(screen.getByTestId('preview-frame').getAttribute('data-width')).toBe('1280');
+
+    fireEvent.click(screen.getByTestId('preview-mobile'));
+
+    expect(screen.getByTestId('preview-frame').getAttribute('data-width')).toBe('390');
+    expect(screen.getByTestId('preview-mobile').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('reads the preview in another language, falling back to English', async () => {
+    renderWith(<StoryScreen productId="p-1" product={PRODUCT} />, clientFor(OFFERS));
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('open-studio'));
+    fireEvent.change(screen.getByTestId('preview-language'), { target: { value: 'fr' } });
+
+    await waitFor(() =>
+      expect(inFrame()?.querySelector('[data-testid="showcase-headline"]')?.textContent).toBe('Dessinez une terrasse'),
+    );
+    expect(inFrame()?.querySelector('[data-testid="showcase-subline"]')?.textContent).toBe('And print the file.');
+  });
+
+  it('closes on Escape and keeps what was being written', async () => {
+    renderWith(<StoryScreen productId="p-1" product={PRODUCT} />, clientFor(OFFERS));
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('open-studio'));
+    fireEvent.change(screen.getByDisplayValue('Draw a terrace'), { target: { value: 'Draw a pergola' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByTestId('story-studio')).toBeNull());
+    expect(screen.getByDisplayValue('Draw a pergola')).toBeTruthy();
+  });
+});
+
+describe('starting from a template', () => {
+  it('asks before replacing what is written, and replaces it only then', async () => {
+    renderWith(<StoryScreen productId="p-1" />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('use-template-short'));
+
+    // Nothing has changed yet: an afternoon's sentences are not one click
+    // from gone.
+    expect(screen.getByDisplayValue('Draw a terrace')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('confirm-template-short'));
+
+    await waitFor(() => expect(screen.queryByDisplayValue('Draw a terrace')).toBeNull());
+    expect(screen.getByDisplayValue('What it does, for whom, in one sentence')).toBeTruthy();
+  });
+
+  it('fills an empty page at once, and sends it with the template order when saved', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: { product: PRODUCT, published_at: null, blocks: [] },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { blocks: [] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('use-template-short')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('use-template-short'));
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('save-story'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const body = requests.find((r) => r.method === 'PUT')?.body as {
+      blocks: { block: string }[];
+      sections: string[];
+    };
+
+    expect(body.blocks.map((block) => block.block)).toEqual([
+      'HEADLINE', 'STEPS', 'STEPS', 'STEPS', 'QUESTION', 'QUESTION',
+    ]);
+    expect(body.sections.slice(0, 4)).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'QUESTION']);
+  });
+});
