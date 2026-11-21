@@ -668,3 +668,72 @@ first*, *Short*.
 - No template carries a `DEMO` row: that band is refused without an address
   or a picture, and a template whose first save fails teaches nothing. Each
   template is tested against what the endpoint requires.
+
+## 13. Four bands that sell, and a choice of layouts (2026-11-20)
+
+### 13.1 The bands
+
+The page could say what a product does and prove it with screenshots, and
+had nowhere to put what a hesitating reader looks for next. Four kinds, each
+added the way §6 promises — a migration (`Version20261120090000`), the
+validator's field table, a view, an editor row, one line in the registry.
+
+| Kind | Where | Rows | Fields |
+| --- | --- | --- | --- |
+| `TRUST` | under the headline | many | `name`; an optional logo, read aloud by that name |
+| `STATS` | after the problem | many | `value`, `label`, `detail` |
+| `FEATURE` | after the steps | many | `title`, `body`, `icon` |
+| `CTA` | last | **one** | `title`, `body` |
+
+- **A figure is text.** `3 min`, `1 200`, `−40 %` are stored and drawn as
+  written, unit included. The page never computes with one and never
+  animates up to one: a count that ticked from zero would be the page
+  inventing the claims in between.
+- **`TRUST` carries no `alt`.** The name is what a screen reader says for
+  the logo; a second description would be a second sentence that could
+  disagree. Without a logo the name is set as text, so the band works for a
+  product with customers and no permission to use their marks.
+- **`CTA` shows the reader's own call to action** (§3), the one the hero
+  carries. It owns no button: a second answer to "what should this reader
+  do" is the one that sends a subscriber to the prices. One per page, by a
+  partial unique index, like the headline.
+- **`TRUST` and `CTA` are not in the in-page nav** (`quiet`). Nobody
+  navigates to a strip of logos.
+- The icons gained four that say something good (`check`, `bolt`, `shield`,
+  `layers`); the first eight were drawn for the problem band.
+
+An order stored before these existed is completed as §7 already describes:
+each goes back beside the band it follows.
+
+### 13.2 Layouts
+
+Five bands may be laid out more than one way. The first of each list is the
+band as it has always been drawn, and is what an absent value means — no
+page moved the day this was added.
+
+| Band | Layouts |
+| --- | --- |
+| `HEADLINE` | `split` · `centered` · `stacked` |
+| `STEPS` | `columns` · `timeline` |
+| `FEATURE` | `grid` · `list` |
+| `QUOTE` | `grid` · `single` |
+| `PROOF` | `alternate` · `grid` |
+
+- **A closed set and a code**, like a problem's icon: English only, refused
+  in a translation, and refused on a band that is drawn one way. A free
+  field would be an operator choosing between layouts nobody built.
+- **Stored beside the band's heading** (`product_showcase_bands.content`,
+  key `layout`), because that row is the one fact there is per band rather
+  than per row of a band. It needs no column: a layout alone, with no title
+  beside it, is still a heading that said something.
+- **Never a colour.** A band's surface stays the registry's (§5): a page
+  where every band picks its own ground is the page the registry prevents.
+- A layout a bundle does not know is drawn as the usual one, never as a
+  blank band.
+
+### 13.3 What holds the two halves together
+
+`composer run gate:showcase` compared the fields the console offers with the
+fields the endpoint accepts. It now also compares the three closed sets both
+sides spell — the kinds, the icons, and the layouts each band has, in order —
+and fails when one is changed in TypeScript or in PHP only.

@@ -26,10 +26,22 @@ export interface BandMeta {
   readonly surface: BandSurface;
   /** The heading in the in-page nav. Not the band's own title. */
   readonly nav: string;
+  /**
+   * Drawn on the page and left out of the in-page nav (2026-11-20).
+   *
+   * A strip of logos and a closing call to action are not places somebody
+   * navigates *to*: thirteen entries in a menu that had nine would be a
+   * menu nobody reads, and "Get started" in it would be a second button
+   * for the one already in the hero.
+   */
+  readonly quiet?: boolean;
 }
 
 export const BAND_META = {
   HEADLINE: { order: 10, anchor: 'what', surface: 'canvas', nav: 'What it does' },
+  // Straight under the promise: a name the reader recognises is what makes
+  // the sentence above it believable, and it is worth nothing further down.
+  TRUST: { order: 12, anchor: 'trust', surface: 'surface', nav: 'Trusted by', quiet: true },
   // The one dark band on the page, and deliberately the second: a reader
   // meets the promise, then what it is a promise about, and the ground
   // going dark for one band is what says "this part is the trouble" without
@@ -37,7 +49,11 @@ export const BAND_META = {
   // where every band picks its own colour is the page this registry exists
   // to prevent.
   PROBLEM: { order: 15, anchor: 'problem', surface: 'deep', nav: 'The problem' },
+  // After the trouble and before the method: the size of the change, said
+  // as a figure, is what makes somebody want to know how.
+  STATS: { order: 17, anchor: 'numbers', surface: 'canvas', nav: 'In numbers' },
   STEPS: { order: 20, anchor: 'how', surface: 'surface', nav: 'How it works' },
+  FEATURE: { order: 25, anchor: 'features', surface: 'well', nav: 'What it includes' },
   USE_CASE: { order: 30, anchor: 'who', surface: 'canvas', nav: 'Who it is for' },
   QUOTE: { order: 35, anchor: 'said', surface: 'surface', nav: 'What they say' },
   PROOF: { order: 40, anchor: 'proof', surface: 'well', nav: 'See it' },
@@ -46,6 +62,11 @@ export const BAND_META = {
   DEMO: { order: 45, anchor: 'demo', surface: 'canvas', nav: 'Try it' },
   PRICING: { order: 50, anchor: 'prices', surface: 'surface', nav: 'Prices' },
   QUESTION: { order: 60, anchor: 'questions', surface: 'canvas', nav: 'Questions' },
+  // The last thing on the page, and the second dark band: the page opens on
+  // a promise and a button and, for somebody who read to the end, closes on
+  // the same two. Dark because it is the one place after the hero where the
+  // button is the whole point of the band.
+  CTA: { order: 70, anchor: 'start', surface: 'deep', nav: 'Get started', quiet: true },
 } as const satisfies Record<string, BandMeta>;
 
 /**
@@ -70,6 +91,13 @@ export const PROBLEM_ICONS = {
   paper: 'M8 4 h10 l6 6 v20 H8 Z M18 4 v6 h6 M12 18 h9 M12 23 h9',
   warning: 'M15 4 L27 25 H3 Z M15 12 v6 M15 21 v0.5',
   repeat: 'M6 13 a9 9 0 0 1 15 -6 M24 17 a9 9 0 0 1 -15 6 M21 3 v5 h-5 M9 27 v-5 h5',
+  // Four that say something good (2026-11-20). The eight above were drawn
+  // for the problem band; a list of what a product includes, illustrated
+  // with a warning triangle and a cross, reads as a list of faults.
+  check: 'M6 16 L12 22 L24 8',
+  bolt: 'M17 3 L7 17 H15 L13 27 L23 13 H15 Z',
+  shield: 'M15 3 L25 7 V14 C25 20 21 25 15 27 C9 25 5 20 5 14 V7 Z M10.5 15 l3.5 3.5 l6 -7',
+  layers: 'M15 4 L26 10 L15 16 L4 10 Z M4 15 L15 21 L26 15 M4 20 L15 26 L26 20',
 } as const;
 
 export type ProblemIcon = keyof typeof PROBLEM_ICONS;
@@ -90,14 +118,67 @@ export type BandKind = keyof typeof BAND_META;
  */
 export const AUTHORED_BANDS = [
   'HEADLINE',
+  'TRUST',
   'PROBLEM',
+  'STATS',
   'STEPS',
+  'FEATURE',
   'USE_CASE',
   'QUOTE',
   'PROOF',
   'DEMO',
   'QUESTION',
+  'CTA',
 ] as const;
+
+/**
+ * The bands a page has one of.
+ *
+ * The server says it in words (`ShowcaseBlock::SINGLETONS`) and an index
+ * holds it; this is the courtesy that stops the console offering a second
+ * one to be refused.
+ */
+export const SINGLE_BANDS: readonly AuthoredBandKind[] = ['HEADLINE', 'CTA'];
+
+/**
+ * How a band may be laid out, where it has more than one way (2026-11-20).
+ *
+ * **The first of each list is the band as it has always been drawn**, and
+ * what an absent or unknown value means — so no page moved the day this was
+ * added, and a layout stored by a newer deployment costs the default, never
+ * a blank band.
+ *
+ * A closed set, mirrored by `ShowcaseSections::LAYOUTS` on the server and
+ * held to it by `gate:showcase`: a layout the console offered and the
+ * endpoint refused would be a select that fails on Save.
+ */
+export const BAND_LAYOUTS = {
+  HEADLINE: ['split', 'centered', 'stacked'],
+  STEPS: ['columns', 'timeline'],
+  FEATURE: ['grid', 'list'],
+  QUOTE: ['grid', 'single'],
+  PROOF: ['alternate', 'grid'],
+} as const satisfies Partial<Record<BandKind, readonly string[]>>;
+
+/** The layouts one band has, the usual one first; empty where it has one way. */
+export function layoutsOf(kind: BandKind): readonly string[] {
+  return (BAND_LAYOUTS as Partial<Record<BandKind, readonly string[]>>)[kind] ?? [];
+}
+
+/**
+ * The layout to draw: what was stored where this bundle can draw it, and
+ * the band's usual one otherwise.
+ */
+export function layoutOf<K extends keyof typeof BAND_LAYOUTS>(
+  kind: K,
+  stored: string | null | undefined,
+): (typeof BAND_LAYOUTS)[K][number] {
+  const known: readonly string[] = BAND_LAYOUTS[kind];
+
+  return (stored !== null && stored !== undefined && known.includes(stored)
+    ? stored
+    : BAND_LAYOUTS[kind][0]) as (typeof BAND_LAYOUTS)[K][number];
+}
 
 export type AuthoredBandKind = (typeof AUTHORED_BANDS)[number];
 
@@ -118,6 +199,9 @@ export type AuthoredBandKind = (typeof AUTHORED_BANDS)[number];
  */
 export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = [
   'HEADLINE',
+  // A logo. The row's name is what a screen reader says for it, so this is
+  // the one band with a picture and no description field.
+  'TRUST',
   'STEPS',
   'USE_CASE',
   'PROOF',
@@ -132,8 +216,11 @@ export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = [
  */
 export const SECTIONS_WITH_A_HEADING: readonly BandKind[] = [
   'HEADLINE',
+  'TRUST',
   'PROBLEM',
+  'STATS',
   'STEPS',
+  'FEATURE',
   'USE_CASE',
   'QUOTE',
   'PROOF',

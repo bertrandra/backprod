@@ -37,7 +37,10 @@ const KIND_BY_ANCHOR: Readonly<Record<string, BandKind>> = Object.fromEntries(
  * anchors actually in the document, so a product with no use cases has no
  * dead link to one.
  */
-export function ShowcaseNav({ present, underBar = false }: { present: readonly BandKind[]; underBar?: boolean }) {
+export function ShowcaseNav({ present: drawn, underBar = false }: { present: readonly BandKind[]; underBar?: boolean }) {
+  // A band may be on the page and not in its menu (`BAND_META[kind].quiet`):
+  // nobody navigates to a strip of logos.
+  const present = drawn.filter((kind) => !isQuiet(kind));
   const current = useCurrentBand(present);
 
   // Three, not two. A product that has written nothing has exactly a hero
@@ -147,4 +150,8 @@ function useCurrentBand(present: readonly BandKind[]): BandKind | null {
   }, [anchors]);
 
   return current;
+}
+
+function isQuiet(kind: BandKind): boolean {
+  return (BAND_META[kind] as { quiet?: boolean }).quiet === true;
 }

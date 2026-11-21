@@ -51,6 +51,9 @@ final class ShowcaseBandHeadings
     /** Shorter than a band's prose: these are headings, not paragraphs. */
     private const LONGEST = 400;
 
+    /** The one heading field that is a code and not a sentence. */
+    private const LAYOUT = 'layout';
+
     /**
      * @return array<string, ShowcaseBandHeading>|null keyed by section, or null where the request said nothing
      */
@@ -108,6 +111,20 @@ final class ShowcaseBandHeadings
         $content = [];
 
         foreach (get_object_vars($raw) as $field => $value) {
+            // How the band is laid out (2026-11-20): a **code**, like a
+            // problem's icon. English only — a layout has no French, and a
+            // locale that could hold one would be a second place a band's
+            // shape is decided — and one of the layouts this band has.
+            if ($field === self::LAYOUT) {
+                $layout = self::layout($value, $block, $where);
+
+                if ($layout !== null) {
+                    $content[self::LAYOUT] = $layout;
+                }
+
+                continue;
+            }
+
             if (!is_string($field) || !in_array($field, self::FIELDS, true)) {
                 // Refused rather than dropped, the same rule a band's fields
                 // follow: a field this endpoint stored and no band rendered
@@ -125,6 +142,37 @@ final class ShowcaseBandHeadings
         }
 
         return $content;
+    }
+
+    /**
+     * The layout a band asked for, or null where it asked for the default.
+     *
+     * Refused in a translation and on a band that is drawn one way: a value
+     * stored and never read is an operator's choice quietly ignored. An
+     * empty string is "the usual one" and stores nothing, which is how a
+     * select with a *None* option says it.
+     */
+    private static function layout(mixed $value, string $block, string $where): ?string
+    {
+        $allowed = ShowcaseSections::LAYOUTS[$block] ?? [];
+
+        if ($where !== 'content' || $allowed === []) {
+            throw self::invalid(
+                $block,
+                $where . '.' . self::LAYOUT,
+                $allowed === [] ? 'no layout: this band is drawn one way' : 'no layout in a translation',
+            );
+        }
+
+        if (is_string($value) && trim($value) === '') {
+            return null;
+        }
+
+        if (!is_string($value) || !in_array($value, $allowed, true)) {
+            throw self::invalid($block, $where . '.' . self::LAYOUT, 'one of ' . implode(', ', $allowed));
+        }
+
+        return $value;
     }
 
     /**

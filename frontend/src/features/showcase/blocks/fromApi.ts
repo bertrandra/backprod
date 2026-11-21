@@ -113,6 +113,32 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
 
       return question === null || answer === null ? null : { question, answer };
     }),
+    trust: pick('TRUST', (c) => {
+      const name = text(c.name);
+
+      return name === null ? null : { name };
+    }),
+    stats: pick('STATS', (c) => {
+      const value = text(c.value);
+      const label = text(c.label);
+
+      // A figure with nothing beside it says nothing, and a label with no
+      // figure is a sentence in the wrong band: both halves or no row.
+      return value === null || label === null ? null : { value, label, detail: text(c.detail) };
+    }),
+    features: pick('FEATURE', (c) => {
+      const title = text(c.title);
+      const icon = text(c.icon);
+
+      return title === null
+        ? null
+        : { title, body: text(c.body), icon: isProblemIcon(icon) ? icon : null };
+    }),
+    cta: pick('CTA', (c) => {
+      const title = text(c.title);
+
+      return title === null ? null : { title, body: text(c.body) };
+    }),
     headings: headingsFrom(showcase.bands),
   };
 }
@@ -143,9 +169,12 @@ function headingsFrom(bands: unknown): Record<string, BandHeading> {
     const eyebrow = text(said.eyebrow);
     const title = text(said.title);
     const lede = text(said.lede);
+    const layout = text(said.layout);
 
-    if (eyebrow !== null || title !== null || lede !== null) {
-      headings[block] = { eyebrow, title, lede };
+    // A layout alone is a heading that said something: a band may be laid
+    // out differently and keep the words it was written with.
+    if (eyebrow !== null || title !== null || lede !== null || layout !== null) {
+      headings[block] = { eyebrow, title, lede, layout };
     }
   }
 

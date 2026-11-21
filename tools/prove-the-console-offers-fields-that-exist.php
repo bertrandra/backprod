@@ -184,6 +184,109 @@ if ($offences !== []) {
     exit(1);
 }
 
+/*
+ * The three closed sets the page and the endpoint both spell (2026-11-20).
+ *
+ * A band's fields are not the only fact written twice. Which kinds exist,
+ * which icons can be drawn and which layouts a band has are each a list in
+ * TypeScript and a list in PHP, and each has the same two failures: one
+ * offered and refused is a form that fails on Save, and one accepted and
+ * drawn by nothing is a choice quietly ignored. Four bands and a set of
+ * layouts arrived together; this is what stops the fifth from arriving in
+ * one language only.
+ */
+$meta = (string) file_get_contents($root . '/frontend/src/features/showcase/blocks/meta.ts');
+$block = (string) file_get_contents($root . '/src/Product/Domain/ShowcaseBlock.php');
+$sections = (string) file_get_contents($root . '/src/Product/Domain/ShowcaseSections.php');
+
+/** @return list<string> */
+function quoted(string $list): array
+{
+    return preg_match_all("/'([A-Za-z_:0-9-]+)'/", $list, $found) > 0 ? $found[1] : [];
+}
+
+/** @return list<string> */
+function between(string $source, string $pattern): array
+{
+    return preg_match($pattern, $source, $found) === 1 ? quoted($found[1]) : [];
+}
+
+/** @return array<string, list<string>> */
+function layouts(string $source, string $pattern, string $row): array
+{
+    if (preg_match($pattern, $source, $found) !== 1) {
+        return [];
+    }
+
+    $map = [];
+
+    if (preg_match_all($row, $found[1], $rows, PREG_SET_ORDER) !== false) {
+        foreach ($rows as $one) {
+            $map[$one[1]] = quoted($one[2]);
+        }
+    }
+
+    ksort($map);
+
+    return $map;
+}
+
+$twice = [
+    'the kinds a band may be' => [
+        between($meta, '/AUTHORED_BANDS = \[(.*?)\] as const/s'),
+        array_map(
+            static fn (string $name): string => $name,
+            preg_match('/public const KINDS = \[(.*?)\];/s', $block, $kinds) === 1
+                && preg_match_all('/self::([A-Z_]+)/', $kinds[1], $named) > 0 ? $named[1] : [],
+        ),
+    ],
+    'the icons the page draws' => [
+        preg_match('/PROBLEM_ICONS = \{(.*?)\n\} as const/s', $meta, $icons) === 1
+            && preg_match_all('/^\s{2}([a-z]+):/m', $icons[1], $drawn) > 0 ? $drawn[1] : [],
+        between($block, '/public const ICONS = \[(.*?)\];/s'),
+    ],
+];
+
+foreach ($twice as $what => [$frontend, $backend]) {
+    sort($frontend);
+    sort($backend);
+
+    if ($frontend === [] || $frontend !== $backend) {
+        $offences[] = sprintf(
+            '%s: the page says [%s] and the endpoint says [%s]',
+            $what,
+            implode(', ', $frontend),
+            implode(', ', $backend),
+        );
+    }
+}
+
+$drawn = layouts($meta, '/BAND_LAYOUTS = \{(.*?)\n\} as const/s', "/^\s{2}([A-Z_]+):\s*\[([^\]]*)\]/m");
+$stored = layouts($sections, '/public const LAYOUTS = \[(.*?)\n    \];/s', "/ShowcaseBlock::([A-Z_]+) => \[([^\]]*)\]/");
+
+// Order matters here and nowhere above: the first layout of each band is the
+// one an absent value means, on both sides.
+if ($drawn === [] || $drawn !== $stored) {
+    $offences[] = sprintf(
+        'the layouts a band has: the page says %s and the endpoint says %s',
+        json_encode($drawn),
+        json_encode($stored),
+    );
+}
+
+if ($offences !== []) {
+    fwrite(STDERR, sprintf("FAIL: the page and the endpoint disagree about %d closed set(s).\n\n", count($offences)));
+
+    foreach ($offences as $offence) {
+        fwrite(STDERR, '  ' . $offence . "\n");
+    }
+
+    fwrite(STDERR, "\nEach of these is one fact written in TypeScript (blocks/meta.ts) and in PHP\n");
+    fwrite(STDERR, "(ShowcaseBlock, ShowcaseSections). Change both, in the same commit.\n");
+
+    exit(1);
+}
+
 printf(
     "OK: the console and the endpoint agree about every field of all %d bands.\n",
     count($console),

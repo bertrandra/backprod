@@ -3,7 +3,7 @@ import { t } from '@/i18n';
 import { ShowcaseBand } from '../ShowcaseBand';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import type { BandHeading, ProofRow, ShowcaseRow } from './content';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * The product itself, cropped to the thing being discussed.
@@ -33,6 +33,33 @@ export function ProofBand({
     return null;
   }
 
+  // `alternate` is one screenshot per row, picture and caption swapping
+  // sides. `grid` is a gallery, the caption under each (2026-11-20): for a
+  // product with six small things to show rather than two large ones.
+  const layout = layoutOf('PROOF', heading?.layout);
+
+  if (layout === 'grid') {
+    return (
+      <ShowcaseBand
+        id={BAND_META.PROOF.anchor}
+        surface={BAND_META.PROOF.surface}
+        eyebrow={heading?.eyebrow ?? undefined}
+        title={heading?.title ?? t("See it")}
+        lede={heading?.lede ?? undefined}
+        data-testid="showcase-proof"
+      >
+        <ul data-layout={layout} className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map((row) => (
+            <li key={row.id} data-proof={row.id} className="space-y-3">
+              <ShowcaseImageFrame image={row.image} />
+              <p className="text-base text-muted">{row.content.caption}</p>
+            </li>
+          ))}
+        </ul>
+      </ShowcaseBand>
+    );
+  }
+
   return (
     <ShowcaseBand
       id={BAND_META.PROOF.anchor}
@@ -42,7 +69,7 @@ export function ProofBand({
       lede={heading?.lede ?? undefined}
       data-testid="showcase-proof"
     >
-      <ul className="space-y-12 md:space-y-20">
+      <ul data-layout={layout} className="space-y-12 md:space-y-20">
         {rows.map((row, index) => (
           <li
             key={row.id}

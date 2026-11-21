@@ -62,6 +62,10 @@ const FULL: ShowcaseContent = {
   proof: [row('p1', { caption: 'The plan, as it prints' })],
   demos: [row('d1', { caption: 'The terrace, in three dimensions', embedUrl: 'https://plan.example/?x={width}&y={height}', ratio: '4:3' })],
   questions: [row('q1', { question: 'Can I cancel?', answer: 'Yes, at the end of the period.' })],
+  trust: [row('t1', { name: 'Atelier Durand' })],
+  stats: [row('n1', { value: '3 min', label: 'to a printable plan', detail: null })],
+  features: [row('f1', { title: 'Exports to DXF', body: 'With its layers.', icon: 'layers' as const })],
+  cta: [row('c1', { title: 'Draw your first terrace', body: null })],
 };
 
 const EMPTY: ShowcaseContent = {
@@ -73,6 +77,10 @@ const EMPTY: ShowcaseContent = {
   proof: [],
   demos: [],
   questions: [],
+  trust: [],
+  stats: [],
+  features: [],
+  cta: [],
   headings: {},
 };
 
@@ -159,7 +167,15 @@ describe('a product that has said everything', () => {
     const nav = screen.getByTestId('showcase-nav');
     const targets = [...nav.querySelectorAll('a')].map((link) => link.getAttribute('href'));
 
-    expect(targets).toEqual(bandsInOrder().map((kind) => `#${BAND_META[kind].anchor}`));
+    // Every band but the quiet ones: a strip of logos and a closing call to
+    // action are on the page and are not places anybody navigates to.
+    expect(targets).toEqual(
+      bandsInOrder()
+        .filter((kind) => (BAND_META[kind] as { quiet?: boolean }).quiet !== true)
+        .map((kind) => `#${BAND_META[kind].anchor}`),
+    );
+    expect(targets).not.toContain('#trust');
+    expect(targets).not.toContain('#start');
 
     // Real links, so they are focusable, middle-clickable and shareable.
     // A list of buttons calling scrollIntoView would be none of those.
@@ -320,17 +336,21 @@ describe('pictures', () => {
  * compiled into the bundle — until 2026-09-28.
  */
 describe('the order the page is read in', () => {
+  // The page as it was before the four bands of 2026-11-20: these cases are
+  // about orders written against nine sections, and a band that did not
+  // exist then is put back by a rule that has its own case.
+  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [] };
   const bandsOn = (container: HTMLElement) =>
     [...container.querySelectorAll('[data-band]')].map((band) => band.getAttribute('data-band'));
 
   it('follows the product’s order, not the compiled one', () => {
-    const { container } = renderStory(FULL);
+    const { container } = renderStory(NINE);
     const compiled = bandsOn(container);
 
     const { container: reordered } = render(
       <Showcase
         productName="Plan"
-        content={FULL}
+        content={NINE}
         sections={[
           'QUESTION',
           'PRICING',
@@ -366,7 +386,7 @@ describe('the order the page is read in', () => {
     const { container } = render(
       <Showcase
         productName="Plan"
-        content={FULL}
+        content={NINE}
         sections={['PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF']}
         offers={[OFFER]}
         offersLoading={false}
@@ -400,7 +420,7 @@ describe('the order the page is read in', () => {
     const { container } = render(
       <Showcase
         productName="Plan"
-        content={FULL}
+        content={NINE}
         sections={[
           'QUESTION',
           'PRICING',
@@ -562,5 +582,129 @@ describe('the registry', () => {
     const anchors = bandsInOrder().map((kind) => BAND_META[kind].anchor);
 
     expect(new Set(anchors).size).toBe(anchors.length);
+  });
+});
+
+/**
+ * Four bands that sell (2026-11-20): who trusts it, its numbers, what it
+ * includes, and a last call to action.
+ */
+describe('the bands that sell', () => {
+  it('says who trusts it by name, and reads a logo aloud by that name', () => {
+    renderStory({
+      ...FULL,
+      trust: [
+        row('t1', { name: 'Atelier Durand' }),
+        { id: 't2', content: { name: 'Jardins du Sud' }, image: { url: '/logo.png', alt: '', ratio: 1.6 } },
+      ],
+    });
+
+    const band = within(screen.getByTestId('showcase-trust'));
+
+    // No logo: the name is the text. A logo: the name is its `alt`, so a
+    // screen reader says who it is rather than "image".
+    expect(band.getByText('Atelier Durand')).toBeTruthy();
+    expect(band.getByAltText('Jardins du Sud').getAttribute('src')).toBe('/logo.png');
+  });
+
+  it('shows a figure exactly as it was written, unit included', () => {
+    renderStory({
+      ...FULL,
+      stats: [row('n1', { value: '−40 %', label: 'time spent redrawing', detail: 'Measured on 200 projects.' })],
+    });
+
+    const band = within(screen.getByTestId('showcase-stats'));
+
+    // Text, never a number the page computes with or animates up to.
+    expect(band.getByText('−40 %').tagName).toBe('DD');
+    expect(band.getByText('time spent redrawing')).toBeTruthy();
+    expect(band.getByText('Measured on 200 projects.')).toBeTruthy();
+  });
+
+  it('closes on the reader’s own call to action, not a second one', () => {
+    renderStory({ ...FULL, cta: [row('c1', { title: 'Draw your first terrace', body: 'Free to start.' })] });
+
+    const band = within(screen.getByTestId('showcase-cta'));
+
+    expect(band.getByRole('heading', { name: 'Draw your first terrace' })).toBeTruthy();
+    // The action the page was handed (spec §3), which the hero carries too.
+    expect(band.getByRole('link', { name: 'See the offers' }).getAttribute('href')).toBe('#prices');
+  });
+
+  it('reads all four from the public answer, and drops a figure with nothing beside it', () => {
+    const content = contentFrom({
+      product: { code: 'plan', name: 'Plan', active: true },
+      sections: [],
+      bands: {},
+      blocks: [
+        { id: 'a', block: 'TRUST', position: 10, content: { name: 'Durand' }, image: null },
+        { id: 'b', block: 'STATS', position: 10, content: { value: '3 min', label: 'to a plan' }, image: null },
+        { id: 'c', block: 'STATS', position: 20, content: { value: '12' }, image: null },
+        { id: 'd', block: 'FEATURE', position: 10, content: { title: 'DXF', icon: 'rocket' }, image: null },
+        { id: 'e', block: 'CTA', position: 10, content: { title: 'Start' }, image: null },
+      ],
+    } as never);
+
+    expect(content.trust.map((r) => r.content.name)).toEqual(['Durand']);
+    expect(content.stats.map((r) => r.content.value)).toEqual(['3 min']);
+    // An icon this bundle cannot draw costs the glyph, never the row.
+    expect(content.features[0]?.content).toEqual({ title: 'DXF', body: null, icon: null });
+    expect(content.cta[0]?.content.title).toBe('Start');
+  });
+});
+
+/**
+ * A band may be laid out more than one way (2026-11-20). The first layout
+ * is the band as it was always drawn, and is what anything unknown means.
+ */
+describe('how a band is laid out', () => {
+  const laidOut = (block: string, layout: string): ShowcaseContent => ({
+    ...FULL,
+    headings: { [block]: { eyebrow: null, title: null, lede: null, layout } },
+  });
+
+  it.each([
+    ['HEADLINE', 'showcase-hero', 'split', 'centered'],
+    ['STEPS', 'showcase-steps', 'columns', 'timeline'],
+    ['FEATURE', 'showcase-features', 'grid', 'list'],
+    ['QUOTE', 'showcase-quotes', 'grid', 'single'],
+    ['PROOF', 'showcase-proof', 'alternate', 'grid'],
+  ])('%s is drawn the usual way unless told otherwise', (block, testId, usual, other) => {
+    const find = () => {
+      const band = screen.getByTestId(testId);
+
+      return (band.hasAttribute('data-layout') ? band : band.querySelector('[data-layout]'))?.getAttribute('data-layout');
+    };
+
+    const first = renderStory(FULL);
+    expect(find()).toBe(usual);
+    first.unmount();
+
+    const second = renderStory(laidOut(block, other));
+    expect(find()).toBe(other);
+    second.unmount();
+
+    // A layout stored by a newer deployment costs the usual one, never a
+    // blank band.
+    renderStory(laidOut(block, 'holographic'));
+    expect(find()).toBe(usual);
+  });
+
+  it('keeps a band’s own words when only its layout was chosen', () => {
+    renderStory(laidOut('STEPS', 'timeline'));
+
+    expect(within(screen.getByTestId('showcase-steps')).getByRole('heading', { name: 'How it works' })).toBeTruthy();
+  });
+
+  it('reads the layout from the public answer, alone or beside a title', () => {
+    const content = contentFrom({
+      product: { code: 'plan', name: 'Plan', active: true },
+      sections: [],
+      bands: { HEADLINE: { layout: 'centered' }, STEPS: { title: 'Three moves', layout: 'timeline' } },
+      blocks: [],
+    } as never);
+
+    expect(content.headings.HEADLINE).toEqual({ eyebrow: null, title: null, lede: null, layout: 'centered' });
+    expect(content.headings.STEPS?.layout).toBe('timeline');
   });
 });

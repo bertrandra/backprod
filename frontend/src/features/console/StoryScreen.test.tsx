@@ -50,13 +50,17 @@ describe('the editor', () => {
 
     expect(offered).toEqual([
       'add-HEADLINE',
+      'add-TRUST',
       'add-PROBLEM',
+      'add-STATS',
       'add-STEPS',
+      'add-FEATURE',
       'add-USE_CASE',
       'add-QUOTE',
       'add-PROOF',
       'add-DEMO',
       'add-QUESTION',
+      'add-CTA',
     ]);
     expect(screen.queryByTestId('add-PRICING')).toBeNull();
   });
@@ -124,7 +128,7 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION'],
+      sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
       // Nothing retitled, so nothing sent: a band left out of the map reads
       // the words its component was written with.
       bands: {},
@@ -309,6 +313,14 @@ describe('the order the page is read in', () => {
     'QUESTION',
   ];
 
+  // These cases are about orders written against the nine sections above.
+  // The four bands of 2026-11-20 are put back beside the band each follows,
+  // by a rule with cases of its own (`Showcase.test`, `ShowcaseSectionsTest`),
+  // so here they are looked past: what is asserted is that the nine keep
+  // the order they were given.
+  const nine = (sections: readonly (string | null)[]) =>
+    sections.filter((section) => section !== null && SECTIONS.includes(section));
+
   it('lists every section, prices included, in the order the server gave', async () => {
     renderWith(
       <StoryScreen productId="p-1" />,
@@ -343,7 +355,7 @@ describe('the order the page is read in', () => {
     // The server's order, not the compiled one — and `PRICING` is a row
     // like the others, because its place is the one thing about it an
     // operator decides.
-    expect(rows).toEqual([
+    expect(nine(rows)).toEqual([
       'QUESTION',
       'PRICING',
       'HEADLINE',
@@ -386,7 +398,7 @@ describe('the order the page is read in', () => {
     // after PRICING � which this operator moved to the front. The console
     // completes a stale order with the same rule the page reads it with, or
     // the two would disagree about one page.
-    expect(rows).toEqual([
+    expect(nine(rows)).toEqual([
       'PRICING',
       'QUESTION',
       'HEADLINE',
@@ -420,7 +432,7 @@ describe('the order the page is read in', () => {
 
     await waitFor(() =>
       expect(
-        [...screen.getByTestId('section-order').children].map((row) => row.getAttribute('data-section')),
+        nine([...screen.getByTestId('section-order').children].map((row) => row.getAttribute('data-section'))),
       ).toEqual([
         'HEADLINE',
         'PROBLEM',
@@ -439,7 +451,7 @@ describe('the order the page is read in', () => {
 
     const body = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
 
-    expect(body.sections).toEqual([
+    expect(nine(body.sections)).toEqual([
       'HEADLINE',
       'PROBLEM',
       'STEPS',
@@ -468,7 +480,7 @@ describe('the order the page is read in', () => {
     // refuses silently is one somebody presses twice wondering why.
     expect(screen.getByTestId<HTMLButtonElement>('up-HEADLINE').disabled).toBe(true);
     expect(screen.getByTestId<HTMLButtonElement>('down-HEADLINE').disabled).toBe(false);
-    expect(screen.getByTestId<HTMLButtonElement>('down-QUESTION').disabled).toBe(true);
+    expect(screen.getByTestId<HTMLButtonElement>('down-CTA').disabled).toBe(true);
   });
 
   it('carries the order through a save that changed only a sentence', async () => {
@@ -507,7 +519,7 @@ describe('the order the page is read in', () => {
     // order at all with a server that took absence as a reset, would do.
     const body = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
 
-    expect(body.sections).toEqual([
+    expect(nine(body.sections)).toEqual([
       'QUESTION',
       'PRICING',
       'HEADLINE',
@@ -679,8 +691,55 @@ describe('starting from a template', () => {
     };
 
     expect(body.blocks.map((block) => block.block)).toEqual([
-      'HEADLINE', 'STEPS', 'STEPS', 'STEPS', 'QUESTION', 'QUESTION',
+      'HEADLINE', 'STEPS', 'STEPS', 'STEPS', 'QUESTION', 'QUESTION', 'CTA',
     ]);
-    expect(body.sections.slice(0, 4)).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'QUESTION']);
+    expect(body.sections.slice(0, 5)).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'CTA']);
+  });
+});
+
+/**
+ * A band's layout is chosen beside its heading (2026-11-20): one select,
+ * no language button, and only on the bands that have more than one way.
+ */
+describe('choosing how a band is laid out', () => {
+  it('offers it only where a band has more than one layout, the usual one as None', async () => {
+    renderWith(<StoryScreen productId="p-1" />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('band-headings')).toBeTruthy());
+
+    const steps = screen.getByTestId<HTMLSelectElement>('choice-heading-STEPS-layout');
+
+    // The usual layout is not an option: it is what None means, so nothing
+    // is stored for a band nobody touched.
+    expect([...steps.options].map((option) => option.value)).toEqual(['', 'timeline']);
+    expect(screen.queryByTestId('choice-heading-PRICING-layout')).toBeNull();
+    expect(screen.queryByTestId('choice-heading-STATS-layout')).toBeNull();
+  });
+
+  it('sends the layout with the band’s heading, in English only', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: { product: PRODUCT, published_at: null, blocks: [HEADLINE], bands: { STEPS: { content: { title: 'Three moves' }, translations: {} } } },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { blocks: [HEADLINE] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('band-headings')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('choice-heading-STEPS-layout'), { target: { value: 'timeline' } });
+    fireEvent.change(screen.getByTestId('choice-heading-HEADLINE-layout'), { target: { value: 'centered' } });
+    fireEvent.click(screen.getByTestId('save-story'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const body = requests.find((r) => r.method === 'PUT')?.body as {
+      bands: Record<string, { content: Record<string, string>; translations: Record<string, unknown> }>;
+    };
+
+    expect(body.bands.STEPS?.content).toEqual({ title: 'Three moves', layout: 'timeline' });
+    // A layout with no title beside it is still sent: a band may be laid
+    // out differently and keep the words it was written with.
+    expect(body.bands.HEADLINE).toEqual({ content: { layout: 'centered' }, translations: {} });
   });
 });

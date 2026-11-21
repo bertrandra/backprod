@@ -49,14 +49,46 @@ final class ShowcaseSections
      */
     public const DEFAULT_ORDER = [
         ShowcaseBlock::HEADLINE,
+        ShowcaseBlock::TRUST,
         ShowcaseBlock::PROBLEM,
+        ShowcaseBlock::STATS,
         ShowcaseBlock::STEPS,
+        ShowcaseBlock::FEATURE,
         ShowcaseBlock::USE_CASE,
         ShowcaseBlock::QUOTE,
         ShowcaseBlock::PROOF,
         ShowcaseBlock::DEMO,
         self::PRICING,
         ShowcaseBlock::QUESTION,
+        ShowcaseBlock::CTA,
+    ];
+
+    /**
+     * How a band may be laid out, where it has more than one way
+     * (2026-11-20).
+     *
+     * **A closed set per band, and a code** — the same kind of fact as a
+     * problem's icon. The frontend draws each one, so a name it does not
+     * know could only be drawn as the default, and a free field would be an
+     * operator choosing between layouts nobody built. The first of each list
+     * is the band as it has always been drawn, and it is what an absent
+     * value means: no product's page moved the day this was added.
+     *
+     * Stored with the band's heading (`product_showcase_bands.content`),
+     * because that row is the one fact there is *per band* rather than per
+     * row of a band — three steps are laid out one way, not three.
+     *
+     * A band absent from this map is drawn one way and takes no layout: one
+     * sent for it is refused rather than stored and ignored.
+     *
+     * @var array<string, list<string>>
+     */
+    public const LAYOUTS = [
+        ShowcaseBlock::HEADLINE => ['split', 'centered', 'stacked'],
+        ShowcaseBlock::STEPS => ['columns', 'timeline'],
+        ShowcaseBlock::FEATURE => ['grid', 'list'],
+        ShowcaseBlock::QUOTE => ['grid', 'single'],
+        ShowcaseBlock::PROOF => ['alternate', 'grid'],
     ];
 
     /**

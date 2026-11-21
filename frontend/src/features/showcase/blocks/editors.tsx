@@ -118,6 +118,25 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
     { name: 'question', label: 'Question', required: true },
     { name: 'answer', label: 'Answer', required: true, long: true },
   ],
+  // No picture description: the name is what a screen reader says for the
+  // logo, and the server refuses a second one.
+  TRUST: [
+    { name: 'name', label: 'Who', required: true, hint: 'A customer, a label, a certification. Shown as text where no logo is chosen, and read aloud for the logo where one is.' },
+  ],
+  STATS: [
+    { name: 'value', label: 'The figure', required: true, hint: 'As it is to be read, unit included: 3 min, 1 200, −40 %.' },
+    { name: 'label', label: 'What it counts', required: true },
+    { name: 'detail', label: 'Where it comes from', required: false, hint: 'One line: the source, or what it is compared with.' },
+  ],
+  FEATURE: [
+    { name: 'title', label: 'What it includes', required: true },
+    { name: 'body', label: 'What that gives them', required: false, long: true },
+    { name: 'icon', label: 'Icon', required: false, choices: PROBLEM_ICON_NAMES, hint: 'Drawn by the page, so it has no translation. None is a fine answer.' },
+  ],
+  CTA: [
+    { name: 'title', label: 'The last sentence', required: true, hint: 'Above the button the headline already carries. A page has one of these.' },
+    { name: 'body', label: 'Under it', required: false, long: true },
+  ],
 };
 
 /** What the console offers to add, in the order the page reads. */

@@ -10,6 +10,7 @@ import {
   bandsInOrder,
   carriesAPicture,
   SECTIONS_WITH_A_HEADING,
+  SINGLE_BANDS,
   type BandKind,
 } from '@/features/showcase/blocks/meta';
 import { STORY_TEMPLATES, type StoryTemplate } from '@/features/showcase/blocks/templates';
@@ -273,7 +274,7 @@ export function StoryScreen({
       <Section
         className="border-t border-line pt-6"
         title={t("Add a band")}
-        description={t("In the order the page reads them. A band may be added more than once — three steps, two use cases — except the headline, which a page has one of.")}
+        description={t("In the order the page reads them. A band may be added more than once — three steps, two use cases — except the headline and the closing call to action, which a page has one of each.")}
       >
         <div className="flex flex-wrap gap-2">
           {authoredBandsInOrder().map((kind) => (
@@ -282,7 +283,7 @@ export function StoryScreen({
               type="button"
               variant="secondary"
               data-testid={`add-${kind}`}
-              disabled={kind === 'HEADLINE' && draft.some((block) => block.block === 'HEADLINE')}
+              disabled={SINGLE_BANDS.includes(kind) && draft.some((block) => block.block === kind)}
               // The updater form, never `[...draft, …]`: two clicks in one
               // tick both close over *this render's* `draft`, so the second
               // overwrites the first and adding two bands adds one. Found

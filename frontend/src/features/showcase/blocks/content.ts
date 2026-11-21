@@ -81,6 +81,30 @@ export interface DemoRow {
   readonly ratio: DemoRatio | null;
 }
 
+/** Who already uses or vouches for the product. The name is the logo's `alt`. */
+export interface TrustRow {
+  readonly name: string;
+}
+
+/** A figure as it is to be read, unit included, and what it counts. */
+export interface StatRow {
+  readonly value: string;
+  readonly label: string;
+  readonly detail: string | null;
+}
+
+export interface FeatureRow {
+  readonly title: string;
+  readonly body: string | null;
+  readonly icon: ProblemIcon | null;
+}
+
+/** The last word on the page, above the call to action. */
+export interface CtaRow {
+  readonly title: string;
+  readonly body: string | null;
+}
+
 export interface QuestionRow {
   readonly question: string;
   readonly answer: string;
@@ -109,6 +133,10 @@ export interface ShowcaseContent {
   readonly proof: readonly ShowcaseRow<ProofRow>[];
   readonly demos: readonly ShowcaseRow<DemoRow>[];
   readonly questions: readonly ShowcaseRow<QuestionRow>[];
+  readonly trust: readonly ShowcaseRow<TrustRow>[];
+  readonly stats: readonly ShowcaseRow<StatRow>[];
+  readonly features: readonly ShowcaseRow<FeatureRow>[];
+  readonly cta: readonly ShowcaseRow<CtaRow>[];
   /**
    * Each band's own heading, keyed by section (2026-09-28).
    *
@@ -124,6 +152,12 @@ export interface BandHeading {
   readonly eyebrow: string | null;
   readonly title: string | null;
   readonly lede: string | null;
+  /**
+   * The layout the band asked for, as stored. A code this bundle may not
+   * know: each band reads it through `layoutOf`, which answers the usual
+   * layout for anything it cannot draw.
+   */
+  readonly layout?: string | null | undefined;
 }
 
 export const NO_CONTENT: ShowcaseContent = {
@@ -135,5 +169,9 @@ export const NO_CONTENT: ShowcaseContent = {
   proof: [],
   demos: [],
   questions: [],
+  trust: [],
+  stats: [],
+  features: [],
+  cta: [],
   headings: {},
 };

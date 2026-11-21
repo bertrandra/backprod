@@ -2,7 +2,8 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import type { BandHeading, ProblemRow, ShowcaseRow } from './content';
-import { BAND_META, PROBLEM_ICONS } from './meta';
+import { BandIcon } from './BandIcon';
+import { BAND_META } from './meta';
 
 /**
  * What the reader lives with, named in a few short points (2026-09-28).
@@ -67,22 +68,10 @@ export function ProblemBand({
           >
             <div className="flex items-center gap-3 md:block">
               {row.content.icon !== null && (
-                <svg
-                  width="30"
-                  height="30"
-                  viewBox="0 0 30 30"
-                  aria-hidden="true"
+                <BandIcon
+                  icon={row.content.icon}
                   className="block size-7 shrink-0 text-accent md:mb-4 md:size-[30px]"
-                >
-                  <path
-                    d={PROBLEM_ICONS[row.content.icon]}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                />
               )}
 
               <h3 className="text-lg font-semibold text-on-inverse md:text-xl">{row.content.title}</h3>
