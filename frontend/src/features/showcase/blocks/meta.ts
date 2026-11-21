@@ -54,9 +54,15 @@ export const BAND_META = {
   STATS: { order: 17, anchor: 'numbers', surface: 'canvas', nav: 'In numbers' },
   STEPS: { order: 20, anchor: 'how', surface: 'surface', nav: 'How it works' },
   FEATURE: { order: 25, anchor: 'features', surface: 'well', nav: 'What it includes' },
+  // What it includes, shown: each thing with its own screenshot, one at a
+  // time. Beside the list it illustrates, and usable instead of it.
+  TOUR: { order: 27, anchor: 'tour', surface: 'surface', nav: 'Take the tour' },
   USE_CASE: { order: 30, anchor: 'who', surface: 'canvas', nav: 'Who it is for' },
   QUOTE: { order: 35, anchor: 'said', surface: 'surface', nav: 'What they say' },
   PROOF: { order: 40, anchor: 'proof', surface: 'well', nav: 'See it' },
+  // One plot twice. After the screenshots, because it is the proof made
+  // personal: not "here is the product" but "here is what it did".
+  COMPARE: { order: 42, anchor: 'compare', surface: 'surface', nav: 'Before and after' },
   // Between the proof and the prices, which is where somebody who is
   // nearly convinced wants to try it rather than read another sentence.
   DEMO: { order: 45, anchor: 'demo', surface: 'canvas', nav: 'Try it' },
@@ -123,13 +129,23 @@ export const AUTHORED_BANDS = [
   'STATS',
   'STEPS',
   'FEATURE',
+  'TOUR',
   'USE_CASE',
   'QUOTE',
   'PROOF',
+  'COMPARE',
   'DEMO',
   'QUESTION',
   'CTA',
 ] as const;
+
+/**
+ * The bands a page has a bounded number of rows of.
+ *
+ * `ShowcaseBlock::AT_MOST` on the server, which refuses a third in words;
+ * this is the courtesy that stops the console offering one.
+ */
+export const AT_MOST_BANDS: Partial<Record<AuthoredBandKind, number>> = { COMPARE: 2 };
 
 /**
  * The bands a page has one of.
@@ -203,8 +219,12 @@ export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = [
   // the one band with a picture and no description field.
   'TRUST',
   'STEPS',
+  // A screenshot per thing to see, and a picture per side where the side
+  // is not an embedded page.
+  'TOUR',
   'USE_CASE',
   'PROOF',
+  'COMPARE',
 ];
 
 /**
@@ -221,9 +241,11 @@ export const SECTIONS_WITH_A_HEADING: readonly BandKind[] = [
   'STATS',
   'STEPS',
   'FEATURE',
+  'TOUR',
   'USE_CASE',
   'QUOTE',
   'PROOF',
+  'COMPARE',
   'PRICING',
   'QUESTION',
 ];

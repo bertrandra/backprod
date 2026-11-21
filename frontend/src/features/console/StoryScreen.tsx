@@ -6,6 +6,7 @@ import {
   BAND_FIELDS,
 } from '@/features/showcase/blocks/editors';
 import {
+  AT_MOST_BANDS,
   BAND_META,
   bandsInOrder,
   carriesAPicture,
@@ -294,7 +295,10 @@ export function StoryScreen({
               type="button"
               variant="secondary"
               data-testid={`add-${kind}`}
-              disabled={SINGLE_BANDS.includes(kind) && draft.some((block) => block.block === kind)}
+              disabled={
+                (SINGLE_BANDS.includes(kind) && draft.some((block) => block.block === kind)) ||
+                draft.filter((block) => block.block === kind).length >= (AT_MOST_BANDS[kind] ?? Infinity)
+              }
               // The updater form, never `[...draft, …]`: two clicks in one
               // tick both close over *this render's* `draft`, so the second
               // overwrites the first and adding two bands adds one. Found

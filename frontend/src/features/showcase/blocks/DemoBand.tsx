@@ -117,7 +117,7 @@ const UNMEASURED_WIDTH = 1024;
  * leaves the reference size, which is a page that works rather than a page
  * that is blank.
  */
-function Frame({ row }: { row: ShowcaseRow<DemoRow> }) {
+export function Frame({ row }: { row: ShowcaseRow<DemoRow> }) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
 

@@ -165,7 +165,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
             $this->decode($fresh)['sections'] ?? null,
         );
 
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR'];
 
         $written = $this->request(
             'PUT',
@@ -201,7 +201,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
     {
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR'];
 
         $this->request(
             'PUT',
@@ -712,6 +712,47 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         // takes no second description.
         $described = $this->write([['block' => 'TRUST', 'content' => ['name' => 'Durand', 'alt' => 'Their logo']]]);
         self::assertSame(400, $described->getStatusCode());
+    }
+
+    /**
+     * Two bands that show (2026-11-21): a tour of the product in tabs, and
+     * one plot before and after.
+     */
+    public function testATourAndAComparisonAreWrittenAndAComparisonHasTwoSides(): void
+    {
+        $before = ['block' => 'COMPARE', 'position' => 10, 'content' => ['label' => 'Before', 'embed_url' => 'https://plan.example.test/?file=1&x={width}&y={height}', 'ratio' => '4:3']];
+        $after = ['block' => 'COMPARE', 'position' => 20, 'content' => ['label' => 'After', 'caption' => 'With the terrace.', 'embed_url' => 'https://plan.example.test/?file=2&x={width}&y={height}'], 'translations' => ['fr' => ['label' => 'Après']]];
+
+        $written = $this->write([
+            self::headline(),
+            ['block' => 'TOUR', 'content' => ['title' => 'The cadastral plot', 'body' => 'With its real boundaries.', 'alt' => 'A plot outlined on the aerial photo']],
+            $before,
+            $after,
+        ]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        // Two sides and no third: a comparison of three is a gallery.
+        $three = $this->write([self::headline(), $before, $after, ['block' => 'COMPARE', 'position' => 30, 'content' => ['label' => 'Later', 'embed_url' => 'https://plan.example.test/?file=3']]]);
+        self::assertSame(400, $three->getStatusCode());
+        self::assertSame('VALIDATION_FAILED', $this->errorOf($three)['code'] ?? null);
+
+        // A side is an address or a picture, like a demo row: neither is
+        // a side with nothing to show.
+        $empty = $this->write([self::headline(), ['block' => 'COMPARE', 'content' => ['label' => 'Before']]]);
+        self::assertSame(400, $empty->getStatusCode());
+
+        // The address is held to what a demo's is: https, and nothing else.
+        $unsafe = $this->write([self::headline(), ['block' => 'COMPARE', 'content' => ['label' => 'Before', 'embed_url' => 'javascript:alert(1)']]]);
+        self::assertSame(400, $unsafe->getStatusCode());
+
+        // And it is a code-like field: refused in a translation.
+        $translated = $this->write([self::headline(), [
+            'block' => 'COMPARE',
+            'content' => ['label' => 'Before', 'embed_url' => 'https://plan.example.test/?file=1'],
+            'translations' => ['fr' => ['embed_url' => 'https://plan.example.test/?file=9']],
+        ]]);
+        self::assertSame(400, $translated->getStatusCode());
     }
 
     public function testAPageHasOneCallToAction(): void

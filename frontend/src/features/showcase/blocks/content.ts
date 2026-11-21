@@ -99,6 +99,23 @@ export interface FeatureRow {
   readonly icon: ProblemIcon | null;
 }
 
+/** One thing to see, with its own screenshot: a tab of the tour. */
+export interface TourRow {
+  readonly title: string;
+  readonly body: string | null;
+}
+
+/**
+ * One side of a before-and-after: what it is called, and — like a demo row —
+ * an address to embed or, through the row's `image`, a picture.
+ */
+export interface CompareRow {
+  readonly label: string;
+  readonly caption: string | null;
+  readonly embedUrl: string | null;
+  readonly ratio: DemoRatio | null;
+}
+
 /** The last word on the page, above the call to action. */
 export interface CtaRow {
   readonly title: string;
@@ -137,6 +154,8 @@ export interface ShowcaseContent {
   readonly stats: readonly ShowcaseRow<StatRow>[];
   readonly features: readonly ShowcaseRow<FeatureRow>[];
   readonly cta: readonly ShowcaseRow<CtaRow>[];
+  readonly tour: readonly ShowcaseRow<TourRow>[];
+  readonly compare: readonly ShowcaseRow<CompareRow>[];
   /**
    * Each band's own heading, keyed by section (2026-09-28).
    *
@@ -173,5 +192,7 @@ export const NO_CONTENT: ShowcaseContent = {
   stats: [],
   features: [],
   cta: [],
+  tour: [],
+  compare: [],
   headings: {},
 };

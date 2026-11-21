@@ -66,6 +66,11 @@ const FULL: ShowcaseContent = {
   stats: [row('n1', { value: '3 min', label: 'to a printable plan', detail: null })],
   features: [row('f1', { title: 'Exports to DXF', body: 'With its layers.', icon: 'layers' as const })],
   cta: [row('c1', { title: 'Draw your first terrace', body: null })],
+  tour: [row('o1', { title: 'The cadastral plot', body: 'With its real boundaries.' })],
+  compare: [
+    row('k1', { label: 'Before', caption: null, embedUrl: 'https://plan.example.test/?file=1', ratio: null }),
+    row('k2', { label: 'After', caption: null, embedUrl: 'https://plan.example.test/?file=2', ratio: null }),
+  ],
 };
 
 const EMPTY: ShowcaseContent = {
@@ -81,6 +86,8 @@ const EMPTY: ShowcaseContent = {
   stats: [],
   features: [],
   cta: [],
+  tour: [],
+  compare: [],
   headings: {},
 };
 
@@ -339,7 +346,7 @@ describe('the order the page is read in', () => {
   // The page as it was before the four bands of 2026-11-20: these cases are
   // about orders written against nine sections, and a band that did not
   // exist then is put back by a rule that has its own case.
-  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [] };
+  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [] };
   const bandsOn = (container: HTMLElement) =>
     [...container.querySelectorAll('[data-band]')].map((band) => band.getAttribute('data-band'));
 
@@ -761,5 +768,153 @@ describe('the proof carousel', () => {
 
     expect(screen.getByTestId('proof-carousel')).toBeTruthy();
     expect(screen.queryByTestId('carousel-next')).toBeNull();
+  });
+});
+
+/**
+ * What the product includes, shown one screenshot at a time (2026-11-21).
+ */
+describe('the tour', () => {
+  const tour: ShowcaseContent = {
+    ...FULL,
+    tour: [
+      row('o1', { title: 'The cadastral plot', body: 'With its real boundaries.' }),
+      row('o2', { title: 'The relief', body: 'The slope nobody drew.' }),
+      row('o3', { title: 'The terrace', body: null }),
+    ],
+  };
+
+  it('is a tablist a screen reader can announce, with one tab in the tab order', () => {
+    renderStory(tour);
+
+    const band = within(screen.getByTestId('showcase-tour'));
+    const tabs = band.getAllByRole('tab');
+
+    expect(band.getByRole('tablist').getAttribute('aria-orientation')).toBe('vertical');
+    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(tabs.map((tab) => tab.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+    // Each tab names the panel it controls, and the panel names its tab.
+    const panel = document.getElementById(tabs[0]?.getAttribute('aria-controls') ?? '');
+    expect(panel?.getAttribute('aria-labelledby')).toBe(tabs[0]?.id);
+  });
+
+  it('keeps every panel in the document and shows the one chosen', () => {
+    renderStory(tour);
+
+    const band = screen.getByTestId('showcase-tour');
+    const hidden = () => [...band.querySelectorAll('[role="tabpanel"]')].map((panel) => (panel as HTMLElement).hidden);
+
+    expect(hidden()).toEqual([false, true, true]);
+    // There, though not shown: a search engine and find-in-page read it.
+    expect(band.textContent).toContain('The slope nobody drew.');
+
+    fireEvent.click(within(band).getByRole('tab', { name: 'The relief' }));
+
+    expect(hidden()).toEqual([true, false, true]);
+  });
+
+  it('moves between tabs with the arrow keys, and wraps', () => {
+    renderStory(tour);
+
+    const band = within(screen.getByTestId('showcase-tour'));
+    const selected = () => band.getAllByRole('tab').findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+
+    fireEvent.keyDown(band.getByRole('tablist'), { key: 'ArrowDown' });
+    expect(selected()).toBe(1);
+    expect(document.activeElement).toBe(band.getAllByRole('tab')[1]);
+
+    fireEvent.keyDown(band.getByRole('tablist'), { key: 'End' });
+    expect(selected()).toBe(2);
+
+    fireEvent.keyDown(band.getByRole('tablist'), { key: 'ArrowDown' });
+    expect(selected()).toBe(0);
+  });
+});
+
+/**
+ * One plot twice (2026-11-21): two pictures under a handle, or two embedded
+ * pages behind a switch.
+ */
+describe('before and after', () => {
+  const picture = (url: string) => ({ url, alt: '', ratio: 1.6 });
+  const side = (id: string, label: string, embedUrl: string | null, url: string | null) => ({
+    id,
+    content: { label, caption: null, embedUrl, ratio: null },
+    image: url === null ? null : picture(url),
+  });
+
+  it('draws nothing for one side, which is not a comparison', () => {
+    renderStory({ ...FULL, compare: [side('k1', 'Before', null, '/before.webp')] });
+
+    expect(screen.queryByTestId('showcase-compare')).toBeNull();
+    // And is not in the page menu either: no link to a band that is not there.
+    expect(screen.getByTestId('showcase-nav').querySelector('[href="#compare"]')).toBeNull();
+  });
+
+  it('compares two pictures with a handle that is a real slider', () => {
+    renderStory({
+      ...FULL,
+      compare: [side('k1', 'Before', null, '/before.webp'), side('k2', 'After', null, '/after.webp')],
+    });
+
+    const band = within(screen.getByTestId('showcase-compare'));
+    const handle = band.getByTestId<HTMLInputElement>('compare-handle');
+
+    // A range input: a mouse, a finger and the arrow keys all move it, and
+    // it is announced as a slider with a value.
+    expect(handle.type).toBe('range');
+    expect(handle.getAttribute('aria-label')).toContain('Before');
+    expect(band.getByTestId('compare-before').style.clipPath).toBe('inset(0 50% 0 0)');
+
+    fireEvent.change(handle, { target: { value: '80' } });
+
+    expect(band.getByTestId('compare-before').style.clipPath).toBe('inset(0 20% 0 0)');
+    // A picture nobody described is read by the name of its side.
+    expect(band.getByAltText('After')).toBeTruthy();
+  });
+
+  it('switches between two embedded pages, loading the second only when asked', () => {
+    renderStory({
+      ...FULL,
+      compare: [
+        side('k1', 'Before', 'https://plan.example.test/?file=1&x={width}', null),
+        side('k2', 'After', 'https://plan.example.test/?file=2&x={width}', null),
+      ],
+    });
+
+    const band = screen.getByTestId('showcase-compare');
+    const frames = () => [...band.querySelectorAll('iframe')].map((frame) => frame.getAttribute('src'));
+
+    // No handle: two live 3D views cannot be overlaid. And one frame, not
+    // two — the second is a whole application nobody has asked for yet.
+    expect(within(band).queryByTestId('compare-handle')).toBeNull();
+    expect(frames()).toHaveLength(1);
+    expect(frames()[0]).toContain('file=1');
+
+    fireEvent.click(within(band).getByTestId('compare-show-1'));
+
+    expect(within(band).getByTestId('compare-show-1').getAttribute('aria-pressed')).toBe('true');
+    // Both now, the first kept as the reader left it and hidden.
+    expect(frames()).toHaveLength(2);
+    expect(band.querySelector<HTMLElement>('[data-compare-side="0"]')?.hidden).toBe(true);
+    expect(band.querySelector<HTMLElement>('[data-compare-side="1"]')?.hidden).toBe(false);
+  });
+
+  it('reads both sides from the public answer, in their order', () => {
+    const content = contentFrom({
+      product: { code: 'plan', name: 'Plan', active: true },
+      sections: [],
+      bands: {},
+      blocks: [
+        { id: 'b', block: 'COMPARE', position: 20, content: { label: 'After', embed_url: 'https://plan.example.test/?file=2' }, image: null },
+        { id: 'a', block: 'COMPARE', position: 10, content: { label: 'Before', ratio: '4:3' }, image: '/before.webp' },
+        { id: 't', block: 'TOUR', position: 10, content: { title: 'The plot' }, image: null },
+      ],
+    } as never);
+
+    expect(content.compare.map((r) => r.content.label)).toEqual(['Before', 'After']);
+    expect(content.compare[0]?.content.ratio).toBe('4:3');
+    expect(content.compare[1]?.content.embedUrl).toBe('https://plan.example.test/?file=2');
+    expect(content.tour[0]?.content).toEqual({ title: 'The plot', body: null });
   });
 });

@@ -133,6 +133,31 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
     { name: 'body', label: 'What that gives them', required: false, long: true },
     { name: 'icon', label: 'Icon', required: false, choices: PROBLEM_ICON_NAMES, hint: 'Drawn by the page, so it has no translation. None is a fine answer.' },
   ],
+  TOUR: [
+    { name: 'title', label: 'What to see', required: true, hint: 'The name on the tab. Short: it sits in a list of them.' },
+    { name: 'body', label: 'What the picture shows', required: false, long: true },
+    PICTURE_DESCRIPTION,
+  ],
+  // Two of these make the comparison: the first is before, the second
+  // after. Each is an address or a picture, as on a demo row.
+  COMPARE: [
+    { name: 'label', label: 'This side is called', required: true, hint: 'Before, After — or the two things being compared. A page has two of these, read in their order.' },
+    { name: 'caption', label: 'One line about it', required: false },
+    {
+      name: 'embed_url',
+      label: 'Address to embed',
+      required: false,
+      hint: 'An https address, to let the reader move around in it. Write {width} and {height} where its size goes. Leave empty to show a picture instead: two pictures are compared with a slider.',
+    },
+    {
+      name: 'ratio',
+      label: 'Shape',
+      required: false,
+      choices: DEMO_RATIO_NAMES,
+      hint: 'The box reserved before anything loads. The first side decides for both.',
+    },
+    PICTURE_DESCRIPTION,
+  ],
   CTA: [
     { name: 'title', label: 'The last sentence', required: true, hint: 'Above the button the headline already carries. A page has one of these.' },
     { name: 'body', label: 'Under it', required: false, long: true },
