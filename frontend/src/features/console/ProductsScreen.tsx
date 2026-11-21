@@ -16,7 +16,7 @@ import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
-import { DOCUMENT_VERSIONS } from './InvoicingScreen';
+import { ProductDocumentVersions } from './ProductDocumentVersions';
 import { ProductCredentials } from './ProductCredentials';
 import { ProductWebhook } from './ProductWebhook';
 import { StoryScreen } from './StoryScreen';
@@ -61,10 +61,9 @@ export function ProductsScreen() {
   const handTo = (
     to: '/console/storefront' | '/console/catalogue' | '/console/invoicing',
     productCode: string,
-    hash?: string,
   ) => {
     chooseProduct(productCode);
-    return navigate(hash === undefined ? { to } : { to, hash });
+    return navigate({ to });
   };
 
   const [code, setCode] = useState('');
@@ -120,9 +119,6 @@ export function ProductsScreen() {
                 }
                 onInvoicing={() =>
                   void handTo('/console/invoicing', product.code)
-                }
-                onDocumentVersions={() =>
-                  void handTo('/console/invoicing', product.code, DOCUMENT_VERSIONS)
                 }
               />
             ))}
@@ -202,7 +198,6 @@ function ProductRow({
   onStorefront,
   onCatalogue,
   onInvoicing,
-  onDocumentVersions,
 }: {
   product: PlatformProduct;
   pending: boolean;
@@ -214,7 +209,6 @@ function ProductRow({
   onStorefront: () => void;
   onCatalogue: () => void;
   onInvoicing: () => void;
-  onDocumentVersions: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(product.name);
@@ -240,6 +234,7 @@ function ProductRow({
   // triangle.
   const [serverOpen, setServerOpen] = useState(false);
   const [storyOpen, setStoryOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   return (
     <li
@@ -397,13 +392,6 @@ function ProductRow({
               because the issuer its documents must name is configuration. */}
           <Button type="button" variant="secondary" onClick={onInvoicing}>
             {t("Invoicing")}</Button>
-          {/* The other refusal a new product meets, and the one a release of
-              it meets again: a save in a document version the platform does
-              not accept. The list lives on the invoicing screen, with the
-              rest of the product's configuration (one screen reads it), so
-              this goes straight to it rather than drawing a second copy. */}
-          <Button type="button" variant="secondary" data-testid="document-versions" onClick={onDocumentVersions}>
-            {t("Document versions")}</Button>
           <Button type="button" variant="secondary" onClick={() => setRenaming(true)}>
             {t("Rename")}</Button>
           <Button type="button" variant="secondary" onClick={() => setAddressing(true)}>
@@ -420,6 +408,27 @@ function ProductRow({
           </Button>
         </div>
       )}
+
+      {/* The document versions this product accepts (2026-11-20). On the
+          product, because that is where somebody whose product refuses every
+          save comes to look — they were on the invoicing screen, which is
+          where the API keeps them and nowhere an operator would search.
+          Mounted only once open, like the two disclosures below. */}
+      <details
+        className="mt-3 rounded-control border border-line px-3 py-2"
+        data-testid={`versions-${product.code}`}
+        onToggle={(event) => setVersionsOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-xs font-semibold">
+          {t("Accepted document versions")}
+        </summary>
+
+        {versionsOpen && (
+          <div className="mt-3">
+            <ProductDocumentVersions productCode={product.code} />
+          </div>
+        )}
+      </details>
 
       <details
         className="mt-3 rounded-control border border-line px-3 py-2"
