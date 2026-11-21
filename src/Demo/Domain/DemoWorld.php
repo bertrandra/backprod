@@ -457,6 +457,10 @@ final class DemoWorld
             'HEADLINE' => [
                 'content' => [
                     'eyebrow' => 'From an address to a plan',
+                    // The screenshot as the hero, full width under the words
+                    // (2026-11-20): Plan sells by being seen. A code, so it
+                    // is on the English and in no translation.
+                    'layout' => 'stacked',
                 ],
                 'translations' => [
                     'fr' => [
@@ -639,6 +643,81 @@ final class DemoWorld
                     'it' => [
                         'title' => 'Le domande che ci fanno',
                     ],
+                ],
+            ],
+            'TRUST' => [
+                'content' => [
+                    'title' => 'Drawn from official French data',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Dessiné à partir des données publiques françaises',
+                    ],
+                    'es' => [
+                        'title' => 'Dibujado con datos públicos franceses',
+                    ],
+                    'de' => [
+                        'title' => 'Gezeichnet aus amtlichen französischen Daten',
+                    ],
+                    'it' => [
+                        'title' => 'Disegnato con i dati pubblici francesi',
+                    ],
+                ],
+            ],
+            'STATS' => [
+                'content' => [
+                    'eyebrow' => 'In numbers',
+                    'title' => 'One address. That is the whole brief.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'eyebrow' => 'En chiffres',
+                        'title' => 'Une adresse. C’est tout le cahier des charges.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'En cifras',
+                        'title' => 'Una dirección. Ese es todo el encargo.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'In Zahlen',
+                        'title' => 'Eine Adresse. Mehr braucht es nicht.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'In cifre',
+                        'title' => 'Un indirizzo. È tutto ciò che serve.',
+                    ],
+                ],
+            ],
+            'FEATURE' => [
+                'content' => [
+                    'eyebrow' => 'What it includes',
+                    'title' => 'Everything the first site visit used to be for.',
+                    'layout' => 'grid',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'eyebrow' => 'Ce qu’il comprend',
+                        'title' => 'Tout ce à quoi servait la première visite de chantier.',
+                    ],
+                    'es' => [
+                        'eyebrow' => 'Qué incluye',
+                        'title' => 'Todo aquello para lo que servía la primera visita a la obra.',
+                    ],
+                    'de' => [
+                        'eyebrow' => 'Was enthalten ist',
+                        'title' => 'Alles, wofür der erste Ortstermin früher da war.',
+                    ],
+                    'it' => [
+                        'eyebrow' => 'Cosa include',
+                        'title' => 'Tutto ciò a cui serviva il primo sopralluogo.',
+                    ],
+                ],
+            ],
+            'QUOTE' => [
+                'content' => [
+                    'layout' => 'single',
+                ],
+                'translations' => [
                 ],
             ],
         ],
@@ -1124,6 +1203,357 @@ final class DemoWorld
                     'it' => [
                         'question' => 'Un collega che si limita a consultare ha bisogno di una postazione completa?',
                         'answer' => 'No. Una postazione in sola lettura costa una frazione, ed è una postazione a sé e non una versione ridotta del prodotto.',
+                    ],
+                ],
+            ],
+            // Four bands that sell (2026-11-20, home-showcase-spec §13). Every
+            // claim here is one the page already made or the product can be
+            // held to: the sources are the public ones Plan reads, the figures
+            // count the product and not its customers, and the features are
+            // the ones the story above describes. A demonstration that invented
+            // logos and a customer count would be showing a band, and lying in it.
+            [
+                'block' => 'TRUST',
+                'content' => [
+                    'name' => 'Cadastre',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'name' => 'Cadastre',
+                    ],
+                    'es' => [
+                        'name' => 'Catastro francés',
+                    ],
+                    'de' => [
+                        'name' => 'Französisches Kataster',
+                    ],
+                    'it' => [
+                        'name' => 'Catasto francese',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'TRUST',
+                'content' => [
+                    'name' => 'IGN — BD TOPO',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'name' => 'IGN — BD TOPO',
+                    ],
+                    'es' => [
+                        'name' => 'IGN — BD TOPO',
+                    ],
+                    'de' => [
+                        'name' => 'IGN — BD TOPO',
+                    ],
+                    'it' => [
+                        'name' => 'IGN — BD TOPO',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'TRUST',
+                'content' => [
+                    'name' => 'IGN — aerial imagery',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'name' => 'IGN — photo aérienne',
+                    ],
+                    'es' => [
+                        'name' => 'IGN — foto aérea',
+                    ],
+                    'de' => [
+                        'name' => 'IGN — Luftbild',
+                    ],
+                    'it' => [
+                        'name' => 'IGN — foto aerea',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'STATS',
+                'content' => [
+                    'value' => '1',
+                    'label' => 'address to type',
+                    'detail' => 'The plot, the buildings and the relief come from it.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'label' => 'adresse à taper',
+                        'detail' => 'La parcelle, les bâtiments et le relief en découlent.',
+                    ],
+                    'es' => [
+                        'label' => 'dirección que escribir',
+                        'detail' => 'De ella salen la parcela, los edificios y el relieve.',
+                    ],
+                    'de' => [
+                        'label' => 'Adresse einzutippen',
+                        'detail' => 'Daraus ergeben sich Grundstück, Gebäude und Gelände.',
+                    ],
+                    'it' => [
+                        'label' => 'indirizzo da scrivere',
+                        'detail' => 'Da lì arrivano la particella, gli edifici e il rilievo.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'STATS',
+                'content' => [
+                    'value' => '3',
+                    'label' => 'moves, from the address to the plan',
+                    'detail' => 'Type, look, place.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'label' => 'gestes, de l’adresse au plan',
+                        'detail' => 'Tapez, regardez, posez.',
+                    ],
+                    'es' => [
+                        'label' => 'gestos, de la dirección al plano',
+                        'detail' => 'Escriba, mire, coloque.',
+                    ],
+                    'de' => [
+                        'label' => 'Handgriffe von der Adresse zum Plan',
+                        'detail' => 'Tippen, schauen, setzen.',
+                    ],
+                    'it' => [
+                        'label' => 'gesti, dall’indirizzo al piano',
+                        'detail' => 'Scrivi, guarda, posa.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'STATS',
+                'content' => [
+                    'value' => '0',
+                    'label' => 'software to install',
+                    'detail' => 'It runs in the browser, on a phone as on a desktop.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'label' => 'logiciel à installer',
+                        'detail' => 'Tout se passe dans le navigateur, sur téléphone comme sur ordinateur.',
+                    ],
+                    'es' => [
+                        'label' => 'programas que instalar',
+                        'detail' => 'Funciona en el navegador, en el móvil como en el ordenador.',
+                    ],
+                    'de' => [
+                        'label' => 'Programme zu installieren',
+                        'detail' => 'Es läuft im Browser, auf dem Telefon wie am Rechner.',
+                    ],
+                    'it' => [
+                        'label' => 'programmi da installare',
+                        'detail' => 'Funziona nel browser, sul telefono come sul computer.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'STATS',
+                'content' => [
+                    'value' => '0 €',
+                    'label' => 'for the first plan',
+                    'detail' => 'Nothing to pay to try it.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'label' => 'pour le premier plan',
+                        'detail' => 'Rien à payer pour essayer.',
+                    ],
+                    'es' => [
+                        'label' => 'por el primer plano',
+                        'detail' => 'Nada que pagar para probarlo.',
+                    ],
+                    'de' => [
+                        'label' => 'für den ersten Plan',
+                        'detail' => 'Ausprobieren kostet nichts.',
+                    ],
+                    'it' => [
+                        'label' => 'per il primo piano',
+                        'detail' => 'Provarlo non costa nulla.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'FEATURE',
+                'content' => [
+                    'title' => 'The plot, from the land registry',
+                    'body' => 'Its real boundaries and its surface, not a sketch measured with a tape.',
+                    'icon' => 'ruler',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'La parcelle, depuis le cadastre',
+                        'body' => 'Ses vraies limites et sa surface, pas un croquis mesuré au mètre ruban.',
+                    ],
+                    'es' => [
+                        'title' => 'La parcela, desde el catastro',
+                        'body' => 'Sus límites reales y su superficie, no un croquis medido con cinta.',
+                    ],
+                    'de' => [
+                        'title' => 'Das Grundstück, aus dem Kataster',
+                        'body' => 'Seine echten Grenzen und seine Fläche, keine Skizze mit dem Maßband.',
+                    ],
+                    'it' => [
+                        'title' => 'La particella, dal catasto',
+                        'body' => 'I suoi confini reali e la sua superficie, non uno schizzo misurato col metro.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'FEATURE',
+                'content' => [
+                    'title' => 'The neighbours’ buildings, roofs included',
+                    'body' => 'What stands around the garden is there before you draw a line.',
+                    'icon' => 'house',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Les bâtiments voisins, toits compris',
+                        'body' => 'Ce qui entoure le jardin est là avant le premier trait.',
+                    ],
+                    'es' => [
+                        'title' => 'Los edificios vecinos, tejados incluidos',
+                        'body' => 'Lo que rodea el jardín está ahí antes del primer trazo.',
+                    ],
+                    'de' => [
+                        'title' => 'Die Nachbargebäude, samt Dächern',
+                        'body' => 'Was den Garten umgibt, ist da, bevor Sie eine Linie ziehen.',
+                    ],
+                    'it' => [
+                        'title' => 'Gli edifici vicini, tetti compresi',
+                        'body' => 'Ciò che circonda il giardino c’è già prima del primo tratto.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'FEATURE',
+                'content' => [
+                    'title' => 'The real relief',
+                    'body' => 'The slope nobody drew is under the terrace from the start.',
+                    'icon' => 'layers',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Le vrai relief',
+                        'body' => 'La pente que personne n’a dessinée est sous la terrasse dès le départ.',
+                    ],
+                    'es' => [
+                        'title' => 'El relieve real',
+                        'body' => 'La pendiente que nadie dibujó está bajo la terraza desde el principio.',
+                    ],
+                    'de' => [
+                        'title' => 'Das echte Gelände',
+                        'body' => 'Das Gefälle, das niemand gezeichnet hat, liegt von Anfang an unter der Terrasse.',
+                    ],
+                    'it' => [
+                        'title' => 'Il rilievo reale',
+                        'body' => 'La pendenza che nessuno ha disegnato è sotto la terrazza fin dall’inizio.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'FEATURE',
+                'content' => [
+                    'title' => '3D over the aerial photo',
+                    'body' => 'The customer sees their own garden, not a diagram of one.',
+                    'icon' => 'check',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'La 3D sur la photo aérienne',
+                        'body' => 'Le client voit son propre jardin, pas un schéma.',
+                    ],
+                    'es' => [
+                        'title' => '3D sobre la foto aérea',
+                        'body' => 'El cliente ve su propio jardín, no un esquema.',
+                    ],
+                    'de' => [
+                        'title' => '3D auf dem Luftbild',
+                        'body' => 'Der Kunde sieht seinen eigenen Garten, kein Schema.',
+                    ],
+                    'it' => [
+                        'title' => 'Il 3D sulla foto aerea',
+                        'body' => 'Il cliente vede il proprio giardino, non uno schema.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'FEATURE',
+                'content' => [
+                    'title' => 'Terrace, pool, pergola',
+                    'body' => 'Placed to scale, on the real plot and its real slope.',
+                    'icon' => 'bolt',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Terrasse, piscine, pergola',
+                        'body' => 'Posées à l’échelle, sur la vraie parcelle et sa vraie pente.',
+                    ],
+                    'es' => [
+                        'title' => 'Terraza, piscina, pérgola',
+                        'body' => 'Colocadas a escala, sobre la parcela real y su pendiente real.',
+                    ],
+                    'de' => [
+                        'title' => 'Terrasse, Pool, Pergola',
+                        'body' => 'Maßstäblich gesetzt, auf dem echten Grundstück mit seinem echten Gefälle.',
+                    ],
+                    'it' => [
+                        'title' => 'Terrazza, piscina, pergola',
+                        'body' => 'Posate in scala, sulla particella reale e sulla sua pendenza reale.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'FEATURE',
+                'content' => [
+                    'title' => 'A DXF with its layers',
+                    'body' => 'It opens in the tools your trade already uses.',
+                    'icon' => 'paper',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Un DXF avec ses calques',
+                        'body' => 'Il s’ouvre dans les outils que votre métier utilise déjà.',
+                    ],
+                    'es' => [
+                        'title' => 'Un DXF con sus capas',
+                        'body' => 'Se abre en las herramientas que su oficio ya utiliza.',
+                    ],
+                    'de' => [
+                        'title' => 'Ein DXF mit seinen Ebenen',
+                        'body' => 'Es öffnet sich in den Werkzeugen, die Ihr Gewerk schon nutzt.',
+                    ],
+                    'it' => [
+                        'title' => 'Un DXF con i suoi livelli',
+                        'body' => 'Si apre negli strumenti che il vostro mestiere usa già.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'CTA',
+                'content' => [
+                    'title' => 'Type your address. Your plot is already drawn.',
+                    'body' => 'Nothing to install. The first plan costs nothing.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'title' => 'Tapez votre adresse. Votre parcelle est déjà dessinée.',
+                        'body' => 'Rien à installer. Le premier plan ne coûte rien.',
+                    ],
+                    'es' => [
+                        'title' => 'Escriba su dirección. Su parcela ya está dibujada.',
+                        'body' => 'Nada que instalar. El primer plano no cuesta nada.',
+                    ],
+                    'de' => [
+                        'title' => 'Tippen Sie Ihre Adresse ein. Ihr Grundstück ist schon gezeichnet.',
+                        'body' => 'Nichts zu installieren. Der erste Plan kostet nichts.',
+                    ],
+                    'it' => [
+                        'title' => 'Scrivi il tuo indirizzo. La tua particella è già disegnata.',
+                        'body' => 'Niente da installare. Il primo piano non costa nulla.',
                     ],
                 ],
             ],
