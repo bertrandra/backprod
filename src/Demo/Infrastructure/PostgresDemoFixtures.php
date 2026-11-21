@@ -280,7 +280,10 @@ final class PostgresDemoFixtures implements DemoFixtures
             $headings = [];
 
             foreach ($this->connection->fetchAllAssociative(
-                "SELECT block, content ? 'layout' AS laid_out FROM product_showcase_bands WHERE product_id = :product",
+                // `jsonb_exists`, not the `?` operator it is the function behind:
+                // the database layer reads a bare question mark as a
+                // positional parameter and refuses the statement.
+                "SELECT block, jsonb_exists(content, 'layout') AS laid_out FROM product_showcase_bands WHERE product_id = :product",
                 ['product' => $product],
             ) as $row) {
                 if (is_string($row['block'])) {
@@ -365,7 +368,7 @@ final class PostgresDemoFixtures implements DemoFixtures
                        updated_at = now()
                  WHERE product_id = :product
                    AND block = :block
-                   AND NOT (content ? 'layout')
+                   AND NOT jsonb_exists(content, 'layout')
                 SQL,
                 ['product' => $product, 'block' => $band, 'layout' => $heading['content']['layout'] ?? ''],
             );
