@@ -298,7 +298,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             // needs, and a deployment seeded before it existed lacks it the
             // same way it lacks a band. A row an operator emptied is a row,
             // and is left as they left it.
-            if (isset(DemoWorld::DEMONSTRATIONS[$code]) && 0 === $this->count(
+            if (self::demonstrationsOf($code) !== null && 0 === $this->count(
                 'SELECT count(*) FROM product_configuration WHERE product_id = :product AND key = :key',
                 ['product' => $product, 'key' => DemonstrationSource::CONFIGURATION_KEY],
             )) {
@@ -409,6 +409,20 @@ final class PostgresDemoFixtures implements DemoFixtures
     private static function headingsOf(string $code): array
     {
         return DemoWorld::SHOWCASE_HEADINGS[$code] ?? [];
+    }
+
+    /**
+     * Where a product keeps its demonstrations, read by its code.
+     *
+     * Through a `string`, like {@see self::headingsOf}: asked with the
+     * literal keys of the loop it is called from, the analyser knows which
+     * products the world names and calls the question already answered.
+     *
+     * @return array{source: string, embed: string}|null
+     */
+    private static function demonstrationsOf(string $code): ?array
+    {
+        return DemoWorld::DEMONSTRATIONS[$code] ?? null;
     }
 
     private static function storyKey(string $code, string $what, string $band): string
@@ -1490,7 +1504,7 @@ final class PostgresDemoFixtures implements DemoFixtures
      */
     private function demonstrations(string $product, string $code): void
     {
-        $where = DemoWorld::DEMONSTRATIONS[$code] ?? null;
+        $where = self::demonstrationsOf($code);
 
         if ($where === null) {
             return;
