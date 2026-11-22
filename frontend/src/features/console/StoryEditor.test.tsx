@@ -313,6 +313,78 @@ describe('the page editor', () => {
     expect(screen.queryByLabelText('Choose a demonstration')).toBeNull();
   });
 
+  it('adds a comparison as two sides already named, and asks only what each shows', async () => {
+    const { requests } = open({
+      'GET /api/v1/staff/configuration/demonstrations': {
+        data: {
+          source: 'admin/vitrine/{n}',
+          embed: '?mode=demo&file={n}',
+          demonstrations: [
+            { number: 1, name: 'The plot', embed_url: 'https://plan.example.test/?mode=demo&file=1' },
+            { number: 4, name: 'The plot, with the pool', embed_url: 'https://plan.example.test/?mode=demo&file=4' },
+          ],
+        },
+      },
+    });
+    await editor();
+
+    fireEvent.click(screen.getByTestId('open-library'));
+    fireEvent.click(screen.getByTestId('add-COMPARE'));
+
+    // Two sides, not one: a comparison is drawn from two, and a band
+    // added with one was a band the page did not show.
+    const sides = screen.getByTestId('panel-rows').querySelectorAll('[data-row]');
+
+    expect(sides).toHaveLength(2);
+    expect(screen.getByDisplayValue('Before')).toBeTruthy();
+    expect(screen.getByDisplayValue('After')).toBeTruthy();
+    // Nothing more to add, and it says what is still missing.
+    expect(screen.queryByTestId('add-row')).toBeNull();
+    expect(screen.getByTestId('band-unfinished')).toBeTruthy();
+
+    // Both forms are open, each with the list first.
+    const pickers = await screen.findAllByLabelText<HTMLSelectElement>('Choose a demonstration');
+
+    expect(pickers).toHaveLength(2);
+
+    fireEvent.change(pickers[0]!, { target: { value: 'https://plan.example.test/?mode=demo&file=1' } });
+    fireEvent.change(pickers[1]!, { target: { value: 'https://plan.example.test/?mode=demo&file=4' } });
+
+    expect(screen.queryByTestId('band-unfinished')).toBeNull();
+
+    // Two clicks and two choices: it can be saved as it is.
+    fireEvent.click(screen.getByTestId('editor-save'));
+    expect(screen.queryByTestId('review-missing')).toBeNull();
+    fireEvent.click(screen.getByTestId('confirm-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const sent = requests.find((r) => r.method === 'PUT')?.body as {
+      blocks: { block: string; content: Record<string, string>; translations?: Record<string, Record<string, string>> }[];
+    };
+    const compared = sent.blocks.filter((block) => block.block === 'COMPARE');
+
+    expect(compared.map((block) => block.content)).toEqual([
+      { label: 'Before', embed_url: 'https://plan.example.test/?mode=demo&file=1' },
+      { label: 'After', embed_url: 'https://plan.example.test/?mode=demo&file=4' },
+    ]);
+    // Named in every language a page is read in.
+    expect(compared[1]?.translations?.fr).toEqual({ label: 'Après' });
+  });
+
+  it('keeps what a band can do without under More options, and removes none of it', async () => {
+    open();
+    await editor();
+
+    fireEvent.click(screen.getByTestId('structure-HEADLINE'));
+
+    const more = screen.getByTestId('more-b-1');
+
+    // The picture's description waits there; the headline does not.
+    expect(more.querySelector('#b-1-alt')).toBeTruthy();
+    expect(more.querySelector('#b-1-headline')).toBeNull();
+    expect(screen.getByDisplayValue('Draw a terrace')).toBeTruthy();
+  });
+
   it('says a published page changes for its visitors when it is saved', async () => {
     open({}, '2026-11-19T17:42:00Z');
     await editor();

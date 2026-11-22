@@ -911,3 +911,24 @@ keeps those that answer with a JSON document, named by the document's first
 
 The demonstration world tells Plan both paths, and an upgrade adds them to a
 deployment seeded before this existed.
+
+## 18. Less in front of the operator (2026-11-22)
+
+The operator's own verdict on the editor: too complicated, and a before/after
+could not be set up at all. Both were true, and for reasons in the panel
+rather than in the bands.
+
+- **A comparison arrives as two sides, already named.** It is drawn from two
+  rows, and adding one added a single nameless side — a band the page did not
+  show, with nothing saying a second row was missing. It now starts as *Before*
+  and *After*, in the five languages, both forms open, each asking only what it
+  shows.
+- **What a band shows comes first.** A row's form listed every field in the
+  order the server stores them. The demonstration list and the picture now
+  lead, then the sentences the band cannot do without.
+- **The rest is under *More options*** — a picture's description, a frame's
+  shape, a typed address where the product lists its demonstrations, a side's
+  caption. One click away, and none removed.
+- **A band that cannot be drawn yet says what it is waiting for.**
+- **The band's title is closed until asked for**: three fields in front of
+  every band, for words most bands never change.

@@ -14,7 +14,7 @@ import {
   type BandKind,
 } from '@/features/showcase/blocks/meta';
 import type { StoryTemplate } from '@/features/showcase/blocks/templates';
-import { useProductDemonstrations } from '@/queries/staff';
+import { useProductDemonstrations, type ProductDemonstration } from '@/queries/staff';
 import { Button, buttonClass, Field, inputClass } from '@/ui/Field';
 import type { Translated } from '@/ui/TranslatedField';
 import { cn } from '@/utils/cn';
@@ -23,7 +23,7 @@ import { LOCALE_NAMES, LOCALES, t, type LocaleCode } from '@/i18n';
 import { HEADING_FIELDS } from './BandHeading';
 import { BandPicture } from './BandPicture';
 import { DEVICE_LABELS, DEVICES, StoryCanvas, type Device } from './StoryCanvas';
-import { blank, EMPTY, withTemplate, type DraftBlock } from './storyDraft';
+import { blank, EMPTY, startOf, withTemplate, type DraftBlock } from './storyDraft';
 import {
   bandsOnThePage,
   changesSince,
@@ -226,7 +226,7 @@ export function StoryEditor({
       order.splice(order.indexOf(chosen) + 1, 0, band);
     }
 
-    change({ ...state, order, draft: [...state.draft, blank(band)] });
+    change({ ...state, order, draft: [...state.draft, ...startOf(band)] });
     setDialog(null);
     choose(band, 'panel');
   };
@@ -642,6 +642,31 @@ function BandPanel({
     authored !== null &&
     ((SINGLE_BANDS.includes(authored) && rows.length >= 1) || rows.length >= (AT_MOST_BANDS[authored] ?? Infinity));
 
+  const embeds = authored !== null && BAND_FIELDS[authored].some((field) => field.name === EMBED);
+  // Asked only where a band can embed one: the read leaves this host.
+  const demonstrations = useProductDemonstrations(embeds ? productCode : null).data?.demonstrations ?? [];
+  // A comparison is two sides and both are always in front of the reader.
+  const sideBySide = band === 'COMPARE';
+  const unfinished =
+    embeds &&
+    (rows.some(({ block }) => (block.fields[EMBED]?.en ?? '').trim() === '' && block.assetId === null && block.image === null) ||
+      (sideBySide && rows.length < 2));
+
+  /**
+   * What is asked first, and what waits under *More options*.
+   *
+   * A row's form listed every field the band has, in the order the server
+   * stores them — so a comparison opened on a name, a caption, an address
+   * to type, a shape and a description before the one thing it needs: what
+   * to show. The few a band cannot do without stay in front; the rest are
+   * one click away and none is removed.
+   */
+  const later = (field: string): boolean =>
+    field === 'alt' ||
+    field === 'ratio' ||
+    (field === EMBED && demonstrations.length > 0) ||
+    (sideBySide && field === 'caption');
+
   const setHeading = (field: string, next: Translated, about = '') =>
     change({ ...state, headings: { ...state.headings, [band]: { ...heading, [field]: next } } }, about);
 
@@ -717,9 +742,17 @@ function BandPanel({
         >
           {rows.length === 0 && <p className="text-sm text-muted">{t("Nothing written yet")}</p>}
 
+          {unfinished && (
+            <p role="status" data-testid="band-unfinished" className="rounded-control border border-line bg-well px-3 py-2 text-sm">
+              {sideBySide
+                ? t("Choose what each side shows — a demonstration or a picture. The page draws this band once both have one.")
+                : t("Choose what it shows — a demonstration or a picture. The page cannot be saved with this band empty.")}
+            </p>
+          )}
+
           <ul className="space-y-2" data-testid="panel-rows">
             {rows.map(({ block, index }, place) => {
-              const shown = open === block.key;
+              const shown = sideBySide || open === block.key;
               const first = BAND_FIELDS[block.block][0];
               const name = first === undefined ? '' : (block.fields[first.name]?.en ?? '').trim();
 
@@ -761,22 +794,10 @@ function BandPanel({
 
                   {shown && (
                     <div className="space-y-3 border-t border-line p-3">
-                      {BAND_FIELDS[block.block].map((field) => (
-                        <BandFieldEditor
-                          key={field.name}
-                          id={`${block.key}-${field.name}`}
-                          field={field}
-                          value={block.fields[field.name] ?? EMPTY}
-                          onChange={(next) =>
-                            setRow(index, { ...block, fields: { ...block.fields, [field.name]: next } }, `${block.key}-${field.name}`)
-                          }
-                        />
-                      ))}
-
-                      {BAND_FIELDS[block.block].some((field) => field.name === EMBED) && (
+                      {embeds && (
                         <DemonstrationPicker
                           id={`${block.key}-demonstration`}
-                          productCode={productCode}
+                          found={demonstrations}
                           address={block.fields[EMBED]?.en ?? ''}
                           onChoose={(address) =>
                             setRow(index, { ...block, fields: { ...block.fields, [EMBED]: { en: address } } })
@@ -791,6 +812,37 @@ function BandPanel({
                           assetId={block.assetId}
                           onChoose={(assetId, shownAt) => setRow(index, { ...block, assetId, image: shownAt })}
                         />
+                      )}
+
+                      {BAND_FIELDS[block.block].filter((field) => !later(field.name)).map((field) => (
+                        <BandFieldEditor
+                          key={field.name}
+                          id={`${block.key}-${field.name}`}
+                          field={field}
+                          value={block.fields[field.name] ?? EMPTY}
+                          onChange={(next) =>
+                            setRow(index, { ...block, fields: { ...block.fields, [field.name]: next } }, `${block.key}-${field.name}`)
+                          }
+                        />
+                      ))}
+
+                      {BAND_FIELDS[block.block].some((field) => later(field.name)) && (
+                        <details className="rounded-control border border-line px-3 py-2" data-testid={`more-${block.key}`}>
+                          <summary className="cursor-pointer text-xs font-semibold text-muted">{t("More options")}</summary>
+                          <div className="mt-3 space-y-3">
+                            {BAND_FIELDS[block.block].filter((field) => later(field.name)).map((field) => (
+                              <BandFieldEditor
+                                key={field.name}
+                                id={`${block.key}-${field.name}`}
+                                field={field}
+                                value={block.fields[field.name] ?? EMPTY}
+                                onChange={(next) =>
+                                  setRow(index, { ...block, fields: { ...block.fields, [field.name]: next } }, `${block.key}-${field.name}`)
+                                }
+                              />
+                            ))}
+                          </div>
+                        </details>
                       )}
                     </div>
                   )}
@@ -818,19 +870,29 @@ function BandPanel({
       )}
 
       {SECTIONS_WITH_A_HEADING.includes(band) && (
-        <PanelSection title={t("What each band is called")}>
+        <section className="border-b border-line px-4 py-3">
+          {/* Closed until asked for: a band reads well with the title it
+              was written with, and three more fields in front of every
+              band were three more things to wonder about. */}
+          <details data-testid="panel-heading">
+            <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-[0.08em] text-muted">
+              {t("Title above the band")}
+            </summary>
+            <div className="mt-3">
           <div className="space-y-3" data-heading={band}>
-            {HEADING_FIELDS.map((field) => (
-              <BandFieldEditor
-                key={field.name}
-                id={`heading-${band}-${field.name}`}
-                field={field}
-                value={heading[field.name] ?? EMPTY}
-                onChange={(next) => setHeading(field.name, next, `heading-${band}-${field.name}`)}
-              />
-            ))}
-          </div>
-        </PanelSection>
+                {HEADING_FIELDS.map((field) => (
+                  <BandFieldEditor
+                    key={field.name}
+                    id={`heading-${band}-${field.name}`}
+                    field={field}
+                    value={heading[field.name] ?? EMPTY}
+                    onChange={(next) => setHeading(field.name, next, `heading-${band}-${field.name}`)}
+                  />
+                ))}
+              </div>
+            </div>
+          </details>
+        </section>
       )}
 
       {authored !== null && rows.length > 0 && (
@@ -872,24 +934,21 @@ const EMBED = 'embed_url';
  */
 function DemonstrationPicker({
   id,
-  productCode,
+  found,
   address,
   onChoose,
 }: {
   id: string;
-  productCode: string;
+  found: readonly ProductDemonstration[];
   address: string;
   onChoose: (address: string) => void;
 }) {
-  const demonstrations = useProductDemonstrations(productCode);
-  const found = demonstrations.data?.demonstrations ?? [];
-
   if (found.length === 0) {
     return null;
   }
 
   return (
-    <Field id={id} label={t("Choose a demonstration")} hint={t("The ones this product answers for. Choosing one fills the address above.")}>
+    <Field id={id} label={t("Choose a demonstration")} hint={t("The ones this product has. Its address is under More options.")}>
       <select
         id={id}
         data-testid={`demonstration-${id}`}

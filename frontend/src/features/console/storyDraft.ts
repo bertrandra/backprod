@@ -52,6 +52,43 @@ export function blank(block: AuthoredBandKind): DraftBlock {
   };
 }
 
+/**
+ * What a band starts with when it is added to a page (2026-11-22).
+ *
+ * **Enough rows to be drawn, already named.** Every band is drawn from its
+ * first row except a comparison, which is drawn from two — so adding one
+ * used to add a single nameless side, and a band the page did not show. The
+ * operator had to guess that a second row was missing, find the button for
+ * it, and name both before anything appeared. It now arrives as two sides
+ * called Before and After, in the five languages, each waiting only for
+ * what it shows.
+ *
+ * The names are content, not chrome: written here as the page's words, in
+ * every language a page is read in, and rewritten like any other sentence.
+ */
+export function startOf(block: AuthoredBandKind): DraftBlock[] {
+  if (block !== 'COMPARE') {
+    return [blank(block)];
+  }
+
+  return SIDES.map((label) => {
+    const side = blank(block);
+
+    return { ...side, fields: { ...side.fields, label } };
+  });
+}
+
+const side = (...said: readonly [string, string, string, string, string]): Translated => {
+  const [en, fr, es, de, it] = said;
+
+  return { en, fr, es, de, it };
+};
+
+const SIDES: readonly Translated[] = [
+  side('Before', 'Avant', 'Antes', 'Vorher', 'Prima'),
+  side('After', 'Après', 'Después', 'Nachher', 'Dopo'),
+];
+
 export function toDraft(block: ShowcaseBlock): DraftBlock {
   const kind = block.block;
   const content = block.content as Record<string, string | undefined>;
