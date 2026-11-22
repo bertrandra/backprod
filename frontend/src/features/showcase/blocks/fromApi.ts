@@ -194,8 +194,10 @@ function headingsFrom(bands: unknown): Record<string, BandHeading> {
 
     // A layout alone is a heading that said something: a band may be laid
     // out differently and keep the words it was written with.
-    if (eyebrow !== null || title !== null || lede !== null || layout !== null) {
-      headings[block] = { eyebrow, title, lede, layout };
+    const menu = text(said.menu);
+
+    if (eyebrow !== null || title !== null || lede !== null || layout !== null || menu !== null) {
+      headings[block] = { eyebrow, title, lede, layout, menu };
     }
   }
 

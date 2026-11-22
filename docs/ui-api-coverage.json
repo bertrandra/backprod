@@ -301,7 +301,9 @@
         "issueWebhookSecret",
         "listWebhookDeliveries",
         "retryWebhookDelivery",
+        "setProductDemonstrations",
         "setProjectSchemaVersions",
+        "showProductDemonstrations",
         "showProductManifest"
       ]
     },

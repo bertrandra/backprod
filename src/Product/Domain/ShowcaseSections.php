@@ -91,7 +91,26 @@ final class ShowcaseSections
         ShowcaseBlock::FEATURE => ['grid', 'list'],
         ShowcaseBlock::QUOTE => ['grid', 'single'],
         ShowcaseBlock::PROOF => ['alternate', 'grid', 'carousel'],
+        ShowcaseBlock::COMPARE => ['overlay', 'beside'],
     ];
+
+    /**
+     * Whether the page draws its menu — the bar naming its bands, pinned
+     * under the headline (2026-11-22). The first is what an absent value
+     * means, as with a layout, so no page changed the day this was added.
+     *
+     * A code on the **headline's** heading and not a column of its own: the
+     * bar is the headline's — it sits under it and arrives as the headline
+     * leaves — and a heading already carries the one other code that says
+     * how a page is drawn. A second place to keep "how this page looks"
+     * would be a second thing a save could leave half changed.
+     *
+     * @var list<string>
+     */
+    public const MENUS = ['bar', 'hidden'];
+
+    /** The one section whose heading carries {@see self::MENUS}. */
+    public const MENU_SECTION = ShowcaseBlock::HEADLINE;
 
     /**
      * The order to read a product's page in, given whatever is stored.

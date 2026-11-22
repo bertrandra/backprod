@@ -237,6 +237,82 @@ describe('the page editor', () => {
     });
   });
 
+  it('hides the page’s menu from the page panel, as a code on the headline’s heading', async () => {
+    const { requests } = open();
+    await editor();
+
+    expect(screen.getByTestId('menu-shown').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('menu-hidden'));
+    expect(screen.getByTestId('menu-hidden').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('editor-save'));
+    fireEvent.click(screen.getByTestId('confirm-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    expect((requests.find((r) => r.method === 'PUT')?.body as { bands: object }).bands).toEqual({
+      HEADLINE: { content: { menu: 'hidden' }, translations: {} },
+    });
+  });
+
+  it('offers the product’s demonstrations by name where a band embeds one', async () => {
+    const { requests } = open({
+      'GET /api/v1/staff/configuration/demonstrations': {
+        data: {
+          source: 'admin/vitrine/{n}',
+          embed: '?mode=demo&file={n}',
+          demonstrations: [
+            { number: 1, name: 'The plot', embed_url: 'https://plan.example.test/?mode=demo&file=1' },
+            { number: 4, name: 'The plot, with the pool', embed_url: 'https://plan.example.test/?mode=demo&file=4' },
+          ],
+        },
+      },
+    });
+    await editor();
+
+    fireEvent.click(screen.getByTestId('open-library'));
+    fireEvent.click(screen.getByTestId('add-DEMO'));
+
+    const picker = await screen.findByLabelText<HTMLSelectElement>('Choose a demonstration');
+
+    expect([...picker.options].map((option) => option.textContent)).toEqual([
+      'None',
+      '1 — The plot',
+      '4 — The plot, with the pool',
+    ]);
+
+    fireEvent.change(picker, { target: { value: 'https://plan.example.test/?mode=demo&file=4' } });
+
+    // It fills the address field, which stays an ordinary field: the list
+    // is a way to write it, not a second place it is kept.
+    expect(screen.getByDisplayValue('https://plan.example.test/?mode=demo&file=4')).toBeTruthy();
+    expect(picker.value).toBe('https://plan.example.test/?mode=demo&file=4');
+
+    fireEvent.change(screen.getByLabelText('Caption'), { target: { value: 'The pool, in 3D' } });
+    fireEvent.click(screen.getByTestId('editor-save'));
+    fireEvent.click(screen.getByTestId('confirm-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const sent = requests.find((r) => r.method === 'PUT')?.body as { blocks: { block: string; content: Record<string, string> }[] };
+
+    expect(sent.blocks.find((block) => block.block === 'DEMO')?.content.embed_url).toBe(
+      'https://plan.example.test/?mode=demo&file=4',
+    );
+  });
+
+  it('draws no list where the product answers for none, and keeps the address field', async () => {
+    open({
+      'GET /api/v1/staff/configuration/demonstrations': { data: { source: '', embed: '', demonstrations: [] } },
+    });
+    await editor();
+
+    fireEvent.click(screen.getByTestId('open-library'));
+    fireEvent.click(screen.getByTestId('add-DEMO'));
+
+    expect(await screen.findByLabelText('Address to embed')).toBeTruthy();
+    expect(screen.queryByLabelText('Choose a demonstration')).toBeNull();
+  });
+
   it('says a published page changes for its visitors when it is saved', async () => {
     open({}, '2026-11-19T17:42:00Z');
     await editor();

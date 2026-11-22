@@ -7,13 +7,15 @@ import {
   BAND_META,
   carriesAPicture,
   layoutsOf,
+  menuIsHidden,
   SECTIONS_WITH_A_HEADING,
   SINGLE_BANDS,
   type AuthoredBandKind,
   type BandKind,
 } from '@/features/showcase/blocks/meta';
 import type { StoryTemplate } from '@/features/showcase/blocks/templates';
-import { Button, buttonClass } from '@/ui/Field';
+import { useProductDemonstrations } from '@/queries/staff';
+import { Button, buttonClass, Field, inputClass } from '@/ui/Field';
 import type { Translated } from '@/ui/TranslatedField';
 import { cn } from '@/utils/cn';
 import { LOCALE_NAMES, LOCALES, t, type LocaleCode } from '@/i18n';
@@ -438,6 +440,15 @@ export function StoryEditor({
               state={state}
               present={present}
               published={published}
+              onMenu={(hidden) => {
+                const headline = state.headings.HEADLINE ?? {};
+
+                // The usual one is stored as no choice at all, like a layout.
+                change({
+                  ...state,
+                  headings: { ...state.headings, HEADLINE: { ...headline, menu: { en: hidden ? 'hidden' : '' } } },
+                });
+              }}
               onTemplate={(template) => {
                 change(withTemplate(state, template));
                 setSelected(null);
@@ -447,6 +458,7 @@ export function StoryEditor({
             <BandPanel
               key={chosen}
               productId={productId}
+              productCode={product.code}
               band={chosen}
               state={state}
               present={present}
@@ -586,6 +598,8 @@ const LAYOUT_NAMES: Record<string, string> = {
   single: 'One at a time',
   alternate: 'Alternating sides',
   carousel: 'As a carousel',
+  overlay: 'One over the other',
+  beside: 'Next to each other',
 };
 
 /**
@@ -598,6 +612,7 @@ const LAYOUT_NAMES: Record<string, string> = {
  */
 function BandPanel({
   productId,
+  productCode,
   band,
   state,
   present,
@@ -606,6 +621,7 @@ function BandPanel({
   onDone,
 }: {
   productId: string;
+  productCode: string;
   band: BandKind;
   state: StoryState;
   present: readonly BandKind[];
@@ -757,6 +773,17 @@ function BandPanel({
                         />
                       ))}
 
+                      {BAND_FIELDS[block.block].some((field) => field.name === EMBED) && (
+                        <DemonstrationPicker
+                          id={`${block.key}-demonstration`}
+                          productCode={productCode}
+                          address={block.fields[EMBED]?.en ?? ''}
+                          onChoose={(address) =>
+                            setRow(index, { ...block, fields: { ...block.fields, [EMBED]: { en: address } } })
+                          }
+                        />
+                      )}
+
                       {carriesAPicture(block.block) && (
                         <BandPicture
                           productId={productId}
@@ -826,6 +853,67 @@ function BandPanel({
   );
 }
 
+/** The field of a band that holds the address of a live view. */
+const EMBED = 'embed_url';
+
+/**
+ * The product's demonstrations, by name, where a band embeds one
+ * (2026-11-22).
+ *
+ * The address field stays — a band may embed anything served over https,
+ * and this list is only what the product itself answers for. Choosing one
+ * writes its address into that field, which is then an ordinary field
+ * again: saved, undone and reviewed like the rest.
+ *
+ * **Nothing is drawn where there is nothing to choose.** A product that
+ * was never told where its demonstrations are, or whose host did not
+ * answer, has an address field and no empty list beside it; where to say
+ * so is the Products screen, which is where it is fixed.
+ */
+function DemonstrationPicker({
+  id,
+  productCode,
+  address,
+  onChoose,
+}: {
+  id: string;
+  productCode: string;
+  address: string;
+  onChoose: (address: string) => void;
+}) {
+  const demonstrations = useProductDemonstrations(productCode);
+  const found = demonstrations.data?.demonstrations ?? [];
+
+  if (found.length === 0) {
+    return null;
+  }
+
+  return (
+    <Field id={id} label={t("Choose a demonstration")} hint={t("The ones this product answers for. Choosing one fills the address above.")}>
+      <select
+        id={id}
+        data-testid={`demonstration-${id}`}
+        className={inputClass()}
+        // The one whose address is in the field, so the list shows what
+        // the band already embeds; anything else typed there is "another".
+        value={found.some((candidate) => candidate.embed_url === address) ? address : ''}
+        onChange={(event) => {
+          if (event.target.value !== '') {
+            onChoose(event.target.value);
+          }
+        }}
+      >
+        <option value="">{address === '' ? t("None") : t("Another address")}</option>
+        {found.map((candidate) => (
+          <option key={candidate.number} value={candidate.embed_url}>
+            {`${String(candidate.number)} — ${candidate.name}`}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 function PanelSection({ title, aside, children }: { title: string; aside?: string | undefined; children: ReactNode }) {
   return (
     <section className="space-y-3 border-b border-line px-4 py-4">
@@ -843,14 +931,17 @@ function PagePanel({
   state,
   present,
   published,
+  onMenu,
   onTemplate,
 }: {
   state: StoryState;
   present: readonly BandKind[];
   published: boolean;
+  onMenu: (hidden: boolean) => void;
   onTemplate: (template: StoryTemplate) => void;
 }) {
   const left = untranslated(state);
+  const hidden = menuIsHidden(state.headings.HEADLINE?.menu?.en);
 
   return (
     <div data-testid="panel-page">
@@ -862,6 +953,29 @@ function PagePanel({
           {published ? t("Published") : t("Draft — nobody outside can read it")}
         </p>
       </div>
+
+      <PanelSection title={t("Menu under the headline")}>
+        <p className="text-sm text-muted">
+          {t("The bar naming the bands of the page, pinned as the reader scrolls. Drawn on a wide screen, once the page has three bands to name.")}
+        </p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("Menu under the headline")}>
+          {[false, true].map((choice) => (
+            <button
+              key={String(choice)}
+              type="button"
+              aria-pressed={hidden === choice}
+              data-testid={choice ? 'menu-hidden' : 'menu-shown'}
+              onClick={() => onMenu(choice)}
+              className={cn(
+                'rounded-control border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2',
+                hidden === choice ? 'border-accent bg-accent-wash font-semibold text-ink' : 'border-line text-ink hover:bg-well',
+              )}
+            >
+              {choice ? t("Hidden") : t("Shown")}
+            </button>
+          ))}
+        </div>
+      </PanelSection>
 
       <PanelSection title={t("Languages")}>
         <Languages left={left} />

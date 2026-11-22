@@ -587,6 +587,8 @@ construire son menu) et `updateStaffProfile` (son nom affiché et sa langue).
 | `setRenewal` | Si les abonnements du produit se renouvellent seuls, et **combien de jours avant** la fin de période la facture suivante part avec un e-mail de demande de paiement (J-7 par défaut). La facture est due le jour où la nouvelle période commence ; une période ne dépasse jamais la durée de l'engagement (2026-10-05). |
 | `setProjectSchemaVersions` | Quelles versions de document le produit accepte. Sans elle, un produit créé ici n'en acceptait aucune et refusait tout projet (2026-09-29). |
 | `showProductManifest` | Rien, et c'est la seule lecture du personnel qui **quitte cet hôte** : elle demande au produit, à son propre `app_url`, quelles versions il accepte. Elle n'écrit pas — appliquer reste la ligne au-dessus, parce qu'un fichier distant peut proposer une liste et ne doit pas en décider une. |
+| `showProductDemonstrations` | Rien non plus, et c'est la deuxième lecture qui **quitte cet hôte** : elle demande au produit, sous son propre `app_url`, lesquelles de ses démonstrations 1 à 20 répondent, et comment il les nomme. L'éditeur de page les propose là où une bande intègre une vue en direct, au lieu d'une adresse tapée de mémoire. |
+| `setProductDemonstrations` | `product_configuration.demonstrations` : où chercher une démonstration et quoi intégrer pour la montrer, deux chemins **relatifs à `app_url`** portant `{n}`. Refusé avec un schéma, un hôte ou un segment parent — la lecture qui suit ne peut interroger que le produit lui-même. |
 | `showProductReadiness` | Rien. Ce qui manque encore à un produit pour être vendable. |
 | `showProductStory`, `writeProductStory` | Lit et écrit la page publique, en brouillon. |
 | `publishProductStory` | La rend visible aux inconnus. |
@@ -747,15 +749,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              134
 
-  PLATFORM_ADMIN                                  91
+  PLATFORM_ADMIN                                  93
   publiques, sans compte                           9
   machines et sondes                               8
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          246
+  total                                          248
 ```
 
-Dont **118 lectures** et **128 écritures**. Chaque écriture a sa ligne dans les
+Dont **119 lectures** et **129 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

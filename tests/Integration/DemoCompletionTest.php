@@ -201,6 +201,13 @@ final class DemoCompletionTest extends DatabaseApiTestCase
             ['product' => $plan],
         );
 
+        // And before 2026-11-22: nobody had told Plan where its
+        // demonstrations are.
+        $this->connection->executeStatement(
+            "DELETE FROM product_configuration WHERE product_id = :product AND key = 'demonstrations'",
+            ['product' => $plan],
+        );
+
         // And something an operator wrote since, which must survive: their
         // own title on the steps, and a step of their own.
         $this->connection->executeStatement(
@@ -215,6 +222,7 @@ final class DemoCompletionTest extends DatabaseApiTestCase
         self::assertContains('story:plan:rows:CTA', $missing);
         self::assertContains('story:plan:heading:STATS', $missing);
         self::assertContains('story:plan:layout:HEADLINE', $missing);
+        self::assertContains('story:plan:demonstrations:DEMO', $missing);
         // A band that has rows is offered none, whatever the world says of it.
         self::assertNotContains('story:plan:rows:STEPS', $missing);
         self::assertNotContains('story:plan:heading:STEPS', $missing);
@@ -227,6 +235,14 @@ final class DemoCompletionTest extends DatabaseApiTestCase
         self::assertFalse($completed->addedNothing());
         self::assertContains('adds the CTA band to Plan\'s page (1 row)', $completed->summary());
         self::assertContains('lays out the HEADLINE band of Plan\'s page as "stacked"', $completed->summary());
+        self::assertContains('tells Plan where its demonstrations are, so the page editor lists them', $completed->summary());
+        self::assertSame(
+            'admin/vitrine/{n}',
+            $this->connection->fetchOne(
+                "SELECT value->>'source' FROM product_configuration WHERE product_id = :product AND key = 'demonstrations'",
+                ['product' => $plan],
+            ),
+        );
 
         $expected = static fn (string $block): int => count(array_filter(
             DemoWorld::SHOWCASE['plan'],

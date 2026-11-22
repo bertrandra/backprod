@@ -187,6 +187,7 @@ use App\Staff\Controller\SetDemoPageController;
 use App\Staff\Controller\SetMailTemplatesController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
+use App\Staff\Controller\SetProductDemonstrationsController;
 use App\Staff\Controller\SetProjectSchemaVersionsController;
 use App\Staff\Controller\SetProjectSettingsController;
 use App\Staff\Controller\SetPublicListingController;
@@ -199,6 +200,7 @@ use App\Staff\Controller\ShowConfigurationController;
 use App\Staff\Controller\ShowDemoPageController;
 use App\Staff\Controller\ShowMailTemplatesController;
 use App\Staff\Controller\ShowNavigationSetupController;
+use App\Staff\Controller\ShowProductDemonstrationsController;
 use App\Staff\Controller\ShowProductManifestController;
 use App\Staff\Controller\ShowProjectSettingsController;
 use App\Staff\Controller\ShowReadinessController;
@@ -826,6 +828,21 @@ return static function (RouteCollector $routes): void {
         'GET',
         '/api/v1/staff/configuration/product-manifest',
         ShowProductManifestController::class,
+    );
+
+    // Where a product keeps its demonstrations, and which answer today
+    // (2026-11-22): what the page editor offers where a band embeds a live
+    // view, instead of an address typed from memory. The read leaves this
+    // host, like the manifest above; the write only says where to look.
+    $routes->addRoute(
+        'GET',
+        '/api/v1/staff/configuration/demonstrations',
+        ShowProductDemonstrationsController::class,
+    );
+    $routes->addRoute(
+        'PUT',
+        '/api/v1/staff/configuration/demonstrations',
+        SetProductDemonstrationsController::class,
     );
 
     // The platform's own menu setup (2026-09-17): what the shell shows each

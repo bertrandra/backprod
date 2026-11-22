@@ -3,7 +3,7 @@ import { Fragment, type ReactNode } from 'react';
 import type { Offer } from '@/queries/catalogue';
 
 import { NO_CONTENT, type ShowcaseContent } from './blocks/content';
-import { BAND_META, bandsInOrder } from './blocks/meta';
+import { BAND_META, bandsInOrder, menuIsHidden } from './blocks/meta';
 import { BAND_VIEWS, type BandProps } from './blocks/registry';
 import { ShowcaseAction } from './ShowcaseAction';
 import { ShowcaseNav } from './ShowcaseNav';
@@ -83,7 +83,9 @@ export function Showcase({
   // one of the two places.
   return (
     <div data-testid="showcase">
-      <ShowcaseNav present={present} underBar={underBar} />
+      {/* The page's own choice (2026-11-22): a short page, or one that reads
+          as a single pitch, may not want a table of contents over it. */}
+      {!menuIsHidden(content.headings.HEADLINE?.menu) && <ShowcaseNav present={present} underBar={underBar} />}
 
       {present.map((kind) => (
         <Fragment key={kind}>{BAND_VIEWS[kind].view(props)}</Fragment>

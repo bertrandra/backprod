@@ -711,8 +711,28 @@ describe('how a band is laid out', () => {
       blocks: [],
     } as never);
 
-    expect(content.headings.HEADLINE).toEqual({ eyebrow: null, title: null, lede: null, layout: 'centered' });
+    expect(content.headings.HEADLINE).toEqual({ eyebrow: null, title: null, lede: null, layout: 'centered', menu: null });
     expect(content.headings.STEPS?.layout).toBe('timeline');
+  });
+
+  it('leaves its menu out where the page asks, and draws it otherwise', () => {
+    // FULL has more than three bands to name, so the bar is drawn.
+    const { unmount } = renderStory(FULL);
+
+    expect(screen.getByTestId('showcase-nav')).toBeTruthy();
+    unmount();
+
+    renderStory({ ...FULL, headings: { HEADLINE: { eyebrow: null, title: null, lede: null, menu: 'hidden' } } });
+
+    expect(screen.queryByTestId('showcase-nav')).toBeNull();
+    // The page itself is untouched: only its table of contents went.
+    expect(screen.getByTestId('showcase-steps')).toBeTruthy();
+  });
+
+  it('draws the menu for a code it does not know, rather than hiding the page’s way around', () => {
+    renderStory({ ...FULL, headings: { HEADLINE: { eyebrow: null, title: null, lede: null, menu: 'tabs' } } });
+
+    expect(screen.getByTestId('showcase-nav')).toBeTruthy();
   });
 });
 
@@ -873,7 +893,7 @@ describe('before and after', () => {
     expect(band.getByAltText('After')).toBeTruthy();
   });
 
-  it('switches between two embedded pages, loading the second only when asked', () => {
+  it('switches between two embedded pages, both started together so they stay in step', () => {
     renderStory({
       ...FULL,
       compare: [
@@ -884,20 +904,51 @@ describe('before and after', () => {
 
     const band = screen.getByTestId('showcase-compare');
     const frames = () => [...band.querySelectorAll('iframe')].map((frame) => frame.getAttribute('src'));
+    const shown = (index: number) => band.querySelector<HTMLElement>(`[data-compare-side="${String(index)}"]`);
 
-    // No handle: two live 3D views cannot be overlaid. And one frame, not
-    // two — the second is a whole application nobody has asked for yet.
+    // No handle: two live 3D views cannot be overlaid.
     expect(within(band).queryByTestId('compare-handle')).toBeNull();
-    expect(frames()).toHaveLength(1);
+
+    // Both from the start (2026-11-22). Loaded one after the other, two
+    // views that turn by themselves were never at the same moment, and
+    // switching compared two angles rather than two gardens.
+    expect(frames()).toHaveLength(2);
     expect(frames()[0]).toContain('file=1');
+    expect(frames()[1]).toContain('file=2');
+
+    // The one not shown is out of reach, not out of the layout: a frame
+    // the browser does not draw stops animating and falls behind.
+    expect(shown(0)?.getAttribute('data-shown')).toBe('true');
+    expect(shown(1)?.getAttribute('data-shown')).toBe('false');
+    expect(shown(1)?.hasAttribute('inert')).toBe(true);
+    expect(shown(1)?.hidden).toBe(false);
 
     fireEvent.click(within(band).getByTestId('compare-show-1'));
 
     expect(within(band).getByTestId('compare-show-1').getAttribute('aria-pressed')).toBe('true');
-    // Both now, the first kept as the reader left it and hidden.
+    expect(shown(0)?.hasAttribute('inert')).toBe(true);
+    expect(shown(1)?.hasAttribute('inert')).toBe(false);
+    // The same two frames: switching reloaded nothing.
     expect(frames()).toHaveLength(2);
-    expect(band.querySelector<HTMLElement>('[data-compare-side="0"]')?.hidden).toBe(true);
-    expect(band.querySelector<HTMLElement>('[data-compare-side="1"]')?.hidden).toBe(false);
+  });
+
+  it('draws both sides next to each other where the band asks for it', () => {
+    renderStory({
+      ...FULL,
+      headings: { COMPARE: { eyebrow: null, title: null, lede: null, layout: 'beside' } },
+      compare: [
+        side('k1', 'Before', 'https://plan.example.test/?file=1&x={width}', null),
+        side('k2', 'After', 'https://plan.example.test/?file=2&x={width}', null),
+      ],
+    });
+
+    const band = screen.getByTestId('showcase-compare');
+
+    expect(band.querySelector('[data-compare="beside"]')).toBeTruthy();
+    expect(band.querySelectorAll('iframe')).toHaveLength(2);
+    // Nothing to switch: both are in front of the reader.
+    expect(within(band).queryByTestId('compare-show-0')).toBeNull();
+    expect(band.querySelector('[inert]')).toBeNull();
   });
 
   it('reads both sides from the public answer, in their order', () => {

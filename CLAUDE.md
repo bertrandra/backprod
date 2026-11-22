@@ -1132,6 +1132,26 @@ them outright). Where one is used, the rollback must be *provable*: hold the
 reconciling refetch open in the test, or the refetch clears the placeholder and
 the test passes with no rollback at all.
 
+## Building the bundle to deploy
+
+Full procedure: `docs/deploying-to-siteground.md`. **The options are part of
+the bundle, and none of them has a default worth shipping:**
+
+```sh
+DEFAULT_PRODUCT=plan bash bin/build-dist.sh --payment-provider stripe \
+    --embed https://plan.raillard.org
+```
+
+A bare `bin/build-dist.sh` builds without complaint and produces a bundle that
+is wrong three ways at once — it was shipped that way on 2026-11-21 and the
+operator found it on the live site. With no `DEFAULT_PRODUCT` a stranger's
+storefront opens on *Choose a product* instead of the product's page; with no
+`--payment-provider stripe` the Content-Security-Policy refuses the card form;
+with no `--embed` the demonstration and the before/after frames are blocked,
+silently. Read the script's closing summary — it says `default product none`
+— and run `bin/verify-dist.sh` on the zip, which prints the origins the page
+may frame.
+
 ## Quality gates
 
 Before considering work complete:

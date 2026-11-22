@@ -841,3 +841,73 @@ right    the chosen band: layout, rows, pictures, heading — or the page as a w
 Not built, because each needs the server to keep something it does not keep:
 a draft separate from the published page, a history of versions to restore,
 hiding a band without removing it, and cropping a picture.
+
+## 16. The page's menu is a choice, and a comparison shown side by side (2026-11-22)
+
+**The menu under the headline can be hidden.** The bar naming the page's bands
+was drawn on every page with three bands or more, with no way to say otherwise.
+It is now a code — `menu`: `bar` (the usual one, and what absent means) or
+`hidden` — carried by the **headline's** heading beside its layout, because the
+bar is the headline's and a page has one of each. Set in the editor's page
+panel. Refused on any other section and in a translation, like a layout.
+
+**A comparison has two layouts**: `overlay` (the usual one — a slider over two
+pictures, a switch between two embedded views) and `beside`, both sides next to
+each other, stacked on a narrow screen.
+
+**Two embedded views are started together.** A side used to load the first
+time it was chosen, so two views that animate by themselves were never at the
+same moment. Both now load at once and the one not shown stays drawn
+(transparent, `inert`), since a frame the browser does not draw stops
+animating.
+
+That is as far as the page can go. Measured on Plan's two demonstration
+projects: the angles agree, the hour of day does not — each scene starts its
+clock when it has finished loading, and one loads later than the other. The
+page cannot reach into a frame from another origin. Exact agreement, and
+following a view the reader turns by hand, need the embedded product:
+
+```text
+animate from the wall clock     hour and rotation derived from Date.now(), not
+                                from the moment the scene became ready
+tell the page where it looks    window.parent.postMessage({ type: 'plan:view', … })
+                                on every camera change, and apply the same
+                                message when it receives one
+```
+
+Neither exists in Plan today, so nothing here listens for the second: a relay
+written against a message nobody sends would be code with no caller.
+
+## 17. A product's demonstrations, offered by name (2026-11-22)
+
+A demonstration band and each side of a comparison take the address of a live
+view. It was typed: a long query string with a number in it. The editor now
+offers the product's own demonstrations by name, and choosing one fills the
+address field — which stays an ordinary field, since a band may embed anything
+served over https.
+
+**The platform probes the product; the product is not changed.** A product is
+told two paths on the console's Products screen, both relative to its `app_url`
+and both carrying `{n}`:
+
+```text
+source   admin/vitrine/{n}                            answers where number n exists
+embed    ?mode=demo&file={n}&x={width}&y={height}     what a page embeds for it
+```
+
+`GET /staff/configuration/demonstrations` asks for numbers 1 to 20 at once and
+keeps those that answer with a JSON document, named by the document's first
+`name`. Only the opening of each is read: a demonstration is a whole project
+(180 KB to 1.9 MB on Plan) and the list wants one line of it.
+
+- **Configuration, never a constant**: the two paths are one product's own URL
+  shape, and the backend is every product's.
+- **Relative, and refused otherwise**: the read leaves the host, so a scheme, a
+  host, a leading slash, a parent segment or a backslash is a `400`. It can
+  only ask the product the platform already embeds.
+- **Numbers only, and twenty of them.** A demonstration saved under a name, or
+  a twenty-first, is not found. A product that outgrows this should publish its
+  list — in its manifest, beside its schema versions — rather than be probed.
+
+The demonstration world tells Plan both paths, and an upgrade adds them to a
+deployment seeded before this existed.

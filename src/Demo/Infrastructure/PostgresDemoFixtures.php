@@ -9,6 +9,7 @@ use App\Commerce\Domain\SubscriptionTerms;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoStructure;
 use App\Demo\Domain\DemoWorld;
+use App\Product\Domain\DemonstrationSource;
 use App\Tax\Domain\SupplierTaxSettings;
 use Doctrine\DBAL\Connection;
 use RuntimeException;
@@ -220,6 +221,7 @@ final class PostgresDemoFixtures implements DemoFixtures
                 $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? [], $definition['plans'] ?? []);
                 $this->supplier($products[$code], $definition['name']);
                 $this->schemaVersions($products[$code], $code);
+                $this->demonstrations($products[$code], $code);
                 $this->freemium($products[$code], $definition['plans'] ?? []);
                 $this->showcase($products[$code], $code);
             }
@@ -291,6 +293,18 @@ final class PostgresDemoFixtures implements DemoFixtures
                 }
             }
 
+            // Where the product keeps its demonstrations (2026-11-22). Not a
+            // band, and keyed like one: it is part of what the page editor
+            // needs, and a deployment seeded before it existed lacks it the
+            // same way it lacks a band. A row an operator emptied is a row,
+            // and is left as they left it.
+            if (self::demonstrationsOf($code) !== null && 0 === $this->count(
+                'SELECT count(*) FROM product_configuration WHERE product_id = :product AND key = :key',
+                ['product' => $product, 'key' => DemonstrationSource::CONFIGURATION_KEY],
+            )) {
+                $missing[] = self::storyKey($code, 'demonstrations', 'DEMO');
+            }
+
             foreach (self::headingsOf($code) as $band => $heading) {
                 if (!isset($headings[$band])) {
                     $missing[] = self::storyKey($code, 'heading', $band);
@@ -345,6 +359,12 @@ final class PostgresDemoFixtures implements DemoFixtures
                 continue;
             }
 
+            if ($what === 'demonstrations') {
+                $this->demonstrations($product, $code);
+
+                continue;
+            }
+
             $heading = DemoWorld::SHOWCASE_HEADINGS[$code][$band] ?? null;
 
             if ($heading === null) {
@@ -389,6 +409,20 @@ final class PostgresDemoFixtures implements DemoFixtures
     private static function headingsOf(string $code): array
     {
         return DemoWorld::SHOWCASE_HEADINGS[$code] ?? [];
+    }
+
+    /**
+     * Where a product keeps its demonstrations, read by its code.
+     *
+     * Through a `string`, like {@see self::headingsOf}: asked with the
+     * literal keys of the loop it is called from, the analyser knows which
+     * products the world names and calls the question already answered.
+     *
+     * @return array{source: string, embed: string}|null
+     */
+    private static function demonstrationsOf(string $code): ?array
+    {
+        return DemoWorld::DEMONSTRATIONS[$code] ?? null;
     }
 
     private static function storyKey(string $code, string $what, string $band): string
@@ -1459,6 +1493,29 @@ final class PostgresDemoFixtures implements DemoFixtures
                     (new SupplierTaxSettings('FR', true, 'DIGITAL_SERVICES', 'EUR'))->toConfiguration(),
                     JSON_THROW_ON_ERROR,
                 ),
+            ],
+        );
+    }
+
+    /**
+     * Where this product keeps its demonstrations, if the world says —
+     * the row the console's Products screen writes, under the key the page
+     * editor's list reads.
+     */
+    private function demonstrations(string $product, string $code): void
+    {
+        $where = self::demonstrationsOf($code);
+
+        if ($where === null) {
+            return;
+        }
+
+        $this->connection->executeStatement(
+            'INSERT INTO product_configuration (product_id, key, value) VALUES (:product, :key, CAST(:value AS jsonb))',
+            [
+                'product' => $product,
+                'key' => DemonstrationSource::CONFIGURATION_KEY,
+                'value' => json_encode($where, JSON_THROW_ON_ERROR),
             ],
         );
     }

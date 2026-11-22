@@ -54,6 +54,9 @@ final class ShowcaseBandHeadings
     /** The one heading field that is a code and not a sentence. */
     private const LAYOUT = 'layout';
 
+    /** And the other: whether the page draws its menu (2026-11-22). */
+    private const MENU = 'menu';
+
     /**
      * @return array<string, ShowcaseBandHeading>|null keyed by section, or null where the request said nothing
      */
@@ -125,6 +128,16 @@ final class ShowcaseBandHeadings
                 continue;
             }
 
+            if ($field === self::MENU) {
+                $menu = self::menu($value, $block, $where);
+
+                if ($menu !== null) {
+                    $content[self::MENU] = $menu;
+                }
+
+                continue;
+            }
+
             if (!is_string($field) || !in_array($field, self::FIELDS, true)) {
                 // Refused rather than dropped, the same rule a band's fields
                 // follow: a field this endpoint stored and no band rendered
@@ -170,6 +183,34 @@ final class ShowcaseBandHeadings
 
         if (!is_string($value) || !in_array($value, $allowed, true)) {
             throw self::invalid($block, $where . '.' . self::LAYOUT, 'one of ' . implode(', ', $allowed));
+        }
+
+        return $value;
+    }
+
+    /**
+     * Whether the page draws its menu, or null where it asked for the usual.
+     *
+     * The same three refusals as a layout, for the same reason: in a
+     * translation, on a section that does not carry it, or a value the page
+     * cannot draw — each would be a choice stored and quietly ignored.
+     */
+    private static function menu(mixed $value, string $block, string $where): ?string
+    {
+        if ($where !== 'content' || $block !== ShowcaseSections::MENU_SECTION) {
+            throw self::invalid(
+                $block,
+                $where . '.' . self::MENU,
+                $where !== 'content' ? 'no menu in a translation' : 'no menu: the page\'s menu is set on ' . ShowcaseSections::MENU_SECTION,
+            );
+        }
+
+        if (is_string($value) && trim($value) === '') {
+            return null;
+        }
+
+        if (!is_string($value) || !in_array($value, ShowcaseSections::MENUS, true)) {
+            throw self::invalid($block, $where . '.' . self::MENU, 'one of ' . implode(', ', ShowcaseSections::MENUS));
         }
 
         return $value;
