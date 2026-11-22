@@ -6,9 +6,9 @@ namespace App\Staff\Service;
 
 use App\Billing\Domain\SupplierDetails;
 use App\Commerce\Domain\RenewalPolicy;
+use App\Product\Domain\DemonstrationSource;
 use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\Product;
-use App\Product\Domain\DemonstrationSource;
 use App\Product\Domain\ProductDemonstrations;
 use App\Product\Domain\ProductManifests;
 use App\Product\Domain\ProductRepository;

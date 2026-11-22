@@ -6,8 +6,8 @@ namespace App\Staff\Controller;
 
 use App\Billing\Domain\SupplierDetails;
 use App\Commerce\Domain\RenewalPolicy;
-use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\DemonstrationSource;
+use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\Product;
 use App\Tax\Domain\SupplierTaxSettings;
 
