@@ -8,12 +8,14 @@ use App\Auth\Domain\AuthProvider;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\ManifestAnswer;
+use App\Product\Domain\ProductDemonstrations;
 use App\Product\Domain\ProductManifests;
 use App\Project\Service\SchemaVersionPolicy;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\RecordingProductDemonstrations;
 use App\Tests\Support\RecordingProductManifests;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
@@ -54,6 +56,8 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
     private const SECRET = 'configuration-test-secret';
 
     private RecordingProductManifests $host;
+
+    private RecordingProductDemonstrations $demonstrations;
 
     /**
      * @var array<string, string>
@@ -104,6 +108,7 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             // the network, and a product that answers differently is a line
             // in a test rather than a server somebody has to run.
             ProductManifests::class => $this->host = new RecordingProductManifests(),
+            ProductDemonstrations::class => $this->demonstrations = new RecordingProductDemonstrations(),
         ]);
 
         // Created through the console, not by SQL: this is the product an
@@ -919,6 +924,105 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             '/api/v1/staff/configuration/project-schema-versions?product=atlas',
             ['Authorization' => 'Bearer ola-token'],
             $this->json(['supported' => $supported]),
+        );
+
+        self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
+
+    /**
+     * A product is told where its demonstrations are, and the console lists
+     * the ones that answer (2026-11-22) — what the page editor offers in
+     * place of an address typed from memory.
+     */
+    public function testAProductListsTheDemonstrationsItsOwnHostAnswersFor(): void
+    {
+        $this->givenTheProductRunsBeside('https://atlas.example.test/');
+        $this->demonstrations->has([
+            ['number' => 1, 'name' => 'The plot'],
+            ['number' => 4, 'name' => 'The plot, with the pool'],
+        ]);
+
+        // Never told where to look: an empty list, and nobody was asked.
+        $before = $this->decode($this->demonstrations());
+        self::assertSame(['source' => '', 'embed' => '', 'demonstrations' => []], $before);
+        self::assertSame([], $this->demonstrations->asked);
+
+        $set = $this->setDemonstrations('admin/vitrine/{n}', '?mode=demo&file={n}&x={width}&y={height}');
+        // Writing where to look is not looking.
+        self::assertSame([], $this->decode($set)['demonstrations'] ?? null);
+        self::assertSame([], $this->demonstrations->asked);
+
+        $after = $this->decode($this->demonstrations());
+        self::assertSame('admin/vitrine/{n}', $after['source'] ?? null);
+        self::assertSame(
+            [
+                ['number' => 1, 'name' => 'The plot', 'embed_url' => 'https://atlas.example.test/?mode=demo&file=1&x={width}&y={height}'],
+                ['number' => 4, 'name' => 'The plot, with the pool', 'embed_url' => 'https://atlas.example.test/?mode=demo&file=4&x={width}&y={height}'],
+            ],
+            $after['demonstrations'] ?? null,
+        );
+        // Under the product's own address, and nowhere else.
+        self::assertSame(
+            [['asked' => 'https://atlas.example.test/admin/vitrine/1', 'embeds' => 'https://atlas.example.test/?mode=demo&file=1&x={width}&y={height}']],
+            $this->demonstrations->asked,
+        );
+
+        // Both empty clears it, and the next read asks nobody.
+        $this->setDemonstrations('', '');
+        self::assertSame([], $this->decode($this->demonstrations())['demonstrations'] ?? null);
+        self::assertCount(1, $this->demonstrations->asked);
+    }
+
+    /**
+     * The read this drives leaves the host, so what it may be pointed at is
+     * the product's own address and nothing an operator could type past it.
+     */
+    public function testWhereAProductsDemonstrationsAreCannotLeaveItsOwnAddress(): void
+    {
+        foreach ([
+            ['https://elsewhere.test/{n}', '?file={n}'],
+            ['//elsewhere.test/{n}', '?file={n}'],
+            ['../admin/{n}', '?file={n}'],
+            ['/admin/{n}', '?file={n}'],
+            ['admin\\{n}', '?file={n}'],
+            ['admin/vitrine/{n}', 'https://elsewhere.test/?file={n}'],
+            // No number: every demonstration would be the same one.
+            ['admin/vitrine', '?file={n}'],
+            ['admin/vitrine/{n}', '?mode=demo'],
+            // One without the other.
+            ['admin/vitrine/{n}', ''],
+        ] as [$source, $embed]) {
+            $refused = $this->setDemonstrations($source, $embed, 400);
+
+            self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null, $source . ' | ' . $embed);
+        }
+
+        // A platform role that does not manage products may not ask.
+        $this->demonstrations('sam-token', 403);
+    }
+
+    private function demonstrations(?string $token = 'ola-token', int $expected = 200): ResponseInterface
+    {
+        $response = $this->request(
+            'GET',
+            '/api/v1/staff/configuration/demonstrations?product=atlas',
+            $token === null ? [] : ['Authorization' => 'Bearer ' . $token],
+        );
+
+        self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
+
+    private function setDemonstrations(string $source, string $embed, int $expected = 200): ResponseInterface
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/staff/configuration/demonstrations?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['source' => $source, 'embed' => $embed]),
         );
 
         self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());

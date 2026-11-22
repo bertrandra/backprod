@@ -850,6 +850,28 @@
           }
         }
       },
+      "ProductDemonstrations": {
+        "type": "object",
+        "required": ["source", "embed", "demonstrations"],
+        "properties": {
+          "source": {"type": "string", "maxLength": 500, "description": "Where a demonstration is asked for, relative to the product's own `app_url`, with `{n}` for its number — `admin/vitrine/{n}`. Empty where the product has never been told."},
+          "embed": {"type": "string", "maxLength": 500, "description": "What a page embeds to show demonstration `{n}`, relative to the same address. `{width}` and `{height}` are left as written: the page puts in the pixels it drew at."},
+          "demonstrations": {
+            "type": "array",
+            "maxItems": 20,
+            "description": "The numbers that answered, in order. A number that did not is simply absent: refused, missing and unreachable are one fact to a list.",
+            "items": {
+              "type": "object",
+              "required": ["number", "name", "embed_url"],
+              "properties": {
+                "number": {"type": "integer", "minimum": 1, "maximum": 20},
+                "name": {"type": "string", "maxLength": 200, "description": "What the product calls it."},
+                "embed_url": {"type": "string", "format": "uri", "description": "The absolute address to put in a band's `embed_url`, composed from `app_url` and `embed`."}
+              }
+            }
+          }
+        }
+      },
       "ShowcaseBandHeading": {
         "type": "object",
         "description": "A band's own heading (2026-09-28): the eyebrow above it, its title, and the sentence under it. Every field optional, and **absent is the band's compiled default** — the words its component was written with — never an empty title. Blank removes one, which is how a band goes back to that default.\n\nOne fact per band, where a block is one per row: three steps are three blocks and one heading, because the section is called \"How it works\" once. `PRICING` is what settles it — it has no blocks at all, because a row for it would be a row somebody could type a price into, and it still has a title.",
@@ -14376,6 +14398,64 @@
               }
             }
           },
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v1/staff/configuration/demonstrations": {
+      "get": {
+        "tags": ["Staff"],
+        "operationId": "showProductDemonstrations",
+        "summary": "The demonstrations a product has",
+        "description": "A demonstration band, and each side of a comparison, take the address of a live view to embed — and an operator typed it: a long query string with a number in the middle that says which demonstration is meant. The product knows which ones it has; this asks it.\n\nA product is told two strings (`setProductDemonstrations`), both **relative to its own `app_url`** and both carrying `{n}`: where demonstration *n* is asked for, and what a page embeds to show it. This read asks for numbers 1 to 20 at once, keeps those that answer with a JSON document, and names each by the first `name` the document gives — reading only its opening, because a demonstration is a whole project and the list wants one line of it.\n\n**This read leaves the host**, like `showProductManifest`, and is its own operation for the same reason. Nothing configured, or a product with no address, answers an empty list and asks nobody.",
+        "parameters": [
+          {"name": "product", "in": "query", "required": true, "description": "The product code to ask. A staff route resolves no product of its own — a platform role grants no membership.", "schema": {"type": "string", "maxLength": 64}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Where the product was told to look, and what answered.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductDemonstrations"}}}
+          },
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      },
+      "put": {
+        "tags": ["Staff"],
+        "operationId": "setProductDemonstrations",
+        "summary": "Tell a product where its demonstrations are",
+        "description": "Two strings, both relative to the product's own `app_url` and both carrying `{n}`. Both empty clears it.\n\n**Relative, so the platform cannot be pointed elsewhere.** The read these drive leaves the host; anchored to `app_url` — refused with a scheme, a host, a leading slash, a parent segment or a backslash — it can only ask the product the platform already embeds. **Configuration and not a constant**, because the two strings are one product's own URL shape, and written into the platform they would be that product compiled into a backend every product shares.\n\nAnswers what was stored and an empty list: writing where to look is not looking, and a save that waited on somebody else's server would be a slow save.",
+        "parameters": [
+          {"name": "product", "in": "query", "required": true, "description": "The product code to ask. A staff route resolves no product of its own — a platform role grants no membership.", "schema": {"type": "string", "maxLength": 64}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["source", "embed"],
+                "properties": {
+                  "source": {"type": "string", "maxLength": 500},
+                  "embed": {"type": "string", "maxLength": 500}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was stored.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductDemonstrations"}}}
+          },
+          "400": {"description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "404": {"$ref": "#/components/responses/NotFound"},
           "401": {"$ref": "#/components/responses/Unauthenticated"},
           "403": {"$ref": "#/components/responses/PermissionDenied"},

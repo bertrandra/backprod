@@ -2010,6 +2010,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/configuration/demonstrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The demonstrations a product has
+         * @description A demonstration band, and each side of a comparison, take the address of a live view to embed — and an operator typed it: a long query string with a number in the middle that says which demonstration is meant. The product knows which ones it has; this asks it.
+         *
+         *     A product is told two strings (`setProductDemonstrations`), both **relative to its own `app_url`** and both carrying `{n}`: where demonstration *n* is asked for, and what a page embeds to show it. This read asks for numbers 1 to 20 at once, keeps those that answer with a JSON document, and names each by the first `name` the document gives — reading only its opening, because a demonstration is a whole project and the list wants one line of it.
+         *
+         *     **This read leaves the host**, like `showProductManifest`, and is its own operation for the same reason. Nothing configured, or a product with no address, answers an empty list and asks nobody.
+         */
+        get: operations["showProductDemonstrations"];
+        /**
+         * Tell a product where its demonstrations are
+         * @description Two strings, both relative to the product's own `app_url` and both carrying `{n}`. Both empty clears it.
+         *
+         *     **Relative, so the platform cannot be pointed elsewhere.** The read these drive leaves the host; anchored to `app_url` — refused with a scheme, a host, a leading slash, a parent segment or a backslash — it can only ask the product the platform already embeds. **Configuration and not a constant**, because the two strings are one product's own URL shape, and written into the platform they would be that product compiled into a backend every product shares.
+         *
+         *     Answers what was stored and an empty list: writing where to look is not looking, and a save that waited on somebody else's server would be a slow save.
+         */
+        put: operations["setProductDemonstrations"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/conversations": {
         parameters: {
             query?: never;
@@ -4601,6 +4633,23 @@ export interface components {
                 de?: components["schemas"]["ShowcaseBlockContent"];
                 it?: components["schemas"]["ShowcaseBlockContent"];
             };
+        };
+        ProductDemonstrations: {
+            /** @description Where a demonstration is asked for, relative to the product's own `app_url`, with `{n}` for its number — `admin/vitrine/{n}`. Empty where the product has never been told. */
+            source: string;
+            /** @description What a page embeds to show demonstration `{n}`, relative to the same address. `{width}` and `{height}` are left as written: the page puts in the pixels it drew at. */
+            embed: string;
+            /** @description The numbers that answered, in order. A number that did not is simply absent: refused, missing and unreachable are one fact to a list. */
+            demonstrations: {
+                number: number;
+                /** @description What the product calls it. */
+                name: string;
+                /**
+                 * Format: uri
+                 * @description The absolute address to put in a band's `embed_url`, composed from `app_url` and `embed`.
+                 */
+                embed_url: string;
+            }[];
         };
         /**
          * @description A band's own heading (2026-09-28): the eyebrow above it, its title, and the sentence under it. Every field optional, and **absent is the band's compiled default** — the words its component was written with — never an empty title. Blank removes one, which is how a band goes back to that default.
@@ -11173,6 +11222,78 @@ export interface operations {
                         /** @description What applying the manifest would add, and nothing it would remove. Empty when the product declared nothing or when the database is already ahead of it — an operator who added a version the product has not announced is not asked to undo their own decision. */
                         adds: number[];
                     };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProductDemonstrations: {
+        parameters: {
+            query: {
+                /** @description The product code to ask. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where the product was told to look, and what answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDemonstrations"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setProductDemonstrations: {
+        parameters: {
+            query: {
+                /** @description The product code to ask. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    source: string;
+                    embed: string;
+                };
+            };
+        };
+        responses: {
+            /** @description What was stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDemonstrations"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthenticated"];

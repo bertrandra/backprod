@@ -1974,6 +1974,71 @@ export function useSetRenewal(productCode: string) {
 }
 
 /**
+ * The demonstrations a product has, asked of the product itself
+ * (2026-11-22).
+ *
+ * The page editor offers these where a band embeds a live view, so an
+ * operator picks one by its name instead of typing an address with a number
+ * in it. **This read leaves the server**: no retry, because a product whose
+ * host is slow should say so once, and a minute's staleness, because a
+ * product does not gain a demonstration between two clicks.
+ */
+export type ProductDemonstrations = Schemas['ProductDemonstrations'];
+
+export type ProductDemonstration = ProductDemonstrations['demonstrations'][number];
+
+export function useProductDemonstrations(productCode: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.productDemonstrations(productCode ?? ''),
+    enabled: productCode !== null && productCode !== '',
+    retry: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/staff/configuration/demonstrations',
+        { params: { query: { product: productCode ?? '' } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
+ * Tell a product where its demonstrations are.
+ *
+ * **Invalidates, and does not write the answer into the cache.** The write
+ * answers what was stored and an empty list — it does not go and look — so
+ * the list is the server's to derive on the next read.
+ */
+export function useSetProductDemonstrations(productCode: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (where: { source: string; embed: string }) => {
+      const { data, error, response } = await client.PUT(
+        '/api/v1/staff/configuration/demonstrations',
+        { params: { query: { product: productCode } }, body: where },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.staff.productDemonstrations(productCode) }),
+  });
+}
+
+/**
  * Sets which project document schema versions the product accepts.
  *
  * The whole list every time, like the two writes above and for the same

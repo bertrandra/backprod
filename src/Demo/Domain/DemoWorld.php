@@ -1653,6 +1653,24 @@ final class DemoWorld
     }
 
     /**
+     * Where a demonstration product keeps its demonstrations (2026-11-22):
+     * what the console is told so the page editor can offer them by name.
+     *
+     * Plan alone, because it is the one product deployed beside the
+     * platform — the others have no address to ask. Both paths are relative
+     * to that address and carry `{n}`
+     * ({@see \App\Product\Domain\DemonstrationSource}).
+     *
+     * @var array<string, array{source: string, embed: string}>
+     */
+    public const DEMONSTRATIONS = [
+        'plan' => [
+            'source' => 'admin/vitrine/{n}',
+            'embed' => '?mode=demo&file={n}&x={width}&y={height}&heureauto=y&hrsstart=9&hrsend=19&duree=30&orthophoto=y',
+        ],
+    ];
+
+    /**
      * Which project document schema versions a product accepts when its own
      * definition names none (non-negotiable #10): a product that declares
      * none accepts no project at all, which is what the demo did until
@@ -2160,6 +2178,10 @@ final class DemoWorld
             ));
 
             return sprintf('adds the %s band to %s\'s page (%d row%s)', $band, $product, $rows, $rows === 1 ? '' : 's');
+        }
+
+        if ($what === 'demonstrations') {
+            return sprintf('tells %s where its demonstrations are, so the page editor lists them', $product);
         }
 
         if ($what === 'layout') {

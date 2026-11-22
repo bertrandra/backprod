@@ -14,7 +14,8 @@ import {
   type BandKind,
 } from '@/features/showcase/blocks/meta';
 import type { StoryTemplate } from '@/features/showcase/blocks/templates';
-import { Button, buttonClass } from '@/ui/Field';
+import { useProductDemonstrations } from '@/queries/staff';
+import { Button, buttonClass, Field, inputClass } from '@/ui/Field';
 import type { Translated } from '@/ui/TranslatedField';
 import { cn } from '@/utils/cn';
 import { LOCALE_NAMES, LOCALES, t, type LocaleCode } from '@/i18n';
@@ -457,6 +458,7 @@ export function StoryEditor({
             <BandPanel
               key={chosen}
               productId={productId}
+              productCode={product.code}
               band={chosen}
               state={state}
               present={present}
@@ -610,6 +612,7 @@ const LAYOUT_NAMES: Record<string, string> = {
  */
 function BandPanel({
   productId,
+  productCode,
   band,
   state,
   present,
@@ -618,6 +621,7 @@ function BandPanel({
   onDone,
 }: {
   productId: string;
+  productCode: string;
   band: BandKind;
   state: StoryState;
   present: readonly BandKind[];
@@ -769,6 +773,17 @@ function BandPanel({
                         />
                       ))}
 
+                      {BAND_FIELDS[block.block].some((field) => field.name === EMBED) && (
+                        <DemonstrationPicker
+                          id={`${block.key}-demonstration`}
+                          productCode={productCode}
+                          address={block.fields[EMBED]?.en ?? ''}
+                          onChoose={(address) =>
+                            setRow(index, { ...block, fields: { ...block.fields, [EMBED]: { en: address } } })
+                          }
+                        />
+                      )}
+
                       {carriesAPicture(block.block) && (
                         <BandPicture
                           productId={productId}
@@ -835,6 +850,67 @@ function BandPanel({
         </PanelSection>
       )}
     </div>
+  );
+}
+
+/** The field of a band that holds the address of a live view. */
+const EMBED = 'embed_url';
+
+/**
+ * The product's demonstrations, by name, where a band embeds one
+ * (2026-11-22).
+ *
+ * The address field stays — a band may embed anything served over https,
+ * and this list is only what the product itself answers for. Choosing one
+ * writes its address into that field, which is then an ordinary field
+ * again: saved, undone and reviewed like the rest.
+ *
+ * **Nothing is drawn where there is nothing to choose.** A product that
+ * was never told where its demonstrations are, or whose host did not
+ * answer, has an address field and no empty list beside it; where to say
+ * so is the Products screen, which is where it is fixed.
+ */
+function DemonstrationPicker({
+  id,
+  productCode,
+  address,
+  onChoose,
+}: {
+  id: string;
+  productCode: string;
+  address: string;
+  onChoose: (address: string) => void;
+}) {
+  const demonstrations = useProductDemonstrations(productCode);
+  const found = demonstrations.data?.demonstrations ?? [];
+
+  if (found.length === 0) {
+    return null;
+  }
+
+  return (
+    <Field id={id} label={t("Choose a demonstration")} hint={t("The ones this product answers for. Choosing one fills the address above.")}>
+      <select
+        id={id}
+        data-testid={`demonstration-${id}`}
+        className={inputClass()}
+        // The one whose address is in the field, so the list shows what
+        // the band already embeds; anything else typed there is "another".
+        value={found.some((candidate) => candidate.embed_url === address) ? address : ''}
+        onChange={(event) => {
+          if (event.target.value !== '') {
+            onChoose(event.target.value);
+          }
+        }}
+      >
+        <option value="">{address === '' ? t("None") : t("Another address")}</option>
+        {found.map((candidate) => (
+          <option key={candidate.number} value={candidate.embed_url}>
+            {`${String(candidate.number)} — ${candidate.name}`}
+          </option>
+        ))}
+      </select>
+    </Field>
   );
 }
 

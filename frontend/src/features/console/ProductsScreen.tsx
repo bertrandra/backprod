@@ -16,6 +16,7 @@ import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
+import { ProductDemonstrations } from './ProductDemonstrations';
 import { ProductDocumentVersions } from './ProductDocumentVersions';
 import { ProductCredentials } from './ProductCredentials';
 import { ProductWebhook } from './ProductWebhook';
@@ -235,6 +236,7 @@ function ProductRow({
   const [serverOpen, setServerOpen] = useState(false);
   const [storyOpen, setStoryOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [demonstrationsOpen, setDemonstrationsOpen] = useState(false);
 
   return (
     <li
@@ -426,6 +428,25 @@ function ProductRow({
         {versionsOpen && (
           <div className="mt-3">
             <ProductDocumentVersions productCode={product.code} />
+          </div>
+        )}
+      </details>
+
+      {/* Where the product keeps its demonstrations (2026-11-22): what the
+          page editor offers where a band embeds a live view. Mounted only
+          once open — the read behind it leaves this host. */}
+      <details
+        className="mt-3 rounded-control border border-line px-3 py-2"
+        data-testid={`demonstrations-${product.code}`}
+        onToggle={(event) => setDemonstrationsOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-xs font-semibold">
+          {t("Demonstrations")}
+        </summary>
+
+        {demonstrationsOpen && (
+          <div className="mt-3">
+            <ProductDemonstrations productCode={product.code} />
           </div>
         )}
       </details>

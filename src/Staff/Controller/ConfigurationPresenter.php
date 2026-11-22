@@ -7,6 +7,7 @@ namespace App\Staff\Controller;
 use App\Billing\Domain\SupplierDetails;
 use App\Commerce\Domain\RenewalPolicy;
 use App\Product\Domain\ManifestAnswer;
+use App\Product\Domain\DemonstrationSource;
 use App\Product\Domain\Product;
 use App\Tax\Domain\SupplierTaxSettings;
 
@@ -36,6 +37,25 @@ final class ConfigurationPresenter
     public static function tax(SupplierTaxSettings $tax): array
     {
         return $tax->toConfiguration();
+    }
+
+    /**
+     * Where a product keeps its demonstrations, and the ones that answered.
+     *
+     * Both strings are always present, empty where nothing is configured,
+     * so the form that edits them binds to one shape.
+     *
+     * @param list<array{number: int, name: string, embed_url: string}> $demonstrations
+     *
+     * @return array{source: string, embed: string, demonstrations: list<array{number: int, name: string, embed_url: string}>}
+     */
+    public static function demonstrations(?DemonstrationSource $source, array $demonstrations): array
+    {
+        return [
+            'source' => $source === null ? '' : $source->source,
+            'embed' => $source === null ? '' : $source->embed,
+            'demonstrations' => $demonstrations,
+        ];
     }
 
     /**

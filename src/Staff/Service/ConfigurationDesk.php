@@ -8,6 +8,8 @@ use App\Billing\Domain\SupplierDetails;
 use App\Commerce\Domain\RenewalPolicy;
 use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\Product;
+use App\Product\Domain\DemonstrationSource;
+use App\Product\Domain\ProductDemonstrations;
 use App\Product\Domain\ProductManifests;
 use App\Product\Domain\ProductRepository;
 use App\Product\Domain\ProductSettings;
@@ -60,6 +62,7 @@ final class ConfigurationDesk
         private readonly ProductSettings $settings,
         private readonly ProductRepository $products,
         private readonly ProductManifests $manifests,
+        private readonly ProductDemonstrations $demonstrations,
     ) {
     }
 
@@ -238,6 +241,66 @@ final class ConfigurationDesk
                 ? []
                 : SchemaDrift::missing($answer->manifest->schemaVersions, $stored),
         ];
+    }
+
+    /**
+     * Where a product keeps its demonstrations, and the ones that answer
+     * today (2026-11-22).
+     *
+     * **This read leaves the host**, like {@see self::manifest}, and for the
+     * same reason is not part of {@see self::show}: a product whose server
+     * is slow must not make its billing settings slow to open.
+     *
+     * Nothing configured, or no address, is an empty list and not an error —
+     * it is the ordinary state of every product that has never been told
+     * where to look, and the screen says so beside the two fields.
+     *
+     * @return array{product: Product, source: ?DemonstrationSource, demonstrations: list<array{number: int, name: string, embed_url: string}>}
+     */
+    public function demonstrations(string $productCode): array
+    {
+        $product = $this->product($productCode);
+
+        $source = DemonstrationSource::read(
+            $this->settings->all($product->id)[DemonstrationSource::CONFIGURATION_KEY] ?? null,
+        );
+
+        $appUrl = $product->appUrl;
+        $found = [];
+
+        if ($source !== null && $appUrl !== null && trim($appUrl) !== '') {
+            foreach ($this->demonstrations->found($appUrl, $source) as $demonstration) {
+                $found[] = [
+                    'number' => $demonstration['number'],
+                    'name' => $demonstration['name'],
+                    'embed_url' => $source->embedUrl($appUrl, $demonstration['number']),
+                ];
+            }
+        }
+
+        return ['product' => $product, 'source' => $source, 'demonstrations' => $found];
+    }
+
+    /**
+     * Tell a product where its demonstrations are — or, with null, that it
+     * has none to list.
+     */
+    public function setDemonstrations(
+        StaffIdentity $staff,
+        string $productCode,
+        ?DemonstrationSource $source,
+    ): ?DemonstrationSource {
+        $product = $this->product($productCode);
+
+        $this->settings->put(
+            $product->id,
+            DemonstrationSource::CONFIGURATION_KEY,
+            // An empty object and not a deleted row: the store has one verb,
+            // and `read()` answers null for anything it cannot use.
+            $source === null ? [] : $source->toArray(),
+        );
+
+        return $source;
     }
 
     /**

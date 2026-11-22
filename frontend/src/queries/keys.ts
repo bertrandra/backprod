@@ -277,6 +277,12 @@ export const keys = {
      */
     productManifest: (product: string) => ['staff', 'product-manifest', product] as const,
     /**
+     * Where a product keeps its demonstrations, and the ones that answer
+     * (2026-11-22). Its own key for the manifest's reason: this read leaves
+     * the server too.
+     */
+    productDemonstrations: (product: string) => ['staff', 'product-demonstrations', product] as const,
+    /**
      * What a product still needs before it can sell. Invalidated by every write
      * that could advance the chain, because the whole point is that it is
      * current — a stale chain tells somebody to do what they just did.
