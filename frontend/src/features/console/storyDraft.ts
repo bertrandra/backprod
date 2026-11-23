@@ -46,7 +46,9 @@ export function blank(block: AuthoredBandKind): DraftBlock {
   return {
     key: `new-${String(minted)}`,
     block,
-    fields: Object.fromEntries(BAND_FIELDS[block].map((field) => [field.name, EMPTY])),
+    // A field that draws nothing empty starts with what it needs: a point
+    // in the middle of its picture, this product's own column ticked.
+    fields: Object.fromEntries(BAND_FIELDS[block].map((field) => [field.name, field.initial === undefined ? EMPTY : { en: field.initial }])),
     assetId: null,
     image: null,
   };
@@ -313,7 +315,7 @@ export function draftAsPage(
         BAND_FIELDS[block.block].map((field) => [
           field.name,
           // A code has no translation: it lives on the English.
-          field.choices !== undefined ? (block.fields[field.name]?.en ?? '') : said(block.fields[field.name]),
+          field.choices !== undefined || field.code !== undefined ? (block.fields[field.name]?.en ?? '') : said(block.fields[field.name]),
         ]),
       ),
       image: block.image,

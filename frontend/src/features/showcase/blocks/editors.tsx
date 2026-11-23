@@ -38,6 +38,14 @@ export interface BandField {
   readonly long?: boolean;
   /** What this field is for, where the label alone does not say it. */
   readonly hint?: string;
+  /**
+   * A code typed rather than chosen (2026-11-23): an address, a day or a
+   * share of a picture. English only, like a choice, and drawn as the input
+   * the browser has for it.
+   */
+  readonly code?: 'url' | 'date' | 'number';
+  /** What a new row starts with, where an empty field would draw nothing. */
+  readonly initial?: string;
 }
 
 /**
@@ -162,6 +170,32 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
     { name: 'title', label: 'The last sentence', required: true, hint: 'Above the button the headline already carries. A page has one of these.' },
     { name: 'body', label: 'Under it', required: false, long: true },
   ],
+  ANNOUNCE: [
+    { name: 'text', label: 'The news', required: true, hint: 'One line, above the whole page.' },
+    { name: 'link_label', label: 'What the link says', required: false },
+    { name: 'link_url', label: 'Where it goes', required: false, code: 'url', hint: 'An https address, or #prices to stay on the page.' },
+    { name: 'until', label: 'News until', required: false, code: 'date', hint: 'Past this day it is taken off the page. Empty: until you remove it.' },
+  ],
+  VIDEO: [
+    { name: 'video_url', label: 'The video', required: true, code: 'url', hint: 'A YouTube or Vimeo address, as copied from the browser.' },
+    { name: 'caption', label: 'What it shows', required: true },
+    PICTURE_DESCRIPTION,
+  ],
+  VERSUS: [
+    { name: 'criterion', label: 'What is compared', required: true },
+    { name: 'note', label: 'A line under it', required: false },
+    { name: 'ours', label: 'This product', required: false, choices: ['yes', 'partly', 'no'], initial: 'yes' },
+    { name: 'first', label: 'First other way', required: false, choices: ['yes', 'partly', 'no'] },
+    { name: 'second', label: 'Second other way', required: false, choices: ['yes', 'partly', 'no'] },
+    { name: 'third', label: 'Third other way', required: false, choices: ['yes', 'partly', 'no'] },
+  ],
+  HOTSPOT: [
+    { name: 'title', label: 'What is here', required: true },
+    { name: 'body', label: 'What it does', required: false, long: true },
+    { name: 'x', label: 'Across', required: true, code: 'number', initial: '50', hint: 'From 0 (left edge) to 100 (right edge). Or click the picture.' },
+    { name: 'y', label: 'Down', required: true, code: 'number', initial: '50', hint: 'From 0 (top) to 100 (bottom). Or click the picture.' },
+    PICTURE_DESCRIPTION,
+  ],
 };
 
 /** What the console offers to add, in the order the page reads. */
@@ -190,6 +224,22 @@ export function BandFieldEditor({
 }) {
   // A code, not a sentence: one control, no language button, and the
   // options are the ones the page can draw.
+  if (field.code !== undefined) {
+    return (
+      <Field id={id} label={t(field.label)} hint={field.hint === undefined ? undefined : t(field.hint)}>
+        <input
+          id={id}
+          type={field.code === 'number' ? 'number' : field.code}
+          min={field.code === 'number' ? 0 : undefined}
+          max={field.code === 'number' ? 100 : undefined}
+          className={inputClass()}
+          value={value.en}
+          onChange={(event) => onChange({ ...value, en: event.target.value })}
+        />
+      </Field>
+    );
+  }
+
   if (field.choices !== undefined) {
     return (
       <Field id={id} label={t(field.label)} hint={field.hint === undefined ? undefined : t(field.hint)}>

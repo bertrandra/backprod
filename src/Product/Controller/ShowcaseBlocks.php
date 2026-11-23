@@ -78,6 +78,10 @@ final class ShowcaseBlocks
         // picture, never both.
         ShowcaseBlock::TOUR => ['required' => ['title'], 'optional' => ['body', 'alt']],
         ShowcaseBlock::COMPARE => ['required' => ['label'], 'optional' => ['caption', 'alt']],
+        ShowcaseBlock::ANNOUNCE => ['required' => ['text'], 'optional' => ['link_label']],
+        ShowcaseBlock::VIDEO => ['required' => ['caption'], 'optional' => ['alt']],
+        ShowcaseBlock::VERSUS => ['required' => ['criterion'], 'optional' => ['note']],
+        ShowcaseBlock::HOTSPOT => ['required' => ['title'], 'optional' => ['body', 'alt']],
     ];
 
     /**
@@ -112,6 +116,38 @@ final class ShowcaseBlocks
     private const ADDRESSES = [
         ShowcaseBlock::DEMO => ['embed_url'],
         ShowcaseBlock::COMPARE => ['embed_url'],
+    ];
+
+    /**
+     * The other codes a band carries (2026-11-23), each English only and
+     * each checked for what it is rather than against a list of words:
+     *
+     * ```text
+     * LINKS      an https address, or a #place on the page itself
+     * DATES      a day, YYYY-MM-DD
+     * VIDEOS     an https address on one of ShowcaseBlock::VIDEO_HOSTS
+     * POSITIONS  a share of the picture, 0 to 100
+     * VERDICTS   one of ShowcaseBlock::VERDICTS
+     * ```
+     */
+    private const LINKS = [
+        ShowcaseBlock::ANNOUNCE => ['link_url'],
+    ];
+
+    private const DATES = [
+        ShowcaseBlock::ANNOUNCE => ['until'],
+    ];
+
+    private const VIDEOS = [
+        ShowcaseBlock::VIDEO => ['video_url'],
+    ];
+
+    private const POSITIONS = [
+        ShowcaseBlock::HOTSPOT => ['x', 'y'],
+    ];
+
+    private const VERDICTS = [
+        ShowcaseBlock::VERSUS => ['ours', 'first', 'second', 'third'],
     ];
 
     /**
@@ -262,6 +298,16 @@ final class ShowcaseBlocks
             }
         }
 
+        // A film is its address: without one there is nothing to play.
+        if ($kind === ShowcaseBlock::VIDEO && !isset($content['video_url'])) {
+            throw self::invalid($index, 'content.video_url', 'a YouTube or Vimeo address');
+        }
+
+        // A point is somewhere: both shares, or the point is drawn nowhere.
+        if ($kind === ShowcaseBlock::HOTSPOT && (!isset($content['x']) || !isset($content['y']))) {
+            throw self::invalid($index, 'content.' . (isset($content['x']) ? 'y' : 'x'), 'a share of the picture, from 0 to 100');
+        }
+
         return new ShowcaseBlock(
             // Ignored on the way in: the story is replaced wholly, so a
             // block's id is the database's to mint and never the client's
@@ -287,7 +333,16 @@ final class ShowcaseBlocks
         $shape = self::FIELDS[$kind];
         $codes = $english ? array_keys(self::CODES[$kind] ?? []) : [];
         $addresses = $english ? self::ADDRESSES[$kind] ?? [] : [];
-        $known = [...$shape['required'], ...$shape['optional'], ...$codes, ...$addresses];
+        $others = $english
+            ? [
+                ...self::LINKS[$kind] ?? [],
+                ...self::DATES[$kind] ?? [],
+                ...self::VIDEOS[$kind] ?? [],
+                ...self::POSITIONS[$kind] ?? [],
+                ...self::VERDICTS[$kind] ?? [],
+            ]
+            : [];
+        $known = [...$shape['required'], ...$shape['optional'], ...$codes, ...$addresses, ...$others];
         $content = [];
 
         foreach ($known as $field) {
@@ -313,6 +368,10 @@ final class ShowcaseBlocks
 
             if (in_array($field, self::ADDRESSES[$kind] ?? [], true)) {
                 self::assertAnAddress(trim($value), $field, $index);
+            }
+
+            if ($english) {
+                self::assertTheCode($kind, $field, trim($value), $index);
             }
 
             $content[$field] = trim($value);
@@ -359,6 +418,54 @@ final class ShowcaseBlocks
      * valid in a URL, so a parser would refuse the very thing an operator is
      * meant to write. What is stored is what they wrote.
      */
+    /**
+     * The checks a code gets for what it is (2026-11-23). Refused here,
+     * with the field named, rather than stored and drawn wrongly.
+     */
+    private static function assertTheCode(string $kind, string $field, string $value, int $index): void
+    {
+        if (in_array($field, self::LINKS[$kind] ?? [], true)) {
+            if (preg_match('/^#[a-z][a-z0-9-]{0,40}$/', $value) !== 1) {
+                self::assertAnAddress($value, $field, $index);
+            }
+
+            return;
+        }
+
+        if (in_array($field, self::DATES[$kind] ?? [], true)) {
+            $day = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+            if ($day === false || $day->format('Y-m-d') !== $value) {
+                throw self::invalid($index, 'content.' . $field, 'a day, written YYYY-MM-DD');
+            }
+
+            return;
+        }
+
+        if (in_array($field, self::VIDEOS[$kind] ?? [], true)) {
+            self::assertAnAddress($value, $field, $index);
+            $host = strtolower((string) parse_url($value, PHP_URL_HOST));
+
+            if (!in_array($host, ShowcaseBlock::VIDEO_HOSTS, true)) {
+                throw self::invalid($index, 'content.' . $field, 'a YouTube or Vimeo address');
+            }
+
+            return;
+        }
+
+        if (in_array($field, self::POSITIONS[$kind] ?? [], true)) {
+            if (preg_match('/^(100|[1-9]?[0-9])(\.[0-9])?$/', $value) !== 1 || (float) $value > 100) {
+                throw self::invalid($index, 'content.' . $field, 'a share of the picture, from 0 to 100');
+            }
+
+            return;
+        }
+
+        if (in_array($field, self::VERDICTS[$kind] ?? [], true) && !in_array($value, ShowcaseBlock::VERDICTS, true)) {
+            throw self::invalid($index, 'content.' . $field, 'one of ' . implode(', ', ShowcaseBlock::VERDICTS));
+        }
+    }
+
     private static function assertAnAddress(string $value, string $field, int $index): void
     {
         if (mb_strlen($value) > self::LONGEST_ADDRESS) {

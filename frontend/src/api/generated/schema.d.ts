@@ -4584,6 +4584,44 @@ export interface components {
             question?: string;
             /** @description QUESTION: the answer, in two lines. */
             answer?: string;
+            /** @description ANNOUNCE: the news, in one line. */
+            text?: string;
+            /** @description ANNOUNCE: what the link says. */
+            link_label?: string;
+            /** @description ANNOUNCE: where it goes — an https address, or `#place` on the page. A code: English only. */
+            link_url?: string;
+            /** @description ANNOUNCE: the last day it is news, `YYYY-MM-DD`. A code: English only. Past it, the public read leaves the row out. */
+            until?: string;
+            /** @description VIDEO: a YouTube or Vimeo address, required. A code: English only. The page plays it in the player's own frame, on a click. */
+            video_url?: string;
+            /** @description VERSUS: what is compared, on one line of the table. */
+            criterion?: string;
+            /**
+             * @description VERSUS: what this product does about it — `yes`, `partly` or `no`. A code.
+             * @enum {string}
+             */
+            ours?: "yes" | "partly" | "no";
+            /**
+             * @description VERSUS: what the first other way does — `yes`, `partly` or `no`. A code.
+             * @enum {string}
+             */
+            first?: "yes" | "partly" | "no";
+            /**
+             * @description VERSUS: the second other way. A code.
+             * @enum {string}
+             */
+            second?: "yes" | "partly" | "no";
+            /**
+             * @description VERSUS: the third other way. A code.
+             * @enum {string}
+             */
+            third?: "yes" | "partly" | "no";
+            /** @description VERSUS: a line under the criterion. */
+            note?: string;
+            /** @description HOTSPOT: how far across the picture the point is, 0 to 100. A code, required. */
+            x?: string;
+            /** @description HOTSPOT: how far down the picture the point is, 0 to 100. A code, required. */
+            y?: string;
         };
         /** @description A band as the console writes it. The English is `content` and is the key and the fallback; `translations` holds the four other languages, field by field — a French headline with no French subline reads French above and English below, which is the honest rendering of a page somebody is still working through. */
         ShowcaseBlockInput: {
@@ -4591,7 +4629,7 @@ export interface components {
              * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE and one CTA per page, and at most two COMPARE.
              * @enum {string}
              */
-            block: "HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "TOUR" | "USE_CASE" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
+            block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
             /**
              * @description Within its kind. In tens, so one can be slipped between two others without renumbering anybody.
              * @default 10
@@ -4616,7 +4654,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            block: "HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "TOUR" | "USE_CASE" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
+            block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
             position: number;
             content: components["schemas"]["ShowcaseBlockContent"];
             /**
@@ -4661,15 +4699,17 @@ export interface components {
             title?: string;
             lede?: string;
             /**
-             * @description How the band is laid out (2026-11-20), where it has more than one way. A **code, not a sentence**: English only and refused in a translation, like a problem's icon. Which values a band takes depends on the band — HEADLINE `split`, `centered`, `stacked`; STEPS `columns`, `timeline`; FEATURE `grid`, `list`; QUOTE `grid`, `single`; PROOF `alternate`, `grid`, `carousel`; COMPARE `overlay`, `beside` — and the first of each is what an absent value means, so no page moved the day this was added. One sent for a band that is drawn one way is refused rather than stored and ignored.
+             * @description How the band is laid out (2026-11-20), where it has more than one way. A **code, not a sentence**: English only and refused in a translation, like a problem's icon. Which values a band takes depends on the band — HEADLINE `split`, `centered`, `stacked`; STEPS `columns`, `timeline`; FEATURE `grid`, `list`; QUOTE `grid`, `single`; PROOF `alternate`, `grid`, `carousel`, `gallery`; COMPARE `overlay`, `beside`; STATS `plain`, `counter`; TRUST `row`, `marquee`; PRICING `cards`, `table` — and the first of each is what an absent value means, so no page moved the day this was added. One sent for a band that is drawn one way is refused rather than stored and ignored.
              * @enum {string}
              */
-            layout?: "split" | "centered" | "stacked" | "columns" | "timeline" | "grid" | "list" | "single" | "alternate" | "carousel" | "overlay" | "beside";
+            layout?: "split" | "centered" | "stacked" | "columns" | "timeline" | "grid" | "list" | "single" | "alternate" | "carousel" | "gallery" | "overlay" | "beside" | "plain" | "counter" | "row" | "marquee" | "cards" | "table";
             /**
              * @description Whether the page draws its menu (2026-11-22) — the bar naming its bands, pinned under the headline. A code like `layout`: English only, refused in a translation, and carried by **`HEADLINE` alone**, because the bar is the headline's and a page has one. Absent is `bar`, so no page changed the day this was added; sent for any other section it is refused rather than stored and ignored.
              * @enum {string}
              */
             menu?: "bar" | "hidden";
+            /** @description VERSUS only (2026-11-23): the names of the other columns of the comparison table, separated by `;` — "An architect; A spreadsheet; Nothing". A sentence, so translated like a title. The product's own column is its name. */
+            columns?: string;
         };
         /** @description Each band's heading in one language, keyed by section — for a reader. Resolved field by field, so a title translated and a lede not reads translated above and English below. */
         ShowcaseBandHeadings: {
@@ -4694,7 +4734,7 @@ export interface components {
          *
          *     `PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.
          */
-        ShowcaseSectionOrder: ("HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "TOUR" | "USE_CASE" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "PRICING" | "QUESTION" | "CTA")[];
+        ShowcaseSectionOrder: ("HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "PRICING" | "QUESTION" | "CTA")[];
         /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
         Showcase: {
             product: {
@@ -4709,7 +4749,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                block: "HEADLINE" | "TRUST" | "PROBLEM" | "STATS" | "STEPS" | "FEATURE" | "TOUR" | "USE_CASE" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
+                block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
                 position: number;
                 content: components["schemas"]["ShowcaseBlockContent"];
                 /** @description Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them. */

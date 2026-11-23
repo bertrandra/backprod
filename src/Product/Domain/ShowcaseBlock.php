@@ -56,6 +56,18 @@ final class ShowcaseBlock
     public const TOUR = 'TOUR';
     public const COMPARE = 'COMPARE';
 
+    /** A line above the page: news, with a link and an end date (2026-11-23). */
+    public const ANNOUNCE = 'ANNOUNCE';
+
+    /** A film of the product, played on a click (2026-11-23). */
+    public const VIDEO = 'VIDEO';
+
+    /** The product against the other ways of doing it, criterion by criterion (2026-11-23). */
+    public const VERSUS = 'VERSUS';
+
+    /** One picture, and points on it that explain what is where (2026-11-23). */
+    public const HOTSPOT = 'HOTSPOT';
+
     /**
      * Every kind an operator writes rows for.
      *
@@ -68,13 +80,17 @@ final class ShowcaseBlock
      */
     public const KINDS = [
         self::HEADLINE,
+        self::ANNOUNCE,
         self::TRUST,
         self::PROBLEM,
         self::STATS,
+        self::VIDEO,
         self::STEPS,
         self::FEATURE,
+        self::HOTSPOT,
         self::TOUR,
         self::USE_CASE,
+        self::VERSUS,
         self::QUOTE,
         self::PROOF,
         self::COMPARE,
@@ -94,7 +110,7 @@ final class ShowcaseBlock
      *
      * @var array<string, int>
      */
-    public const AT_MOST = [self::COMPARE => 2];
+    public const AT_MOST = [self::COMPARE => 2, self::HOTSPOT => 12];
 
     /**
      * The icons a `PROBLEM` row may carry.
@@ -143,7 +159,42 @@ final class ShowcaseBlock
      *
      * @var list<string>
      */
-    public const SINGLETONS = [self::HEADLINE, self::CTA];
+    public const SINGLETONS = [self::HEADLINE, self::CTA, self::ANNOUNCE, self::VIDEO];
+
+    /**
+     * What one way of doing it does about one criterion, in a comparison
+     * table: a code the page draws as a mark, never a sentence.
+     */
+    public const VERDICTS = ['yes', 'partly', 'no'];
+
+    /**
+     * Where a film may come from (2026-11-23).
+     *
+     * Two players and nothing else, because the page frames what is written
+     * here and the Content-Security-Policy has to name every origin it may
+     * frame: a list the policy can match, rather than any address somebody
+     * pastes. The page plays YouTube from its no-cookie origin.
+     */
+    public const VIDEO_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'vimeo.com', 'www.vimeo.com', 'player.vimeo.com'];
+
+    /**
+     * Whether this row is on the page on a given day (`Y-m-d`).
+     *
+     * An announcement says until when it is news; past that day it is not
+     * read out to anybody. Decided on read, by the server, so a page left
+     * published does not go on announcing last month — and every other row
+     * is always shown.
+     */
+    public function isShownOn(string $day): bool
+    {
+        if ($this->block !== self::ANNOUNCE) {
+            return true;
+        }
+
+        $until = $this->content['until'] ?? null;
+
+        return !is_string($until) || $until === '' || $until >= $day;
+    }
 
     /**
      * @param array<string, mixed>                $content      the English

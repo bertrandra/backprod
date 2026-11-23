@@ -5,6 +5,7 @@ import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import type { BandHeading, ProofRow, ShowcaseRow } from './content';
 import { BAND_META, layoutOf } from './meta';
 import { ProofCarousel } from './ProofCarousel';
+import { ProofGallery } from './ProofGallery';
 
 /**
  * The product itself, cropped to the thing being discussed.
@@ -54,6 +55,21 @@ export function ProofBand({
         data-testid="showcase-proof"
       >
         <ProofCarousel rows={rows} label={title} />
+      </ShowcaseBand>
+    );
+  }
+
+  if (layout === 'gallery') {
+    return (
+      <ShowcaseBand
+        id={BAND_META.PROOF.anchor}
+        surface={BAND_META.PROOF.surface}
+        eyebrow={heading?.eyebrow ?? undefined}
+        title={heading?.title ?? t("See it")}
+        lede={heading?.lede ?? undefined}
+        data-testid="showcase-proof"
+      >
+        <ProofGallery rows={rows} />
       </ShowcaseBand>
     );
   }

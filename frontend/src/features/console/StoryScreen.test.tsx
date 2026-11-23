@@ -50,13 +50,17 @@ describe('the editor', () => {
 
     expect(offered).toEqual([
       'add-HEADLINE',
+      'add-ANNOUNCE',
       'add-TRUST',
       'add-PROBLEM',
       'add-STATS',
+      'add-VIDEO',
       'add-STEPS',
       'add-FEATURE',
+      'add-HOTSPOT',
       'add-TOUR',
       'add-USE_CASE',
+      'add-VERSUS',
       'add-QUOTE',
       'add-PROOF',
       'add-COMPARE',
@@ -130,7 +134,7 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'TRUST', 'PROBLEM', 'STATS', 'STEPS', 'FEATURE', 'TOUR', 'USE_CASE', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
+      sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
       // Nothing retitled, so nothing sent: a band left out of the map reads
       // the words its component was written with.
       bands: {},
@@ -722,8 +726,9 @@ describe('choosing how a band is laid out', () => {
     // The usual layout is not an option: it is what None means, so nothing
     // is stored for a band nobody touched.
     expect([...steps.options].map((option) => option.value)).toEqual(['', 'timeline']);
-    expect(screen.queryByTestId('choice-heading-PRICING-layout')).toBeNull();
-    expect(screen.queryByTestId('choice-heading-STATS-layout')).toBeNull();
+    // A band drawn one way has no layout to choose.
+    expect(screen.queryByTestId('choice-heading-QUESTION-layout')).toBeNull();
+    expect(screen.queryByTestId('choice-heading-USE_CASE-layout')).toBeNull();
   });
 
   it('sends the layout with the band’s heading, in English only', async () => {

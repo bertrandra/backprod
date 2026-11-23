@@ -20,7 +20,7 @@ import type { Translated } from '@/ui/TranslatedField';
 import { cn } from '@/utils/cn';
 import { LOCALE_NAMES, LOCALES, t, type LocaleCode } from '@/i18n';
 
-import { HEADING_FIELDS } from './BandHeading';
+import { headingSentencesOf } from './BandHeading';
 import { BandPicture } from './BandPicture';
 import { PanelField } from './PanelField';
 import { DEVICE_LABELS, DEVICES, StoryCanvas, type Device } from './StoryCanvas';
@@ -247,7 +247,7 @@ export function StoryEditor({
     const titled = SECTIONS_WITH_A_HEADING.includes(band);
 
     if (titled) {
-      for (const field of HEADING_FIELDS) {
+      for (const field of headingSentencesOf(band)) {
         if (said(state.headings[band]?.[field.name]) === sought) {
           return { heading: field.name };
         }
@@ -600,6 +600,13 @@ const LAYOUT_NAMES: Record<string, string> = {
   single: 'One at a time',
   alternate: 'Alternating sides',
   carousel: 'As a carousel',
+  gallery: 'As a gallery',
+  plain: 'As they are',
+  counter: 'Counting up',
+  row: 'In a row',
+  marquee: 'Passing by',
+  cards: 'Cards',
+  table: 'Cards and a table',
   overlay: 'One over the other',
   beside: 'Next to each other',
 };
@@ -667,7 +674,9 @@ function BandPanel({
     field === 'alt' ||
     field === 'ratio' ||
     (field === EMBED && demonstrations.length > 0) ||
-    (sideBySide && field === 'caption');
+    (sideBySide && field === 'caption') ||
+    // Placed by clicking the picture; the numbers stay one click away.
+    (band === 'HOTSPOT' && (field === 'x' || field === 'y'));
 
   const setHeading = (field: string, next: Translated, about = '') =>
     change({ ...state, headings: { ...state.headings, [band]: { ...heading, [field]: next } } }, about);
@@ -711,7 +720,16 @@ function BandPanel({
         />
       )}
 
-      {carriesAPicture(block.block) && (
+      {band === 'HOTSPOT' && (
+        <HotspotPlacer
+          picture={rows[0]?.block.image ?? null}
+          points={rows.map(({ block: point }) => ({ key: point.key, x: point.fields.x?.en ?? '', y: point.fields.y?.en ?? '' }))}
+          current={block.key}
+          onPlace={(x, y) => setRow(index, { ...block, fields: { ...block.fields, x: { en: x }, y: { en: y } } })}
+        />
+      )}
+
+      {carriesAPicture(block.block) && (band !== 'HOTSPOT' || index === rows[0]?.index) && (
         <BandPicture
           productId={productId}
           image={block.image}
@@ -739,10 +757,10 @@ function BandPanel({
     <div data-testid={`panel-${band}`}>
       <div className="flex items-center gap-0.5 border-b border-line px-4 py-2.5">
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{t(BAND_META[band].nav)}</h2>
-        <button type="button" className={toolClass(false)} data-testid="move-band-up" disabled={before === undefined} aria-label={t("Move {section} earlier", { section: t(BAND_META[band].nav) })} onClick={() => before !== undefined && onMove(band, before)}>
+        <button type="button" className={toolClass(false)} data-testid="move-band-up" disabled={before === undefined || band === 'ANNOUNCE'} aria-label={t("Move {section} earlier", { section: t(BAND_META[band].nav) })} onClick={() => before !== undefined && onMove(band, before)}>
           <Glyph d="M12 19V5M6 11l6-6 6 6" />
         </button>
-        <button type="button" className={toolClass(false)} data-testid="move-band-down" disabled={after === undefined} aria-label={t("Move {section} later", { section: t(BAND_META[band].nav) })} onClick={() => after !== undefined && onMove(band, after)}>
+        <button type="button" className={toolClass(false)} data-testid="move-band-down" disabled={after === undefined || band === 'ANNOUNCE'} aria-label={t("Move {section} later", { section: t(BAND_META[band].nav) })} onClick={() => after !== undefined && onMove(band, after)}>
           <Glyph d="M12 5v14M6 13l6 6 6-6" />
         </button>
         {authored !== null && rows.length > 0 && (
@@ -920,7 +938,7 @@ function BandPanel({
             {titled && (
               <div className="space-y-4" data-heading={band}>
                 <h3 className="text-sm font-medium">{t("Title above the band")}</h3>
-                {HEADING_FIELDS.map((name) => (
+                {headingSentencesOf(band).map((name) => (
                   <PanelField
                     key={name.name}
                     id={`heading-${band}-${name.name}`}
@@ -933,6 +951,68 @@ function BandPanel({
               </div>
             )}
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Where a point sits on its picture, set by clicking it (2026-11-23).
+ *
+ * Two numbers nobody can guess — "how far across, out of a hundred" — are
+ * what a point is stored as, and a click is how anybody would say it. The
+ * other points are drawn too, faint, so a new one is not put on top of an
+ * old one. Mapping a click to a share of the picture is presentation; the
+ * numbers stay editable under *More options*.
+ */
+function HotspotPlacer({
+  picture,
+  points,
+  current,
+  onPlace,
+}: {
+  picture: string | null;
+  points: readonly { key: string; x: string; y: string }[];
+  current: string;
+  onPlace: (x: string, y: string) => void;
+}) {
+  if (picture === null) {
+    return <p className="rounded-control bg-well px-3 py-2 text-sm text-muted">{t("Add the picture on the first point; the others are placed on it.")}</p>;
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">{t("Click the picture where this point goes")}</p>
+      <div
+        role="button"
+        tabIndex={-1}
+        data-testid={`place-${current}`}
+        className="relative cursor-crosshair overflow-hidden rounded-control border border-line"
+        onClick={(event) => {
+          const box = event.currentTarget.getBoundingClientRect();
+          const across = box.width === 0 ? 50 : ((event.clientX - box.left) / box.width) * 100;
+          const down = box.height === 0 ? 50 : ((event.clientY - box.top) / box.height) * 100;
+          const clamp = (value: number) => String(Math.round(Math.min(100, Math.max(0, value)) * 10) / 10);
+
+          onPlace(clamp(across), clamp(down));
+        }}
+      >
+        <img src={picture} alt="" className="block w-full select-none" draggable={false} />
+        {points.map((point, index) =>
+          point.x === '' || point.y === '' ? null : (
+            <span
+              key={point.key}
+              aria-hidden="true"
+              style={{ left: `${point.x}%`, top: `${point.y}%` }}
+              className={cn(
+                'pointer-events-none absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-surface text-xs font-semibold',
+                point.key === current ? 'bg-accent text-on-accent' : 'bg-surface/80 text-muted',
+              )}
+            >
+              {index + 1}
+            </span>
+          ),
         )}
       </div>
     </div>
@@ -1122,6 +1202,10 @@ const BAND_ABOUT: Record<AuthoredBandKind, string> = {
   DEMO: 'The product itself, embedded in the page.',
   QUESTION: 'What is asked before every purchase, answered.',
   CTA: 'A last sentence and the button, to close the page.',
+  ANNOUNCE: 'A line of news above the page, with a link and an end date.',
+  VIDEO: 'A film of the product, played on a click.',
+  VERSUS: 'This product against the other ways, criterion by criterion.',
+  HOTSPOT: 'One picture, with points that explain what is where.',
 };
 
 /**
@@ -1148,6 +1232,10 @@ const BAND_SHAPE: Record<AuthoredBandKind, readonly Box[]> = {
   DEMO: [[10, 8, 120, 36, 0], [44, 48, 52, 4, 1]],
   QUESTION: [[10, 10, 120, 8, 0], [10, 24, 120, 8, 0], [10, 38, 120, 8, 0]],
   CTA: [[30, 14, 80, 7, 1], [44, 26, 52, 4, 0], [56, 36, 28, 10, 1]],
+  ANNOUNCE: [[0, 4, 140, 10, 1], [10, 22, 60, 6, 0], [10, 32, 90, 4, 0], [10, 40, 80, 4, 0]],
+  VIDEO: [[20, 6, 100, 46, 0], [62, 21, 16, 16, 1]],
+  VERSUS: [[10, 8, 40, 5, 0], [58, 8, 22, 5, 1], [88, 8, 22, 5, 0], [10, 20, 40, 5, 0], [64, 19, 8, 8, 1], [94, 19, 8, 8, 0], [10, 34, 40, 5, 0], [64, 33, 8, 8, 1], [94, 33, 8, 8, 0]],
+  HOTSPOT: [[10, 6, 80, 46, 0], [30, 18, 7, 7, 1], [62, 32, 7, 7, 1], [98, 14, 32, 5, 1], [98, 24, 32, 4, 0]],
 };
 
 function Shape({ band }: { band: AuthoredBandKind }) {

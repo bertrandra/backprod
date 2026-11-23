@@ -63,6 +63,31 @@ export function PanelField({
     );
   }
 
+  if (field.code !== undefined) {
+    return (
+      <div className="space-y-1.5">
+        <label htmlFor={id} className="block text-sm font-medium">
+          {label}
+        </label>
+        <input
+          id={id}
+          type={field.code === 'number' ? 'number' : field.code}
+          min={field.code === 'number' ? 0 : undefined}
+          max={field.code === 'number' ? 100 : undefined}
+          aria-describedby={field.hint === undefined ? undefined : hint}
+          className={cn(inputClass(), 'peer')}
+          value={value.en}
+          onChange={(event) => onChange({ ...value, en: event.target.value })}
+        />
+        {field.hint !== undefined && (
+          <p id={hint} className="hidden text-xs text-muted peer-focus:block">
+            {t(field.hint)}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   const english = locale === 'en';
   const shown = english ? value.en : (value[locale] ?? '');
   const missing = english && field.required && value.en.trim() === '';

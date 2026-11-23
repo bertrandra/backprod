@@ -9,6 +9,7 @@ import {
   type ShowcaseContent,
   type ShowcaseImage,
   type ShowcaseRow,
+  type Verdict,
 } from './content';
 
 /**
@@ -160,6 +161,37 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
         ratio: ratio !== null && ratio in DEMO_RATIOS ? (ratio as DemoRatio) : null,
       };
     }),
+    announce: pick('ANNOUNCE', (c) => {
+      const announced = text(c.text);
+
+      return announced === null ? null : { text: announced, linkLabel: text(c.link_label), linkUrl: text(c.link_url) };
+    }),
+    video: pick('VIDEO', (c) => {
+      const caption = text(c.caption);
+      const videoUrl = text(c.video_url);
+
+      return caption === null || videoUrl === null ? null : { caption, videoUrl };
+    }),
+    versus: pick('VERSUS', (c) => {
+      const criterion = text(c.criterion);
+
+      return criterion === null
+        ? null
+        : {
+            criterion,
+            note: text(c.note),
+            ours: verdict(c.ours),
+            others: [verdict(c.first), verdict(c.second), verdict(c.third)],
+          };
+    }),
+    hotspots: pick('HOTSPOT', (c) => {
+      const title = text(c.title);
+      const x = share(c.x);
+      const y = share(c.y);
+
+      // A point that is nowhere is not drawn, rather than drawn in a corner.
+      return title === null || x === null || y === null ? null : { title, body: text(c.body), x, y };
+    }),
     headings: headingsFrom(showcase.bands),
   };
 }
@@ -195,9 +227,10 @@ function headingsFrom(bands: unknown): Record<string, BandHeading> {
     // A layout alone is a heading that said something: a band may be laid
     // out differently and keep the words it was written with.
     const menu = text(said.menu);
+    const columns = text(said.columns);
 
-    if (eyebrow !== null || title !== null || lede !== null || layout !== null || menu !== null) {
-      headings[block] = { eyebrow, title, lede, layout, menu };
+    if (eyebrow !== null || title !== null || lede !== null || layout !== null || menu !== null || columns !== null) {
+      headings[block] = { eyebrow, title, lede, layout, menu, columns };
     }
   }
 
@@ -276,6 +309,17 @@ function pictureOf(block: { image?: string | null; content: Record<string, unkno
 }
 
 /** A field that says something, or nothing at all. Never an empty string. */
+function verdict(value: unknown): Verdict | null {
+  return value === 'yes' || value === 'partly' || value === 'no' ? value : null;
+}
+
+/** A share of a picture, 0 to 100, or null where it is not one. */
+function share(value: unknown): number | null {
+  const read = typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN;
+
+  return Number.isFinite(read) && read >= 0 && read <= 100 ? read : null;
+}
+
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }

@@ -88,7 +88,14 @@ final class ShowcasePresenter
                     // them.
                     'image' => self::pictureAt($showcase->code, $block->assetId),
                 ],
-                $showcase->blocks,
+                // An announcement past its last day is not news any more
+                // (2026-11-23), decided here rather than by each browser's
+                // clock — which would disagree with the server, and with
+                // each other, about what day it is.
+                array_values(array_filter(
+                    $showcase->blocks,
+                    static fn (ShowcaseBlock $block): bool => $block->isShownOn(gmdate('Y-m-d')),
+                )),
             ),
         ];
     }

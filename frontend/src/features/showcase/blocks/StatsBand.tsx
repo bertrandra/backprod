@@ -2,7 +2,8 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import type { BandHeading, ShowcaseRow, StatRow } from './content';
-import { BAND_META } from './meta';
+import { CountUp } from './CountUp';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * What it amounts to, in a few large figures.
@@ -29,6 +30,9 @@ export function StatsBand({
     return null;
   }
 
+  // Counted up as they arrive, where the band asks for it (2026-11-23).
+  const counting = layoutOf('STATS', heading?.layout) === 'counter';
+
   return (
     <ShowcaseBand
       id={BAND_META.STATS.anchor}
@@ -51,7 +55,7 @@ export function StatsBand({
               )}
             </dt>
             <dd className="display-type text-display-sm font-semibold text-ink md:text-display-md">
-              {row.content.value}
+              {counting ? <CountUp value={row.content.value} /> : row.content.value}
             </dd>
           </div>
         ))}

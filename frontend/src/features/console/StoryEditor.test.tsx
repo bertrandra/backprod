@@ -182,7 +182,7 @@ describe('the page editor', () => {
     const sent = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
 
     expect(sent.sections.indexOf('QUESTION')).toBeLessThan(sent.sections.indexOf('PRICING'));
-    expect(sent.sections).toHaveLength(15);
+    expect(sent.sections).toHaveLength(19);
   });
 
   it('adds a band from the library, after the one being looked at', async () => {

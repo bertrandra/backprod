@@ -165,7 +165,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
             $this->decode($fresh)['sections'] ?? null,
         );
 
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS'];
 
         $written = $this->request(
             'PUT',
@@ -201,7 +201,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
     {
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS'];
 
         $this->request(
             'PUT',
@@ -868,6 +868,80 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         // the same day.
         $beside = $put(['COMPARE' => ['content' => ['layout' => 'beside']]]);
         self::assertSame(200, $beside->getStatusCode(), (string) $beside->getBody());
+    }
+
+    /**
+     * The four bands of 2026-11-23 take their codes checked for what they
+     * are, and an announcement past its last day is not read out.
+     */
+    public function testTheNewBandsTakeOnlyWhatTheyCanDraw(): void
+    {
+        /** @param list<array<string, mixed>> $blocks */
+        $put = fn (array $blocks, array $bands = []): ResponseInterface => $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => [self::headline(), ...$blocks], 'bands' => (object) $bands]),
+        );
+
+        $written = $put(
+            [
+                ['block' => 'ANNOUNCE', 'position' => 10, 'content' => ['text' => 'Old news', 'until' => '2000-01-31']],
+                ['block' => 'VIDEO', 'position' => 10, 'content' => ['caption' => 'Two minutes', 'video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ']],
+                ['block' => 'VERSUS', 'position' => 10, 'content' => ['criterion' => 'Your plot in 3D', 'ours' => 'yes', 'first' => 'no']],
+                ['block' => 'HOTSPOT', 'position' => 10, 'content' => ['title' => 'The terrace', 'x' => '20', 'y' => '35.5']],
+            ],
+            ['VERSUS' => ['content' => ['columns' => 'An architect; A spreadsheet'], 'translations' => ['fr' => ['columns' => 'Un architecte; Un tableur']]]],
+        );
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $this->publish(true);
+        $public = $this->decode($this->request('GET', '/api/v1/public/products/plan/showcase', ['Accept-Language' => 'fr']))['showcase'] ?? null;
+        self::assertIsArray($public);
+        $blocks = $public['blocks'] ?? null;
+        self::assertIsArray($blocks);
+        $kinds = array_map(static fn (mixed $block): mixed => is_array($block) ? ($block['block'] ?? null) : null, $blocks);
+
+        // Past its last day, the news is not read out; the rest is.
+        self::assertNotContains('ANNOUNCE', $kinds);
+        self::assertContains('VIDEO', $kinds);
+        self::assertContains('HOTSPOT', $kinds);
+        self::assertSame('Un architecte; Un tableur', $this->sentenceAt($public, ['bands', 'VERSUS', 'columns']));
+
+        // News still news today is read out.
+        $put([['block' => 'ANNOUNCE', 'position' => 10, 'content' => ['text' => 'New', 'until' => '2999-12-31', 'link_url' => '#prices']]]);
+        $again = $this->decode($this->request('GET', '/api/v1/public/products/plan/showcase'))['showcase'] ?? null;
+        self::assertIsArray($again);
+        $news = array_values(array_filter(
+            is_array($again['blocks'] ?? null) ? $again['blocks'] : [],
+            static fn (mixed $block): bool => is_array($block) && ($block['block'] ?? null) === 'ANNOUNCE',
+        ));
+        self::assertCount(1, $news);
+        self::assertIsArray($news[0]);
+        self::assertSame('New', $this->sentenceAt($news[0], ['content', 'text']));
+
+        foreach ([
+            // A film from anywhere else, or none at all.
+            ['block' => 'VIDEO', 'position' => 10, 'content' => ['caption' => 'x', 'video_url' => 'https://elsewhere.test/film.mp4']],
+            ['block' => 'VIDEO', 'position' => 10, 'content' => ['caption' => 'x']],
+            // A day that is not one.
+            ['block' => 'ANNOUNCE', 'position' => 10, 'content' => ['text' => 'x', 'until' => '2026-02-30']],
+            // A link that is neither https nor a place on the page.
+            ['block' => 'ANNOUNCE', 'position' => 10, 'content' => ['text' => 'x', 'link_url' => 'javascript:alert(1)']],
+            // A verdict that is not one.
+            ['block' => 'VERSUS', 'position' => 10, 'content' => ['criterion' => 'x', 'ours' => 'maybe']],
+            // A point off the picture, or nowhere.
+            ['block' => 'HOTSPOT', 'position' => 10, 'content' => ['title' => 'x', 'x' => '120', 'y' => '10']],
+            ['block' => 'HOTSPOT', 'position' => 10, 'content' => ['title' => 'x', 'x' => '10']],
+            // A code in a translation.
+            ['block' => 'HOTSPOT', 'position' => 10, 'content' => ['title' => 'x', 'x' => '10', 'y' => '10'], 'translations' => ['fr' => ['x' => '20']]],
+        ] as $refused) {
+            self::assertSame(400, $put([$refused])->getStatusCode(), json_encode($refused) ?: '');
+        }
+
+        // Columns belong to the comparison alone.
+        self::assertSame(400, $put([], ['STEPS' => ['content' => ['columns' => 'A; B']]])->getStatusCode());
     }
 
     /**

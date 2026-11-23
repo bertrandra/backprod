@@ -74,7 +74,10 @@ export function Showcase({
     retired,
   };
 
-  const present = bandsInOrder(sections).filter((kind) => BAND_VIEWS[kind].speaks(props));
+  const spoken = bandsInOrder(sections).filter((kind) => BAND_VIEWS[kind].speaks(props));
+  // News above everything, wherever the order puts it (2026-11-23): an
+  // announcement under the fold is one nobody reads.
+  const present = spoken;
 
   // No bleed of its own: the bands run edge to edge of whatever contains
   // them, and what that edge is differs. Inside the shell it is the padded
@@ -85,9 +88,11 @@ export function Showcase({
     <div data-testid="showcase">
       {/* The page's own choice (2026-11-22): a short page, or one that reads
           as a single pitch, may not want a table of contents over it. */}
+      {present.includes('ANNOUNCE') && BAND_VIEWS.ANNOUNCE.view(props)}
+
       {!menuIsHidden(content.headings.HEADLINE?.menu) && <ShowcaseNav present={present} underBar={underBar} />}
 
-      {present.map((kind) => (
+      {present.filter((kind) => kind !== 'ANNOUNCE').map((kind) => (
         <Fragment key={kind}>{BAND_VIEWS[kind].view(props)}</Fragment>
       ))}
 

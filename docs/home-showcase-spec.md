@@ -953,3 +953,23 @@ its own to remove the band.
   list at all. Row actions show on the open row, or on hover.
 - **Removing the band is an icon beside moving it**, with undo behind it.
 - **Templates are folded** on the page panel: a template is chosen once.
+
+## 20. Eight more things a page can show (2026-11-23)
+
+Four bands and four layouts, asked for by the operator in one go. The ninth on
+the same list, a contact form, is the only one that stores what a stranger
+types, and is written separately.
+
+| | What it is | Where it is decided |
+|---|---|---|
+| `ANNOUNCE` | A line of news above the whole page, a link (`https` or `#place`), and a last day (`until`). Drawn above everything whatever the order says. | Past `until`, **the public read leaves the row out** — the server's day, not each browser's. |
+| `VIDEO` | A film, YouTube or Vimeo, behind a poster; the player is put in only on a click, YouTube from its no-cookie origin. | The server refuses any other host (`ShowcaseBlock::VIDEO_HOSTS`); the bundle always names the two players in `frame-src`. |
+| `VERSUS` | A table: criteria down, this product and up to three other ways across, a `yes` / `partly` / `no` mark where they meet. | The other columns are named once, on the band's heading (`columns`, `;` between names, translated like a title). |
+| `HOTSPOT` | One picture — the first point's — and numbered points on it; choosing one says what it is. | A point is `x` and `y`, shares of the picture 0–100, set in the editor by clicking the picture. |
+| `STATS` `counter` | The figures count up from zero when they come into view, written the operator's way (`1 200`, `2,5 %`). | Presentation only; still for a reader who asked for less motion. |
+| `TRUST` `marquee` | The logos pass by, stopping on hover. | The second copy is hidden from screen readers. |
+| `PROOF` `gallery` | A mosaic of screenshots, each opened large; arrows move through them, Escape closes. | — |
+| `PRICING` `table` | Under the cards, what each offer grants, feature by feature. | **Read from the catalogue**, like the prices: nothing is typed into it and nothing is added up. |
+
+A migration widens the three constraints that list band kinds, as each new band
+has.

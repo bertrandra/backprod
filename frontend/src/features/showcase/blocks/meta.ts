@@ -39,6 +39,8 @@ export interface BandMeta {
 
 export const BAND_META = {
   HEADLINE: { order: 10, anchor: 'what', surface: 'canvas', nav: 'What it does' },
+  // Drawn above everything whatever its place (2026-11-23): news is read first.
+  ANNOUNCE: { order: 11, anchor: 'news', surface: 'deep', nav: 'News', quiet: true },
   // Straight under the promise: a name the reader recognises is what makes
   // the sentence above it believable, and it is worth nothing further down.
   TRUST: { order: 12, anchor: 'trust', surface: 'surface', nav: 'Trusted by', quiet: true },
@@ -52,12 +54,15 @@ export const BAND_META = {
   // After the trouble and before the method: the size of the change, said
   // as a figure, is what makes somebody want to know how.
   STATS: { order: 17, anchor: 'numbers', surface: 'canvas', nav: 'In numbers' },
+  VIDEO: { order: 19, anchor: 'video', surface: 'surface', nav: 'Watch it' },
   STEPS: { order: 20, anchor: 'how', surface: 'surface', nav: 'How it works' },
   FEATURE: { order: 25, anchor: 'features', surface: 'well', nav: 'What it includes' },
+  HOTSPOT: { order: 26, anchor: 'explore', surface: 'canvas', nav: 'Look closer' },
   // What it includes, shown: each thing with its own screenshot, one at a
   // time. Beside the list it illustrates, and usable instead of it.
   TOUR: { order: 27, anchor: 'tour', surface: 'surface', nav: 'Take the tour' },
   USE_CASE: { order: 30, anchor: 'who', surface: 'canvas', nav: 'Who it is for' },
+  VERSUS: { order: 33, anchor: 'versus', surface: 'well', nav: 'Why this one' },
   QUOTE: { order: 35, anchor: 'said', surface: 'surface', nav: 'What they say' },
   PROOF: { order: 40, anchor: 'proof', surface: 'well', nav: 'See it' },
   // One plot twice. After the screenshots, because it is the proof made
@@ -124,13 +129,17 @@ export type BandKind = keyof typeof BAND_META;
  */
 export const AUTHORED_BANDS = [
   'HEADLINE',
+  'ANNOUNCE',
   'TRUST',
   'PROBLEM',
   'STATS',
+  'VIDEO',
   'STEPS',
   'FEATURE',
+  'HOTSPOT',
   'TOUR',
   'USE_CASE',
+  'VERSUS',
   'QUOTE',
   'PROOF',
   'COMPARE',
@@ -145,7 +154,7 @@ export const AUTHORED_BANDS = [
  * `ShowcaseBlock::AT_MOST` on the server, which refuses a third in words;
  * this is the courtesy that stops the console offering one.
  */
-export const AT_MOST_BANDS: Partial<Record<AuthoredBandKind, number>> = { COMPARE: 2 };
+export const AT_MOST_BANDS: Partial<Record<AuthoredBandKind, number>> = { COMPARE: 2, HOTSPOT: 12 };
 
 /**
  * The bands a page has one of.
@@ -154,7 +163,7 @@ export const AT_MOST_BANDS: Partial<Record<AuthoredBandKind, number>> = { COMPAR
  * holds it; this is the courtesy that stops the console offering a second
  * one to be refused.
  */
-export const SINGLE_BANDS: readonly AuthoredBandKind[] = ['HEADLINE', 'CTA'];
+export const SINGLE_BANDS: readonly AuthoredBandKind[] = ['HEADLINE', 'CTA', 'ANNOUNCE', 'VIDEO'];
 
 /**
  * How a band may be laid out, where it has more than one way (2026-11-20).
@@ -173,8 +182,11 @@ export const BAND_LAYOUTS = {
   STEPS: ['columns', 'timeline'],
   FEATURE: ['grid', 'list'],
   QUOTE: ['grid', 'single'],
-  PROOF: ['alternate', 'grid', 'carousel'],
+  PROOF: ['alternate', 'grid', 'carousel', 'gallery'],
   COMPARE: ['overlay', 'beside'],
+  STATS: ['plain', 'counter'],
+  TRUST: ['row', 'marquee'],
+  PRICING: ['cards', 'table'],
 } as const satisfies Partial<Record<BandKind, readonly string[]>>;
 
 /** The layouts one band has, the usual one first; empty where it has one way. */
@@ -239,6 +251,10 @@ export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = [
   'USE_CASE',
   'PROOF',
   'COMPARE',
+  // A poster, shown until the film is played; and the picture the points
+  // of a HOTSPOT sit on, carried by its first row.
+  'VIDEO',
+  'HOTSPOT',
 ];
 
 /**
@@ -260,6 +276,9 @@ export const SECTIONS_WITH_A_HEADING: readonly BandKind[] = [
   'QUOTE',
   'PROOF',
   'COMPARE',
+  'VIDEO',
+  'HOTSPOT',
+  'VERSUS',
   'PRICING',
   'QUESTION',
 ];
