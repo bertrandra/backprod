@@ -6,7 +6,8 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import type { BandHeading } from './content';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
+import { OfferMatrix } from './OfferMatrix';
 
 /**
  * What it costs — the one band with no rows of its own.
@@ -76,6 +77,9 @@ export function PricingBand({
           ))}
         </ul>
       )}
+
+      {/* Under the cards, where the band asks for it (2026-11-23). */}
+      {!loading && !retired && layoutOf('PRICING', heading?.layout) === 'table' && <OfferMatrix offers={offers} />}
     </ShowcaseBand>
   );
 }

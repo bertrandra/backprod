@@ -49,13 +49,17 @@ final class ShowcaseSections
      */
     public const DEFAULT_ORDER = [
         ShowcaseBlock::HEADLINE,
+        ShowcaseBlock::ANNOUNCE,
         ShowcaseBlock::TRUST,
         ShowcaseBlock::PROBLEM,
         ShowcaseBlock::STATS,
+        ShowcaseBlock::VIDEO,
         ShowcaseBlock::STEPS,
         ShowcaseBlock::FEATURE,
+        ShowcaseBlock::HOTSPOT,
         ShowcaseBlock::TOUR,
         ShowcaseBlock::USE_CASE,
+        ShowcaseBlock::VERSUS,
         ShowcaseBlock::QUOTE,
         ShowcaseBlock::PROOF,
         ShowcaseBlock::COMPARE,
@@ -90,8 +94,11 @@ final class ShowcaseSections
         ShowcaseBlock::STEPS => ['columns', 'timeline'],
         ShowcaseBlock::FEATURE => ['grid', 'list'],
         ShowcaseBlock::QUOTE => ['grid', 'single'],
-        ShowcaseBlock::PROOF => ['alternate', 'grid', 'carousel'],
+        ShowcaseBlock::PROOF => ['alternate', 'grid', 'carousel', 'gallery'],
         ShowcaseBlock::COMPARE => ['overlay', 'beside'],
+        ShowcaseBlock::STATS => ['plain', 'counter'],
+        ShowcaseBlock::TRUST => ['row', 'marquee'],
+        self::PRICING => ['cards', 'table'],
     ];
 
     /**

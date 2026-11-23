@@ -372,3 +372,23 @@
     }
   }
 }
+
+/* Logos passing by on a product's page (2026-11-23): see TrustBand. */
+@keyframes showcase-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.showcase-marquee-track {
+  animation: showcase-marquee 40s linear infinite;
+}
+
+.showcase-marquee:hover .showcase-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showcase-marquee-track {
+    animation: none;
+  }
+}

@@ -128,6 +128,40 @@ export interface QuestionRow {
 }
 
 /** A row as it arrives: its fields, and the picture it may carry. */
+/** A line of news above the page (2026-11-23). */
+export interface AnnounceRow {
+  readonly text: string;
+  readonly linkLabel: string | null;
+  /** An https address, or `#place` on the page. */
+  readonly linkUrl: string | null;
+}
+
+/** A film, played on a click (2026-11-23). */
+export interface VideoRow {
+  readonly caption: string;
+  readonly videoUrl: string;
+}
+
+export type Verdict = 'yes' | 'partly' | 'no';
+
+/** One line of a comparison table (2026-11-23). */
+export interface VersusRow {
+  readonly criterion: string;
+  readonly note: string | null;
+  readonly ours: Verdict | null;
+  /** The other ways, in the order the band's `columns` names them. */
+  readonly others: readonly (Verdict | null)[];
+}
+
+/** One point on a picture (2026-11-23). */
+export interface HotspotRow {
+  readonly title: string;
+  readonly body: string | null;
+  /** Shares of the picture, 0 to 100. */
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface ShowcaseRow<TContent> {
   readonly id: string;
   readonly content: TContent;
@@ -156,6 +190,10 @@ export interface ShowcaseContent {
   readonly cta: readonly ShowcaseRow<CtaRow>[];
   readonly tour: readonly ShowcaseRow<TourRow>[];
   readonly compare: readonly ShowcaseRow<CompareRow>[];
+  readonly announce: readonly ShowcaseRow<AnnounceRow>[];
+  readonly video: readonly ShowcaseRow<VideoRow>[];
+  readonly versus: readonly ShowcaseRow<VersusRow>[];
+  readonly hotspots: readonly ShowcaseRow<HotspotRow>[];
   /**
    * Each band's own heading, keyed by section (2026-09-28).
    *
@@ -183,6 +221,20 @@ export interface BandHeading {
    * the bar.
    */
   readonly menu?: string | null | undefined;
+  /**
+   * A comparison table's other columns, as written — `;` between names
+   * (2026-11-23). Read through `columnsOf`.
+   */
+  readonly columns?: string | null | undefined;
+}
+
+/** The names of a comparison's other columns: at most three, none empty. */
+export function columnsOf(heading: BandHeading | undefined): readonly string[] {
+  return (heading?.columns ?? '')
+    .split(';')
+    .map((name) => name.trim())
+    .filter((name) => name !== '')
+    .slice(0, 3);
 }
 
 export const NO_CONTENT: ShowcaseContent = {
@@ -200,5 +252,9 @@ export const NO_CONTENT: ShowcaseContent = {
   cta: [],
   tour: [],
   compare: [],
+  announce: [],
+  video: [],
+  versus: [],
+  hotspots: [],
   headings: {},
 };

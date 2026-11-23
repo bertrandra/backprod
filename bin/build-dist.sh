@@ -98,6 +98,13 @@ for origin in $EMBED_ORIGINS; do
     esac
 done
 
+# The two film players a VIDEO band may frame (2026-11-23), always. Not an
+# option like the ones above: the server refuses any other host for a film
+# (`ShowcaseBlock::VIDEO_HOSTS`), so this list and that one are the same
+# decision, and a bundle that left them out would draw a grey box where the
+# film is. YouTube from its no-cookie origin, which is the one the page uses.
+FRAME_SRC="$FRAME_SRC https://www.youtube-nocookie.com https://player.vimeo.com"
+
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT

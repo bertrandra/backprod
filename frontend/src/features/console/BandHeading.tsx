@@ -61,11 +61,27 @@ export const HEADING_FIELDS: readonly BandField[] = [
  * Its *None* is the band's usual layout, which is what an absent value
  * means everywhere this is read.
  */
+/**
+ * The other columns of a comparison table (2026-11-23): a sentence, so it
+ * is translated like a title, carried by that band's heading alone.
+ */
+export const COLUMNS_FIELD: BandField = {
+  name: 'columns',
+  label: 'The other columns',
+  required: false,
+  hint: 'Their names, separated by ; — for example: An architect; A spreadsheet; Nothing. Three at most.',
+};
+
+/** The sentences above a band, and the columns where the band has them. */
+export function headingSentencesOf(block: BandKind): readonly BandField[] {
+  return block === 'VERSUS' ? [...HEADING_FIELDS, COLUMNS_FIELD] : HEADING_FIELDS;
+}
+
 export function headingFieldsOf(block: BandKind): readonly BandField[] {
   const layouts = layoutsOf(block);
 
   return [
-    ...HEADING_FIELDS,
+    ...headingSentencesOf(block),
     ...(layouts.length === 0
       ? []
       : [

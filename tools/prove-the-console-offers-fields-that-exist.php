@@ -262,7 +262,7 @@ foreach ($twice as $what => [$frontend, $backend]) {
 }
 
 $drawn = layouts($meta, '/BAND_LAYOUTS = \{(.*?)\n\} as const/s', "/^\s{2}([A-Z_]+):\s*\[([^\]]*)\]/m");
-$stored = layouts($sections, '/public const LAYOUTS = \[(.*?)\n    \];/s', "/ShowcaseBlock::([A-Z_]+) => \[([^\]]*)\]/");
+$stored = layouts($sections, '/public const LAYOUTS = \[(.*?)\n    \];/s', "/(?:ShowcaseBlock|self)::([A-Z_]+) => \[([^\]]*)\]/");
 
 // Order matters here and nowhere above: the first layout of each band is the
 // one an absent value means, on both sides.

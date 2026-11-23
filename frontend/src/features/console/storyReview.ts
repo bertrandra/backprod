@@ -34,9 +34,13 @@ export interface StoryState {
  * about a draft.
  */
 export function bandsOnThePage(state: StoryState): readonly BandKind[] {
-  return state.order.filter(
+  const shown = state.order.filter(
     (kind) => kind === 'HEADLINE' || kind === 'PRICING' || state.draft.some((block) => block.block === kind),
   );
+
+  // News is drawn above everything wherever the order puts it, so it is
+  // listed first too (2026-11-23).
+  return [...shown.filter((kind) => kind === 'ANNOUNCE'), ...shown.filter((kind) => kind !== 'ANNOUNCE')];
 }
 
 export type ChangeKind = 'added' | 'removed' | 'rewritten' | 'layout';
@@ -153,7 +157,7 @@ function sentences(state: StoryState): Translated[] {
   for (const block of state.draft) {
     for (const field of BAND_FIELDS[block.block]) {
       // A code has no translation: it lives on the English.
-      if (field.choices === undefined) {
+      if (field.choices === undefined && field.code === undefined) {
         all.push(block.fields[field.name] ?? EMPTY);
       }
     }

@@ -2,7 +2,7 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import type { BandHeading, ShowcaseRow, TrustRow } from './content';
-import { BAND_META } from './meta';
+import { BAND_META, layoutOf } from './meta';
 
 /**
  * Who already trusts it: a strip of names, or of logos where one was given.
@@ -44,6 +44,25 @@ export function TrustBand({
         {heading?.title ?? heading?.eyebrow ?? t("They already use it")}
       </p>
 
+      {layoutOf('TRUST', heading?.layout) === 'marquee' ? (
+        // Logos passing by (2026-11-23): the row twice, moved by half its
+        // width, so the second copy arrives where the first began. The copy
+        // is hidden from screen readers, and the whole stops on hover and
+        // for anybody who asked the system for less motion.
+        <div className="showcase-marquee overflow-hidden" data-layout="marquee">
+          <div className="showcase-marquee-track flex w-max items-center gap-x-14">
+            {[false, true].map((copy) => (
+              <ul key={String(copy)} aria-hidden={copy || undefined} className="flex items-center gap-x-14">
+                {rows.map((row) => (
+                  <li key={row.id} data-trust={copy ? undefined : row.id} className="flex shrink-0 items-center">
+                    <Logo row={row} />
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
+        </div>
+      ) : (
       <ul className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
         {rows.map((row) => (
           <li key={row.id} data-trust={row.id} className="flex items-center">
@@ -61,6 +80,15 @@ export function TrustBand({
           </li>
         ))}
       </ul>
+      )}
     </ShowcaseBand>
+  );
+}
+
+function Logo({ row }: { row: ShowcaseRow<TrustRow> }) {
+  return row.image === null ? (
+    <span className="display-type whitespace-nowrap text-lg font-semibold text-muted">{row.content.name}</span>
+  ) : (
+    <img src={row.image.url} alt={row.content.name} loading="lazy" decoding="async" className="h-8 w-auto max-w-40 object-contain md:h-9" />
   );
 }

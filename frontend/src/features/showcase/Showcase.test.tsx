@@ -1,11 +1,14 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import type { Offer } from '@/queries/catalogue';
+
 import { Showcase } from './Showcase';
 import type { ShowcaseContent } from './blocks/content';
 import { contentFrom } from './blocks/fromApi';
 import { BAND_META, bandsInOrder } from './blocks/meta';
 import { BAND_VIEWS } from './blocks/registry';
+import { playerOf } from './blocks/VideoBand';
 
 /**
  * The product's story, as a page.
@@ -71,7 +74,18 @@ const FULL: ShowcaseContent = {
     row('k1', { label: 'Before', caption: null, embedUrl: 'https://plan.example.test/?file=1', ratio: null }),
     row('k2', { label: 'After', caption: null, embedUrl: 'https://plan.example.test/?file=2', ratio: null }),
   ],
+  // Everything but the news: a line above the page, drawn there whatever
+  // the order says, so it has its own test below.
+  announce: [],
+  video: [row('v', { caption: 'Two minutes of Plan', videoUrl: 'https://vimeo.com/76979871' })],
+  versus: [row('vs', { criterion: 'Your plot in 3D', note: null, ours: 'yes', others: ['no', null, null] })],
+  hotspots: [
+    { id: 'hs', content: { title: 'The terrace', body: null, x: 40, y: 40 }, image: { url: '/plot.webp', alt: 'The plot', ratio: 1.6 } },
+  ],
 };
+
+/** The compiled order, without the news, which is drawn above it all. */
+const ORDERED = () => bandsInOrder().filter((kind) => kind !== 'ANNOUNCE');
 
 const EMPTY: ShowcaseContent = {
   headline: [],
@@ -88,6 +102,10 @@ const EMPTY: ShowcaseContent = {
   cta: [],
   tour: [],
   compare: [],
+  announce: [],
+  video: [],
+  versus: [],
+  hotspots: [],
   headings: {},
 };
 
@@ -106,7 +124,7 @@ const pictured = <T,>(id: string, content: T, alt: string) => ({
   image: { url: `https://example.test/${id}.png`, alt, ratio: 16 / 10 },
 });
 
-function renderStory(content: ShowcaseContent, offers = [OFFER]) {
+function renderStory(content: ShowcaseContent, offers: readonly Offer[] = [OFFER]) {
   return render(
     <Showcase
       productName="Plan"
@@ -154,7 +172,7 @@ describe('a product that has said everything', () => {
       band.getAttribute('data-band'),
     );
 
-    expect(order).toEqual(bandsInOrder().map((kind) => BAND_META[kind].anchor));
+    expect(order).toEqual(ORDERED().map((kind) => BAND_META[kind].anchor));
   });
 
   it('carries the operator’s words, not the component’s', () => {
@@ -346,7 +364,7 @@ describe('the order the page is read in', () => {
   // The page as it was before the four bands of 2026-11-20: these cases are
   // about orders written against nine sections, and a band that did not
   // exist then is put back by a rule that has its own case.
-  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [] };
+  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [], video: [], versus: [], hotspots: [] };
   const bandsOn = (container: HTMLElement) =>
     [...container.querySelectorAll('[data-band]')].map((band) => band.getAttribute('data-band'));
 
@@ -420,7 +438,7 @@ describe('the order the page is read in', () => {
     // nobody's decision.
     const { container } = renderStory(FULL);
 
-    expect(bandsOn(container)).toEqual(bandsInOrder().map((kind) => BAND_META[kind].anchor));
+    expect(bandsOn(container)).toEqual(ORDERED().map((kind) => BAND_META[kind].anchor));
   });
 
   it('takes the nav with it, so the links read in the page’s order', () => {
@@ -586,7 +604,7 @@ describe('the registry', () => {
   });
 
   it('gives every band a unique anchor, because they are ids in one document', () => {
-    const anchors = bandsInOrder().map((kind) => BAND_META[kind].anchor);
+    const anchors = ORDERED().map((kind) => BAND_META[kind].anchor);
 
     expect(new Set(anchors).size).toBe(anchors.length);
   });
@@ -711,7 +729,7 @@ describe('how a band is laid out', () => {
       blocks: [],
     } as never);
 
-    expect(content.headings.HEADLINE).toEqual({ eyebrow: null, title: null, lede: null, layout: 'centered', menu: null });
+    expect(content.headings.HEADLINE).toEqual({ eyebrow: null, title: null, lede: null, layout: 'centered', menu: null, columns: null });
     expect(content.headings.STEPS?.layout).toBe('timeline');
   });
 
@@ -969,3 +987,188 @@ describe('before and after', () => {
     expect(content.tour[0]?.content).toEqual({ title: 'The plot', body: null });
   });
 });
+
+/**
+ * The widgets of 2026-11-23: four bands and four layouts. What is claimed
+ * is what each does that the page did not — and, for the ones that read
+ * the outside world (a film, the catalogue), that they read only it.
+ */
+describe('a line of news', () => {
+  it('is drawn above the page’s menu and its headline, whatever its place in the order', () => {
+    renderStory({ ...FULL, announce: [row('n', { text: 'New: the sun at any hour', linkLabel: 'See the prices', linkUrl: '#prices' })] });
+
+    const page = screen.getByTestId('showcase');
+    const news = screen.getByTestId('showcase-announce');
+
+    expect(page.firstElementChild).toBe(news);
+    expect(news.textContent).toContain('New: the sun at any hour');
+    // On the page: no new tab for a place on it.
+    expect(within(news).getByRole('link').getAttribute('target')).toBeNull();
+  });
+
+  it('opens a link that leaves the page beside it', () => {
+    renderStory({ ...FULL, announce: [row('n', { text: 'Read the story', linkLabel: null, linkUrl: 'https://example.test/story' })] });
+
+    const link = within(screen.getByTestId('showcase-announce')).getByRole('link');
+
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+});
+
+describe('a film', () => {
+  it('loads nothing from the player until it is played, then plays it from its no-cookie origin', () => {
+    renderStory({ ...FULL, video: [row('v', { caption: 'Two minutes of Plan', videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' })] });
+
+    const band = screen.getByTestId('showcase-video');
+
+    expect(band.querySelector('iframe')).toBeNull();
+
+    fireEvent.click(within(band).getByTestId('video-play'));
+
+    expect(within(band).getByTestId('video-player').getAttribute('src')).toBe(
+      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0',
+    );
+  });
+
+  it.each([
+    ['https://youtu.be/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0'],
+    ['https://www.youtube.com/shorts/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0'],
+    ['https://vimeo.com/76979871', 'https://player.vimeo.com/video/76979871?autoplay=1&dnt=1'],
+    ['https://elsewhere.test/film.mp4', null],
+  ])('plays %s from the player’s own address', (address, player) => {
+    expect(playerOf(address)).toBe(player);
+  });
+});
+
+describe('a comparison table', () => {
+  it('names the product’s own column, the others from the band, and says each mark in words', () => {
+    renderStory({
+      ...FULL,
+      headings: { VERSUS: { eyebrow: null, title: null, lede: null, columns: 'An architect; A spreadsheet' } },
+      versus: [row('c', { criterion: 'Your plot in 3D', note: null, ours: 'yes', others: ['partly', 'no', null] })],
+    });
+
+    const table = within(screen.getByTestId('showcase-versus'));
+    const headers = table.getAllByRole('columnheader').map((cell) => cell.textContent);
+
+    expect(headers.slice(1)).toEqual(['Plan', 'An architect', 'A spreadsheet']);
+    expect(table.getByRole('row', { name: /Your plot in 3D/ }).textContent).toContain('Yes');
+    // Two other columns named, so the third verdict is not drawn.
+    expect(table.getAllByRole('cell')).toHaveLength(3);
+  });
+});
+
+describe('points on a picture', () => {
+  const pictured = { url: '/plot.webp', alt: 'The plot', ratio: 1.6 };
+
+  it('puts each point where it was placed, and says what the chosen one is', () => {
+    renderStory({
+      ...FULL,
+      hotspots: [
+        { id: 'p1', content: { title: 'The terrace', body: 'Drawn to scale.', x: 20, y: 30 }, image: pictured },
+        { id: 'p2', content: { title: 'The pool', body: null, x: 70, y: 60 }, image: null },
+      ],
+    });
+
+    const band = screen.getByTestId('showcase-hotspot');
+    const second = band.querySelector<HTMLElement>('[data-hotspot="p2"]')!;
+
+    expect(second.style.left).toBe('70%');
+    expect(second.style.top).toBe('60%');
+    expect(within(band).getByTestId('hotspot-said').textContent).toContain('The terrace');
+
+    fireEvent.click(second);
+
+    expect(within(band).getByTestId('hotspot-said').textContent).toContain('The pool');
+  });
+
+  it('is not drawn without the first point’s picture: there is nothing to put the points on', () => {
+    renderStory({ ...FULL, hotspots: [row('p1', { title: 'The terrace', body: null, x: 20, y: 30 })] });
+
+    expect(screen.queryByTestId('showcase-hotspot')).toBeNull();
+  });
+});
+
+describe('the new layouts', () => {
+  it('counts a figure up in words written the operator’s way, and says the figure itself', () => {
+    renderStory({
+      ...FULL,
+      headings: { STATS: { eyebrow: null, title: null, lede: null, layout: 'counter' } },
+      stats: [row('s', { value: '1 200 projets', label: 'Drawn', detail: null })],
+    });
+
+    const figure = screen.getByTestId('showcase-stats').querySelector('[data-count]')!;
+
+    // No IntersectionObserver here, which is a reader who sees it at once.
+    expect(figure.textContent).toContain('1 200 projets');
+  });
+
+  it('passes the logos by, the second copy hidden from a screen reader', () => {
+    renderStory({ ...FULL, headings: { TRUST: { eyebrow: null, title: null, lede: null, layout: 'marquee' } } });
+
+    const band = screen.getByTestId('showcase-trust');
+    const lists = band.querySelectorAll('ul');
+
+    expect(band.querySelector('[data-layout="marquee"]')).toBeTruthy();
+    expect(lists).toHaveLength(2);
+    expect(lists[1]?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('opens a screenshot of the gallery large, and closes it on Escape', () => {
+    const shot = { url: '/a.webp', alt: 'The plot', ratio: 1.6 };
+
+    renderStory({
+      ...FULL,
+      headings: { PROOF: { eyebrow: null, title: null, lede: null, layout: 'gallery' } },
+      proof: [
+        { id: 'g1', content: { caption: 'The plot' }, image: shot },
+        { id: 'g2', content: { caption: 'The terrace' }, image: { ...shot, url: '/b.webp' } },
+      ],
+    });
+
+    fireEvent.click(within(screen.getByTestId('showcase-proof')).getByText('The terrace'));
+    expect(screen.getByTestId('proof-lightbox').getAttribute('aria-label')).toBe('The terrace');
+
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(screen.getByTestId('proof-lightbox').getAttribute('aria-label')).toBe('The plot');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('proof-lightbox')).toBeNull();
+  });
+});
+
+describe('the offers, side by side', () => {
+  const grant = (feature: string, name: string, extra: Partial<{ kind: 'BOOLEAN' | 'QUOTA'; limit: number | null; unlimited: boolean; unit: string | null }> = {}) => ({
+    feature,
+    name,
+    kind: 'BOOLEAN' as const,
+    unit: null,
+    limit: null,
+    unlimited: false,
+    ...extra,
+  });
+  const offers = [
+    { ...OFFER, id: 'o1', name: 'Solo', version: { ...OFFER.version, grants: [grant('3d', 'Your plot in 3D'), grant('projects', 'Projects', { kind: 'QUOTA', limit: 5, unit: 'projects' })] } },
+    { ...OFFER, id: 'o2', name: 'Pro', version: { ...OFFER.version, grants: [grant('3d', 'Your plot in 3D'), grant('projects', 'Projects', { kind: 'QUOTA', unlimited: true }), grant('pdf', 'PDF export')] } },
+  ];
+
+  it('lays out what each offer grants under the cards, from the catalogue and nothing else', () => {
+    renderStory({ ...FULL, headings: { PRICING: { eyebrow: null, title: null, lede: null, layout: 'table' } } }, offers);
+
+    const matrix = within(screen.getByTestId('offer-matrix'));
+
+    expect(matrix.getAllByRole('row').map((line) => line.getAttribute('data-feature'))).toEqual([null, '3d', 'projects', 'pdf']);
+    expect(matrix.getByRole('row', { name: /Projects/ }).textContent).toContain('5projects');
+    expect(matrix.getByRole('row', { name: /Projects/ }).textContent).toContain('Unlimited');
+    // Solo does not grant the export: a dash, said as such.
+    expect(matrix.getByRole('row', { name: /PDF export/ }).textContent).toContain('Not included');
+  });
+
+  it('draws no table under cards alone', () => {
+    renderStory(FULL, offers);
+
+    expect(screen.queryByTestId('offer-matrix')).toBeNull();
+  });
+});
+

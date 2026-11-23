@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Product\Controller;
 
 use App\Product\Domain\ShowcaseBandHeading;
+use App\Product\Domain\ShowcaseBlock;
 use App\Product\Domain\ShowcaseSections;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
@@ -56,6 +57,9 @@ final class ShowcaseBandHeadings
 
     /** And the other: whether the page draws its menu (2026-11-22). */
     private const MENU = 'menu';
+
+    /** The names of a comparison's other columns, separated by `;` (2026-11-23). */
+    private const COLUMNS = 'columns';
 
     /**
      * @return array<string, ShowcaseBandHeading>|null keyed by section, or null where the request said nothing
@@ -138,11 +142,16 @@ final class ShowcaseBandHeadings
                 continue;
             }
 
-            if (!is_string($field) || !in_array($field, self::FIELDS, true)) {
+            // The other columns of a comparison table (2026-11-23): a
+            // sentence and not a code — "An architect; A spreadsheet" is
+            // translated like a title — carried by that band alone.
+            $fields = $block === ShowcaseBlock::VERSUS ? [...self::FIELDS, self::COLUMNS] : self::FIELDS;
+
+            if (!is_string($field) || !in_array($field, $fields, true)) {
                 // Refused rather than dropped, the same rule a band's fields
                 // follow: a field this endpoint stored and no band rendered
                 // would be an operator's afternoon spent writing into a hole.
-                throw self::invalid($block, $where . '.' . (is_string($field) ? $field : (string) $field), 'one of ' . implode(', ', self::FIELDS));
+                throw self::invalid($block, $where . '.' . (is_string($field) ? $field : (string) $field), 'one of ' . implode(', ', $fields));
             }
 
             if (!is_string($value) || mb_strlen($value) > self::LONGEST) {

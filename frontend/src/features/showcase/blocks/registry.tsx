@@ -4,7 +4,9 @@ import type { Offer } from '@/queries/catalogue';
 
 import type { ShowcaseContent } from './content';
 import type { BandKind } from './meta';
+import { AnnounceBand } from './AnnounceBand';
 import { HeadlineBand } from './HeadlineBand';
+import { HotspotBand } from './HotspotBand';
 import { PricingBand } from './PricingBand';
 import { ProblemBand } from './ProblemBand';
 import { CompareBand, isAComparison } from './CompareBand';
@@ -19,6 +21,8 @@ import { StepsBand } from './StepsBand';
 import { TourBand } from './TourBand';
 import { TrustBand } from './TrustBand';
 import { UseCasesBand } from './UseCasesBand';
+import { VersusBand } from './VersusBand';
+import { VideoBand } from './VideoBand';
 
 /**
  * Everything a band could need, handed to every band.
@@ -91,6 +95,24 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
         action={p.action}
       />
     ),
+  },
+  ANNOUNCE: {
+    speaks: (p) => p.content.announce.length > 0,
+    view: (p) => <AnnounceBand row={p.content.announce[0] ?? null} />,
+  },
+  VIDEO: {
+    speaks: (p) => p.content.video.length > 0,
+    view: (p) => <VideoBand row={p.content.video[0] ?? null} heading={heading(p, 'VIDEO')} />,
+  },
+  HOTSPOT: {
+    // Drawn from the first point's picture: without one there is nothing
+    // to put the points on.
+    speaks: (p) => p.content.hotspots[0]?.image != null,
+    view: (p) => <HotspotBand rows={p.content.hotspots} heading={heading(p, 'HOTSPOT')} />,
+  },
+  VERSUS: {
+    speaks: (p) => p.content.versus.length > 0,
+    view: (p) => <VersusBand rows={p.content.versus} heading={heading(p, 'VERSUS')} productName={p.productName} />,
   },
   TRUST: {
     speaks: (p) => p.content.trust.length > 0,
