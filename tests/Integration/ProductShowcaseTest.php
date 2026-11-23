@@ -165,7 +165,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
             $this->decode($fresh)['sections'] ?? null,
         );
 
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS'];
 
         $written = $this->request(
             'PUT',
@@ -201,7 +201,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
     {
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS'];
 
         $this->request(
             'PUT',
