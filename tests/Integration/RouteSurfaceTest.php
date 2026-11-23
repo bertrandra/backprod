@@ -88,6 +88,10 @@ final class RouteSurfaceTest extends ApiTestCase
         // And its pictures, on exactly the same ground: served while the
         // page is published, 404 the moment it is not.
         'GET /api/v1/public/products/{code}/showcase/assets/{assetId}',
+        // A visitor writing through a product page's form (2026-11-23): a
+        // visitor has no account. Refused unless the published page carries
+        // the form, five an hour per address, and it reads nothing back.
+        'POST /api/v1/public/products/{code}/contact',
         'GET /api/v1/public/tenant',
         // How an organisation's public page looks for a product (2026-10-04):
         // already on that page for anyone, and null for anything that names

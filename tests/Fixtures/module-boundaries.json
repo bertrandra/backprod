@@ -93,7 +93,8 @@
             "Entitlement",
             "Identity",
             "Storage",
-            "Tenant"
+            "Tenant",
+            "Throttle"
         ],
         "Project": [
             "Commerce",
@@ -180,6 +181,9 @@
         "billing_profiles": [
             "Billing",
             "Demo"
+        ],
+        "contact_requests": [
+            "Product"
         ],
         "conversation_participants": [
             "Messaging"
