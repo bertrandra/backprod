@@ -119,6 +119,7 @@ use App\Product\Controller\ProductTenantMembersController;
 use App\Product\Controller\ProductTenantUsageController;
 use App\Product\Controller\PublicShowcaseAssetController;
 use App\Product\Controller\PublicShowcaseController;
+use App\Product\Controller\SendContactRequestController;
 use App\Product\Controller\ShowProductController;
 use App\Project\Controller\CreateProjectController;
 use App\Project\Controller\CreateProjectShareController;
@@ -152,8 +153,10 @@ use App\Staff\Controller\CreateStaffOfferVersionController;
 use App\Staff\Controller\CreateTenantController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\GrantTenantEntitlementController;
+use App\Staff\Controller\HandleContactRequestController;
 use App\Staff\Controller\IssueProductCredentialController;
 use App\Staff\Controller\IssueWebhookSecretController;
+use App\Staff\Controller\ListContactRequestsController;
 use App\Staff\Controller\ListPaletteAssignmentsController;
 use App\Staff\Controller\ListPalettesController;
 use App\Staff\Controller\ListPlatformFeaturesController;
@@ -330,6 +333,10 @@ return static function (RouteCollector $routes): void {
     // read joins the product and answers 404 the moment the story comes
     // down. Not a signed link — the reader has no session to mint one with.
     $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase/assets/{assetId}', PublicShowcaseAssetController::class);
+    // What a visitor writes through a product's contact form (2026-11-23):
+    // refused where the published page offers none, and a few an hour from
+    // one address on top of the public limit.
+    $routes->addRoute('POST', '/api/v1/public/products/{code}/contact', SendContactRequestController::class);
     // The organisation at a URL root (2026-09-17), before any session.
     $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
     // The palette an organisation's public page wears for a product
@@ -834,6 +841,10 @@ return static function (RouteCollector $routes): void {
     // (2026-11-22): what the page editor offers where a band embeds a live
     // view, instead of an address typed from memory. The read leaves this
     // host, like the manifest above; the write only says where to look.
+    // What visitors wrote through product pages (2026-11-23), for support.
+    $routes->addRoute('GET', '/api/v1/staff/contact-requests', ListContactRequestsController::class);
+    $routes->addRoute('POST', '/api/v1/staff/contact-requests/{requestId}/handled', HandleContactRequestController::class);
+
     $routes->addRoute(
         'GET',
         '/api/v1/staff/configuration/demonstrations',

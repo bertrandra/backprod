@@ -415,6 +415,17 @@
         "showSupportConversation"
       ]
     },
+    "console.support.contact": {
+      "authority": "platform",
+      "$comment": "What visitors wrote through the contact form of a product's page (2026-11-23). Support's, behind support.read like the conversations beside it; marking one answered is support.respond. Answering itself happens in the reader's own mail — the platform keeps the message and who marked it, and sends nothing on support's behalf.",
+      "routes": [
+        "/console/contact-requests"
+      ],
+      "operations": [
+        "handleContactRequest",
+        "listContactRequests"
+      ]
+    },
     "console.support.tenants": {
       "authority": "platform",
       "routes": [
@@ -507,6 +518,7 @@
         "getPublicOffers",
         "getPublicOffer",
         "getPublicShowcase",
+        "sendContactRequest",
         "signUp"
       ]
     },

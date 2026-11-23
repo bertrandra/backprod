@@ -964,6 +964,9 @@
             "maxLength": 2000,
             "description": "HOTSPOT: how far across the picture the point is, 0 to 100. A code, required."
           },
+          "consent": {"type": "string", "maxLength": 2000, "description": "CONTACT: the sentence beside the box a visitor ticks. Kept with each request as it was read."},
+          "intro": {"type": "string", "maxLength": 2000, "description": "CONTACT: a line above the form."},
+          "thanks": {"type": "string", "maxLength": 2000, "description": "CONTACT: what the visitor reads once it is sent."},
           "y": {
             "type": "string",
             "maxLength": 2000,
@@ -978,7 +981,7 @@
         "properties": {
           "block": {
             "type": "string",
-            "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "QUESTION", "CTA"],
+            "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "QUESTION", "CONTACT", "CTA"],
             "description": "PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE and one CTA per page, and at most two COMPARE."
           },
           "position": {
@@ -1012,7 +1015,7 @@
         "required": ["id", "block", "position", "content", "translations", "asset_id", "image"],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
-          "block": { "type": "string", "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "QUESTION", "CTA"] },
+          "block": { "type": "string", "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "QUESTION", "CONTACT", "CTA"] },
           "position": { "type": "integer" },
           "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
           "asset_id": {
@@ -1057,6 +1060,22 @@
               }
             }
           }
+        }
+      },
+      "ContactRequest": {
+        "type": "object",
+        "description": "What a visitor wrote through a product's contact form (2026-11-23). `consent` is the sentence they ticked, as they read it — kept because the product may reword it later. Nothing is kept that was not typed: no address, no browser.",
+        "required": ["id", "product", "name", "email", "message", "consent", "locale", "received_at", "handled_at"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "product": {"type": "string", "description": "The product's code."},
+          "name": {"type": "string"},
+          "email": {"type": "string"},
+          "message": {"type": "string"},
+          "consent": {"type": "string"},
+          "locale": {"type": "string", "description": "The language the page was read in."},
+          "received_at": {"type": "string", "format": "date-time"},
+          "handled_at": {"type": ["string", "null"], "format": "date-time", "description": "When support marked it answered; null until then."}
         }
       },
       "ShowcaseBandHeading": {
@@ -1142,7 +1161,7 @@
       "ShowcaseSectionOrder": {
         "type": "array",
         "description": "The order a product reads its showcase sections in (2026-09-28). A **permutation**: every section exactly once, `PRICING` included.\n\nThis is a different fact from a block's `position`, which orders the rows *within* one band — three steps, two use cases. This orders the bands themselves, and there is one of it per product.\n\n`PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.",
-        "items": { "type": "string", "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "PRICING", "QUESTION", "CTA"] }
+        "items": { "type": "string", "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "PRICING", "QUESTION", "CONTACT", "CTA"] }
       },
       "Showcase": {
         "type": "object",
@@ -1170,7 +1189,7 @@
               "required": ["id", "block", "position", "content"],
               "properties": {
                 "id": { "type": "string", "format": "uuid" },
-                "block": { "type": "string", "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "QUESTION", "CTA"] },
+                "block": { "type": "string", "enum": ["HEADLINE", "ANNOUNCE", "TRUST", "PROBLEM", "STATS", "VIDEO", "STEPS", "FEATURE", "HOTSPOT", "TOUR", "USE_CASE", "VERSUS", "QUOTE", "PROOF", "COMPARE", "DEMO", "QUESTION", "CONTACT", "CTA"] },
                 "position": { "type": "integer" },
                 "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
                 "image": {
@@ -19851,6 +19870,94 @@
             "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
           }
         ]
+      }
+    },
+    "/api/v1/public/products/{code}/contact": {
+      "post": {
+        "tags": ["Public"],
+        "operationId": "sendContactRequest",
+        "summary": "Write to the people behind a product",
+        "description": "A visitor's message through a product's contact form (2026-11-23). No account and no credential: **refused `404 CONTACT_NOT_OFFERED` unless the product's published page carries a `CONTACT` band**, so this is not a mailbox for every product code. Five an hour per address and product, on top of the public limit. `website` is a field a person never sees: filled, the message is thrown away and the answer is the same `202`, so a robot learns nothing. The consent sentence stored is the band's, in the language read.",
+        "security": [],
+        "parameters": [
+          {"name": "code", "in": "path", "required": true, "schema": {"type": "string", "maxLength": 64}},
+          {"$ref": "#/components/parameters/AcceptLanguage"}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "message", "consent"],
+                "properties": {
+                  "name": {"type": "string", "maxLength": 200},
+                  "email": {"type": "string", "maxLength": 254},
+                  "message": {"type": "string", "maxLength": 5000},
+                  "consent": {"type": "boolean", "description": "Must be true: the visitor agreed to be answered."},
+                  "website": {"type": "string", "maxLength": 200, "description": "Left empty by a person; see above."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Received.",
+            "content": {"application/json": {"schema": {"type": "object", "required": ["received"], "properties": {"received": {"type": "boolean"}}}}}
+          },
+          "400": {"description": "`INVALID_BODY` or `VALIDATION_FAILED` — the body is not a JSON object, or `token` is not a string.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "`SHARE_NOT_FOUND` — the link opens nothing, whatever the reason.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v1/staff/contact-requests": {
+      "get": {
+        "tags": ["Staff"],
+        "operationId": "listContactRequests",
+        "summary": "What visitors wrote through product pages",
+        "description": "Still to answer first, newest first within each (2026-11-23). Behind `support.read`, like a conversation. `product` narrows to one product by code.",
+        "parameters": [
+          {"name": "product", "in": "query", "required": false, "schema": {"type": "string", "maxLength": 64}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "default": 0}}
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of requests, the total, and how many are still to answer.",
+            "content": {"application/json": {"schema": {"type": "object", "required": ["requests", "total", "open"], "properties": {"requests": {"type": "array", "items": {"$ref": "#/components/schemas/ContactRequest"}}, "total": {"type": "integer", "minimum": 0}, "open": {"type": "integer", "minimum": 0}}}}}
+          },
+          "400": {"description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v1/staff/contact-requests/{requestId}/handled": {
+      "post": {
+        "tags": ["Staff"],
+        "operationId": "handleContactRequest",
+        "summary": "Mark a request answered",
+        "description": "Behind `support.respond`, the permission that answers a conversation. A second press keeps whoever answered first.",
+        "parameters": [
+          {"name": "requestId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "The request, answered.",
+            "content": {"application/json": {"schema": {"type": "object", "required": ["request"], "properties": {"request": {"$ref": "#/components/schemas/ContactRequest"}}}}}
+          },
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
       }
     },
     "/api/v1/public/products/{code}/showcase": {

@@ -166,6 +166,11 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
 
       return announced === null ? null : { text: announced, linkLabel: text(c.link_label), linkUrl: text(c.link_url) };
     }),
+    contact: pick('CONTACT', (c) => {
+      const consent = text(c.consent);
+
+      return consent === null ? null : { intro: text(c.intro), consent, thanks: text(c.thanks) };
+    }),
     video: pick('VIDEO', (c) => {
       const caption = text(c.caption);
       const videoUrl = text(c.video_url);

@@ -2177,3 +2177,52 @@ export function useUpdateTenant(tenantId: string) {
     },
   });
 }
+
+/**
+ * What visitors wrote through product pages (2026-11-23), still to answer
+ * first — support's, behind `support.read`.
+ */
+export type ContactRequest = Schemas['ContactRequest'];
+
+export function useContactRequests(productCode: string | null, offset = 0) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.contactRequests(productCode ?? '', offset),
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/contact-requests', {
+        params: { query: { ...(productCode === null ? {} : { product: productCode }), limit: 50, offset } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
+ * Mark one answered. The server derives the list's order and its count of
+ * open requests, so the list is invalidated rather than adjusted here.
+ */
+export function useHandleContactRequest() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/contact-requests/{requestId}/handled', {
+        params: { path: { requestId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.request;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['staff', 'contact-requests'] }),
+  });
+}

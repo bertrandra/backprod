@@ -486,3 +486,27 @@ export function usePublishProductStory(productId: string) {
     return data.published_at;
   });
 }
+
+/**
+ * A visitor writes through a product's contact form (2026-11-23).
+ *
+ * Not optimistic, and nothing cached: the answer is "received", and what a
+ * visitor sees next is the band's thank-you, not a list. Sent in the
+ * language being read, so the consent stored is the sentence they saw.
+ */
+export function useSendContactRequest(productCode: string) {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (message: { name: string; email: string; message: string; consent: boolean; website: string }) => {
+      const { error, response } = await client.POST('/api/v1/public/products/{code}/contact', {
+        params: { path: { code: productCode }, header: { 'Accept-Language': currentLocale() } },
+        body: message,
+      });
+
+      if (error !== undefined || response.status !== 202) {
+        throw toApiError(response.status, error);
+      }
+    },
+  });
+}

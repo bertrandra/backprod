@@ -10,6 +10,7 @@ import { HotspotBand } from './HotspotBand';
 import { PricingBand } from './PricingBand';
 import { ProblemBand } from './ProblemBand';
 import { CompareBand, isAComparison } from './CompareBand';
+import { ContactBand } from './ContactBand';
 import { CtaBand } from './CtaBand';
 import { DemoBand } from './DemoBand';
 import { FeaturesBand } from './FeaturesBand';
@@ -45,6 +46,11 @@ export interface BandProps {
   readonly buyLabel?: string | undefined;
   /** The product is no longer sold; the prices band says so (spec §11.3). */
   readonly retired: boolean;
+  /**
+   * The product a contact form writes to (2026-11-23). Absent where the page
+   * is drawn for its author — the editor — so nothing is sent from a draft.
+   */
+  readonly productCode?: string | undefined;
 }
 
 /**
@@ -99,6 +105,10 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
   ANNOUNCE: {
     speaks: (p) => p.content.announce.length > 0,
     view: (p) => <AnnounceBand row={p.content.announce[0] ?? null} />,
+  },
+  CONTACT: {
+    speaks: (p) => p.content.contact.length > 0,
+    view: (p) => <ContactBand row={p.content.contact[0] ?? null} heading={heading(p, 'CONTACT')} productCode={p.productCode} />,
   },
   VIDEO: {
     speaks: (p) => p.content.video.length > 0,

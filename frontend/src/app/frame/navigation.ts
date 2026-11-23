@@ -207,6 +207,8 @@ export const APP_NAV: readonly NavSection[] = [
     entries: [
       { id: 'tenants', label: 'Tenants', to: '/console/tenants', scope: 'platform', permission: 'staff.tenants.read' },
       { id: 'threads', label: 'Conversations', to: '/console/conversations', scope: 'platform', permission: 'support.read' },
+      // What visitors wrote through a product page's form (2026-11-23).
+      { id: 'contact-requests', label: 'Messages from pages', to: '/console/contact-requests', scope: 'platform', permission: 'support.read' },
       { id: 'directory', label: 'Directory', to: '/console/directory', scope: 'platform', permission: 'admin.directory.read' },
       { id: 'metrics', label: 'Metrics', to: '/console/metrics', scope: 'platform', permission: 'admin.finance.read' },
       // The platform's own VAT return (2026-10-26), apart from any

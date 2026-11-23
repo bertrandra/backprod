@@ -66,6 +66,7 @@ describe('the editor', () => {
       'add-COMPARE',
       'add-DEMO',
       'add-QUESTION',
+      'add-CONTACT',
       'add-CTA',
     ]);
     expect(screen.queryByTestId('add-PRICING')).toBeNull();
@@ -134,7 +135,7 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CTA'],
+      sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CONTACT', 'CTA'],
       // Nothing retitled, so nothing sent: a band left out of the map reads
       // the words its component was written with.
       bands: {},

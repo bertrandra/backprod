@@ -170,6 +170,11 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
     { name: 'title', label: 'The last sentence', required: true, hint: 'Above the button the headline already carries. A page has one of these.' },
     { name: 'body', label: 'Under it', required: false, long: true },
   ],
+  CONTACT: [
+    { name: 'intro', label: 'Above the form', required: false, long: true, hint: 'What to write about, and how soon you answer.' },
+    { name: 'consent', label: 'Beside the box they tick', required: true, initial: 'I agree to be contacted about my message.', hint: 'Kept with each message, as the visitor read it.' },
+    { name: 'thanks', label: 'Once it is sent', required: false, hint: 'Empty: a short thank-you.' },
+  ],
   ANNOUNCE: [
     { name: 'text', label: 'The news', required: true, hint: 'One line, above the whole page.' },
     { name: 'link_label', label: 'What the link says', required: false },

@@ -282,6 +282,8 @@ export const keys = {
      * the server too.
      */
     productDemonstrations: (product: string) => ['staff', 'product-demonstrations', product] as const,
+    /** What visitors wrote through product pages, one page of it (2026-11-23). */
+    contactRequests: (product: string, offset: number) => ['staff', 'contact-requests', product, offset] as const,
     /**
      * What a product still needs before it can sell. Invalidated by every write
      * that could advance the chain, because the whole point is that it is

@@ -66,6 +66,7 @@ final class ShowcaseSections
         ShowcaseBlock::DEMO,
         self::PRICING,
         ShowcaseBlock::QUESTION,
+        ShowcaseBlock::CONTACT,
         ShowcaseBlock::CTA,
     ];
 

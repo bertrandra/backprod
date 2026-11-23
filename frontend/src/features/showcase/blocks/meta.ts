@@ -73,6 +73,7 @@ export const BAND_META = {
   DEMO: { order: 45, anchor: 'demo', surface: 'canvas', nav: 'Try it' },
   PRICING: { order: 50, anchor: 'prices', surface: 'surface', nav: 'Prices' },
   QUESTION: { order: 60, anchor: 'questions', surface: 'canvas', nav: 'Questions' },
+  CONTACT: { order: 65, anchor: 'contact', surface: 'surface', nav: 'Write to us' },
   // The last thing on the page, and the second dark band: the page opens on
   // a promise and a button and, for somebody who read to the end, closes on
   // the same two. Dark because it is the one place after the hero where the
@@ -145,6 +146,7 @@ export const AUTHORED_BANDS = [
   'COMPARE',
   'DEMO',
   'QUESTION',
+  'CONTACT',
   'CTA',
 ] as const;
 
@@ -163,7 +165,7 @@ export const AT_MOST_BANDS: Partial<Record<AuthoredBandKind, number>> = { COMPAR
  * holds it; this is the courtesy that stops the console offering a second
  * one to be refused.
  */
-export const SINGLE_BANDS: readonly AuthoredBandKind[] = ['HEADLINE', 'CTA', 'ANNOUNCE', 'VIDEO'];
+export const SINGLE_BANDS: readonly AuthoredBandKind[] = ['HEADLINE', 'CTA', 'ANNOUNCE', 'VIDEO', 'CONTACT'];
 
 /**
  * How a band may be laid out, where it has more than one way (2026-11-20).
@@ -281,6 +283,7 @@ export const SECTIONS_WITH_A_HEADING: readonly BandKind[] = [
   'VERSUS',
   'PRICING',
   'QUESTION',
+  'CONTACT',
 ];
 
 export function carriesAPicture(kind: AuthoredBandKind): boolean {
