@@ -223,6 +223,11 @@ describe('the page editor', () => {
 
     fireEvent.click(screen.getByTestId('structure-STEPS'));
 
+    // How a band looks is its own tab: what it says is what opens first.
+    expect(screen.getByTestId('panel-tab-content').getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByTestId('layout-columns')).toBeNull();
+    fireEvent.click(screen.getByTestId('panel-tab-look'));
+
     expect(screen.getByTestId('layout-columns').getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(screen.getByTestId('layout-timeline'));
@@ -383,6 +388,56 @@ describe('the page editor', () => {
     expect(more.querySelector('#b-1-alt')).toBeTruthy();
     expect(more.querySelector('#b-1-headline')).toBeNull();
     expect(screen.getByDisplayValue('Draw a terrace')).toBeTruthy();
+  });
+
+  it('writes in the language the page is shown in, with the English standing in an empty field', async () => {
+    const { requests } = open();
+    await editor();
+
+    fireEvent.change(screen.getByTestId('preview-language'), { target: { value: 'de' } });
+    fireEvent.click(screen.getByTestId('structure-HEADLINE'));
+
+    expect(screen.getByTestId('panel-language').textContent).toContain('Deutsch');
+
+    // One box per field and no language button on it: the editor's
+    // language is the field's.
+    const headline = screen.getByLabelText<HTMLInputElement>('Headline');
+
+    expect(headline.value).toBe('');
+    expect(headline.placeholder).toBe('Draw a terrace');
+    expect(screen.queryByTestId('language-of-b-1-headline')).toBeNull();
+
+    fireEvent.change(headline, { target: { value: 'Zeichnen Sie eine Terrasse' } });
+    fireEvent.click(screen.getByTestId('editor-save'));
+    fireEvent.click(screen.getByTestId('confirm-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const sent = requests.find((r) => r.method === 'PUT')?.body as {
+      blocks: { content: Record<string, string>; translations?: Record<string, Record<string, string>> }[];
+    };
+
+    // The English is untouched; German is added beside the French.
+    expect(sent.blocks[0]?.content.headline).toBe('Draw a terrace');
+    expect(sent.blocks[0]?.translations).toEqual({
+      fr: { headline: 'Dessinez une terrasse' },
+      de: { headline: 'Zeichnen Sie eine Terrasse' },
+    });
+  });
+
+  it('keeps one row open at a time in a band of several', async () => {
+    open();
+    await editor();
+
+    fireEvent.click(screen.getByTestId('structure-STEPS'));
+
+    expect(screen.getByTestId('row-b-2').getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('row-b-3').getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(screen.getByTestId('row-b-3'));
+
+    expect(screen.getByTestId('row-b-2').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByDisplayValue('The terrace follows')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Draw the parcel')).toBeNull();
   });
 
   it('says a published page changes for its visitors when it is saved', async () => {

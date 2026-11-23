@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { authoredBandsInOrder, BandFieldEditor, BAND_FIELDS } from '@/features/showcase/blocks/editors';
+import { authoredBandsInOrder, BAND_FIELDS, type BandField } from '@/features/showcase/blocks/editors';
 import {
   AT_MOST_BANDS,
   AUTHORED_BANDS,
@@ -15,13 +15,14 @@ import {
 } from '@/features/showcase/blocks/meta';
 import type { StoryTemplate } from '@/features/showcase/blocks/templates';
 import { useProductDemonstrations, type ProductDemonstration } from '@/queries/staff';
-import { Button, buttonClass, Field, inputClass } from '@/ui/Field';
+import { Button, buttonClass, inputClass } from '@/ui/Field';
 import type { Translated } from '@/ui/TranslatedField';
 import { cn } from '@/utils/cn';
 import { LOCALE_NAMES, LOCALES, t, type LocaleCode } from '@/i18n';
 
 import { HEADING_FIELDS } from './BandHeading';
 import { BandPicture } from './BandPicture';
+import { PanelField } from './PanelField';
 import { DEVICE_LABELS, DEVICES, StoryCanvas, type Device } from './StoryCanvas';
 import { blank, EMPTY, startOf, withTemplate, type DraftBlock } from './storyDraft';
 import {
@@ -352,7 +353,7 @@ export function StoryEditor({
         </div>
 
         <label className="flex items-center gap-2 text-xs text-muted">
-          {t("Read in")}
+          {t("Language")}
           <select
             data-testid="preview-language"
             className="rounded-control border border-line bg-surface px-2 py-1.5 text-xs text-ink"
@@ -460,6 +461,7 @@ export function StoryEditor({
               productId={productId}
               productCode={product.code}
               band={chosen}
+              locale={locale}
               state={state}
               present={present}
               change={change}
@@ -603,12 +605,18 @@ const LAYOUT_NAMES: Record<string, string> = {
 };
 
 /**
- * The chosen band: where it sits, how it is laid out, what it is called
- * and the rows it is made of.
+ * The chosen band (2026-11-23): what it says, and how it looks.
  *
- * One panel for what used to be three sections of a form — the rows, the
- * order and the headings — because they are three facts about one band and
- * the person changing one is looking at that band.
+ * **Two tabs, and one thing in front at a time.** The panel stacked the
+ * layout, every row with every field, the band's title and a section to
+ * remove it, and the operator's verdict was the right one — too much, not
+ * readable. What a band *says* is what somebody opens it to change; how it
+ * is laid out and what its title reads are changed once. So they are
+ * apart, and removing the band is an icon beside moving it.
+ *
+ * **One row open at a time**, the first by default; a band with one row has
+ * no list at all. A comparison is the exception: its two sides are one
+ * thing, and both are always in front.
  */
 function BandPanel({
   productId,
@@ -616,6 +624,7 @@ function BandPanel({
   band,
   state,
   present,
+  locale,
   change,
   onMove,
   onDone,
@@ -625,42 +634,35 @@ function BandPanel({
   band: BandKind;
   state: StoryState;
   present: readonly BandKind[];
+  locale: LocaleCode;
   change: (next: StoryState, about?: string) => void;
   onMove: (band: BandKind, towards: BandKind) => void;
   onDone: () => void;
 }) {
   const authored = (AUTHORED_BANDS as readonly BandKind[]).includes(band) ? (band as AuthoredBandKind) : null;
   const rows = state.draft.map((block, index) => ({ block, index })).filter(({ block }) => block.block === band);
-  const [open, setOpen] = useState<string | null>(rows.length === 1 ? (rows[0]?.block.key ?? null) : null);
+  const [open, setOpen] = useState<string | null>(rows[0]?.block.key ?? null);
+  const layouts = layoutsOf(band);
+  const titled = SECTIONS_WITH_A_HEADING.includes(band);
+  const [tab, setTab] = useState<'content' | 'look'>(authored === null ? 'look' : 'content');
   const at = present.indexOf(band);
   const before = present[at - 1];
   const after = present[at + 1];
-  const layouts = layoutsOf(band);
   const heading = state.headings[band] ?? {};
   const layout = heading.layout?.en ?? '';
   const full =
     authored !== null &&
     ((SINGLE_BANDS.includes(authored) && rows.length >= 1) || rows.length >= (AT_MOST_BANDS[authored] ?? Infinity));
-
   const embeds = authored !== null && BAND_FIELDS[authored].some((field) => field.name === EMBED);
   // Asked only where a band can embed one: the read leaves this host.
   const demonstrations = useProductDemonstrations(embeds ? productCode : null).data?.demonstrations ?? [];
-  // A comparison is two sides and both are always in front of the reader.
   const sideBySide = band === 'COMPARE';
   const unfinished =
     embeds &&
     (rows.some(({ block }) => (block.fields[EMBED]?.en ?? '').trim() === '' && block.assetId === null && block.image === null) ||
       (sideBySide && rows.length < 2));
 
-  /**
-   * What is asked first, and what waits under *More options*.
-   *
-   * A row's form listed every field the band has, in the order the server
-   * stores them — so a comparison opened on a name, a caption, an address
-   * to type, a shape and a description before the one thing it needs: what
-   * to show. The few a band cannot do without stay in front; the rest are
-   * one click away and none is removed.
-   */
+  /** What waits under *More options*: what a band can do without. */
   const later = (field: string): boolean =>
     field === 'alt' ||
     field === 'ratio' ||
@@ -687,9 +689,55 @@ function BandPanel({
     change({ ...state, draft });
   };
 
+  const field = (block: DraftBlock, index: number, name: BandField) => (
+    <PanelField
+      key={name.name}
+      id={`${block.key}-${name.name}`}
+      field={name}
+      value={block.fields[name.name] ?? EMPTY}
+      locale={locale}
+      onChange={(next) => setRow(index, { ...block, fields: { ...block.fields, [name.name]: next } }, `${block.key}-${name.name}`)}
+    />
+  );
+
+  const form = (block: DraftBlock, index: number) => (
+    <div className="space-y-4">
+      {embeds && (
+        <DemonstrationPicker
+          id={`${block.key}-demonstration`}
+          found={demonstrations}
+          address={block.fields[EMBED]?.en ?? ''}
+          onChoose={(address) => setRow(index, { ...block, fields: { ...block.fields, [EMBED]: { en: address } } })}
+        />
+      )}
+
+      {carriesAPicture(block.block) && (
+        <BandPicture
+          productId={productId}
+          image={block.image}
+          assetId={block.assetId}
+          onChoose={(assetId, shownAt) => setRow(index, { ...block, assetId, image: shownAt })}
+        />
+      )}
+
+      {BAND_FIELDS[block.block].filter((candidate) => !later(candidate.name)).map((candidate) => field(block, index, candidate))}
+
+      {BAND_FIELDS[block.block].some((candidate) => later(candidate.name)) && (
+        <details data-testid={`more-${block.key}`}>
+          <summary className="cursor-pointer text-xs font-medium text-muted hover:text-ink">{t("More options")}</summary>
+          <div className="mt-3 space-y-4">
+            {BAND_FIELDS[block.block].filter((candidate) => later(candidate.name)).map((candidate) => field(block, index, candidate))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+
+  const only = rows.length === 1 && !sideBySide ? rows[0] : undefined;
+
   return (
     <div data-testid={`panel-${band}`}>
-      <div className="flex items-center gap-1 border-b border-line px-4 py-3">
+      <div className="flex items-center gap-0.5 border-b border-line px-4 py-2.5">
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{t(BAND_META[band].nav)}</h2>
         <button type="button" className={toolClass(false)} data-testid="move-band-up" disabled={before === undefined} aria-label={t("Move {section} earlier", { section: t(BAND_META[band].nav) })} onClick={() => before !== undefined && onMove(band, before)}>
           <Glyph d="M12 19V5M6 11l6-6 6 6" />
@@ -697,220 +745,196 @@ function BandPanel({
         <button type="button" className={toolClass(false)} data-testid="move-band-down" disabled={after === undefined} aria-label={t("Move {section} later", { section: t(BAND_META[band].nav) })} onClick={() => after !== undefined && onMove(band, after)}>
           <Glyph d="M12 5v14M6 13l6 6 6-6" />
         </button>
-        <button type="button" className={toolClass(false)} data-testid="close-panel" aria-label={t("Back to the page's settings")} onClick={onDone}>
-          <Glyph d="M6 6l12 12M18 6L6 18" />
-        </button>
-      </div>
-
-      {band === 'PRICING' && (
-        <p className="border-b border-line px-4 py-3 text-sm text-muted" data-testid="pricing-reads-the-catalogue">
-          {t("The amounts are the product's public offers, read from the catalogue. Only the heading is written here.")}
-        </p>
-      )}
-
-      {layouts.length > 0 && (
-        <PanelSection title={t("Layout")}>
-          <div className="flex flex-wrap gap-2" role="group" aria-label={t("Layout")}>
-            {layouts.map((code, index) => {
-              // The first is the usual one, stored as no choice at all.
-              const on = index === 0 ? !layouts.includes(layout) || layout === code : layout === code;
-
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  aria-pressed={on}
-                  data-testid={`layout-${code}`}
-                  onClick={() => setHeading('layout', { en: index === 0 ? '' : code })}
-                  className={cn(
-                    'rounded-control border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2',
-                    on ? 'border-accent bg-accent-wash font-semibold text-ink' : 'border-line text-ink hover:bg-well',
-                  )}
-                >
-                  {t(LAYOUT_NAMES[code] ?? code)}
-                </button>
-              );
-            })}
-          </div>
-        </PanelSection>
-      )}
-
-      {authored !== null && (
-        <PanelSection
-          title={SINGLE_BANDS.includes(authored) ? t("What it says") : t("What it is made of")}
-          aside={rows.length > 1 ? String(rows.length) : undefined}
-        >
-          {rows.length === 0 && <p className="text-sm text-muted">{t("Nothing written yet")}</p>}
-
-          {unfinished && (
-            <p role="status" data-testid="band-unfinished" className="rounded-control border border-line bg-well px-3 py-2 text-sm">
-              {sideBySide
-                ? t("Choose what each side shows — a demonstration or a picture. The page draws this band once both have one.")
-                : t("Choose what it shows — a demonstration or a picture. The page cannot be saved with this band empty.")}
-            </p>
-          )}
-
-          <ul className="space-y-2" data-testid="panel-rows">
-            {rows.map(({ block, index }, place) => {
-              const shown = sideBySide || open === block.key;
-              const first = BAND_FIELDS[block.block][0];
-              const name = first === undefined ? '' : (block.fields[first.name]?.en ?? '').trim();
-
-              return (
-                <li key={block.key} className="rounded-card border border-line" data-row={block.key}>
-                  <div className="flex items-center gap-1 pr-1">
-                    <button
-                      type="button"
-                      aria-expanded={shown}
-                      data-testid={`row-${block.key}`}
-                      className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-                      onClick={() => setOpen(shown ? null : block.key)}
-                    >
-                      <span className="mr-2 text-xs font-normal text-muted">{place + 1}</span>
-                      {name === '' ? <span className="font-normal text-muted">{t("Not written yet")}</span> : name}
-                    </button>
-
-                    {rows.length > 1 && (
-                      <>
-                        <button type="button" className={toolClass(false, 'w-8')} disabled={place === 0} aria-label={t("Move this one earlier")} data-testid={`row-up-${block.key}`} onClick={() => swap(index, rows[place - 1]?.index ?? index)}>
-                          <Glyph d="M12 19V5M6 11l6-6 6 6" />
-                        </button>
-                        <button type="button" className={toolClass(false, 'w-8')} disabled={place === rows.length - 1} aria-label={t("Move this one later")} data-testid={`row-down-${block.key}`} onClick={() => swap(index, rows[place + 1]?.index ?? index)}>
-                          <Glyph d="M12 5v14M6 13l6 6 6-6" />
-                        </button>
-                      </>
-                    )}
-
-                    <button
-                      type="button"
-                      className={toolClass(false, 'w-8')}
-                      aria-label={t("Remove")}
-                      data-testid={`remove-${block.key}`}
-                      onClick={() => change({ ...state, draft: state.draft.filter((_, at) => at !== index) })}
-                    >
-                      <Glyph d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
-                    </button>
-                  </div>
-
-                  {shown && (
-                    <div className="space-y-3 border-t border-line p-3">
-                      {embeds && (
-                        <DemonstrationPicker
-                          id={`${block.key}-demonstration`}
-                          found={demonstrations}
-                          address={block.fields[EMBED]?.en ?? ''}
-                          onChoose={(address) =>
-                            setRow(index, { ...block, fields: { ...block.fields, [EMBED]: { en: address } } })
-                          }
-                        />
-                      )}
-
-                      {carriesAPicture(block.block) && (
-                        <BandPicture
-                          productId={productId}
-                          image={block.image}
-                          assetId={block.assetId}
-                          onChoose={(assetId, shownAt) => setRow(index, { ...block, assetId, image: shownAt })}
-                        />
-                      )}
-
-                      {BAND_FIELDS[block.block].filter((field) => !later(field.name)).map((field) => (
-                        <BandFieldEditor
-                          key={field.name}
-                          id={`${block.key}-${field.name}`}
-                          field={field}
-                          value={block.fields[field.name] ?? EMPTY}
-                          onChange={(next) =>
-                            setRow(index, { ...block, fields: { ...block.fields, [field.name]: next } }, `${block.key}-${field.name}`)
-                          }
-                        />
-                      ))}
-
-                      {BAND_FIELDS[block.block].some((field) => later(field.name)) && (
-                        <details className="rounded-control border border-line px-3 py-2" data-testid={`more-${block.key}`}>
-                          <summary className="cursor-pointer text-xs font-semibold text-muted">{t("More options")}</summary>
-                          <div className="mt-3 space-y-3">
-                            {BAND_FIELDS[block.block].filter((field) => later(field.name)).map((field) => (
-                              <BandFieldEditor
-                                key={field.name}
-                                id={`${block.key}-${field.name}`}
-                                field={field}
-                                value={block.fields[field.name] ?? EMPTY}
-                                onChange={(next) =>
-                                  setRow(index, { ...block, fields: { ...block.fields, [field.name]: next } }, `${block.key}-${field.name}`)
-                                }
-                              />
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          {!full && (
-            <Button
-              type="button"
-              variant="secondary"
-              data-testid="add-row"
-              onClick={() => {
-                const row = blank(authored);
-
-                change({ ...state, draft: [...state.draft, row] });
-                setOpen(row.key);
-              }}
-            >
-              {rows.length === 0 ? t("Write it") : t("Add one")}
-            </Button>
-          )}
-        </PanelSection>
-      )}
-
-      {SECTIONS_WITH_A_HEADING.includes(band) && (
-        <section className="border-b border-line px-4 py-3">
-          {/* Closed until asked for: a band reads well with the title it
-              was written with, and three more fields in front of every
-              band were three more things to wonder about. */}
-          <details data-testid="panel-heading">
-            <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-[0.08em] text-muted">
-              {t("Title above the band")}
-            </summary>
-            <div className="mt-3">
-          <div className="space-y-3" data-heading={band}>
-                {HEADING_FIELDS.map((field) => (
-                  <BandFieldEditor
-                    key={field.name}
-                    id={`heading-${band}-${field.name}`}
-                    field={field}
-                    value={heading[field.name] ?? EMPTY}
-                    onChange={(next) => setHeading(field.name, next, `heading-${band}-${field.name}`)}
-                  />
-                ))}
-              </div>
-            </div>
-          </details>
-        </section>
-      )}
-
-      {authored !== null && rows.length > 0 && (
-        <PanelSection title={t("Remove this band")}>
-          <p className="text-sm text-muted">{t("Takes its rows off the page. Undo brings them back until the editor is closed.")}</p>
-          <Button
+        {authored !== null && rows.length > 0 && (
+          <button
             type="button"
-            variant="danger"
+            className={toolClass(false)}
             data-testid="remove-band"
+            aria-label={t("Remove this band")}
+            title={t("Remove this band")}
             onClick={() => {
               change({ ...state, draft: state.draft.filter((block) => block.block !== band) });
               onDone();
             }}
           >
-            {t("Remove this band")}
-          </Button>
-        </PanelSection>
+            <Glyph d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+          </button>
+        )}
+        <button type="button" className={toolClass(false)} data-testid="close-panel" aria-label={t("Back to the page's settings")} onClick={onDone}>
+          <Glyph d="M6 6l12 12M18 6L6 18" />
+        </button>
+      </div>
+
+      {authored !== null && (layouts.length > 0 || titled) && (
+        <div role="tablist" aria-label={t(BAND_META[band].nav)} className="flex gap-4 border-b border-line px-4">
+          {(['content', 'look'] as const).map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              role="tab"
+              aria-selected={tab === candidate}
+              data-testid={`panel-tab-${candidate}`}
+              className={cn(
+                '-mb-px border-b-2 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2',
+                tab === candidate ? 'border-accent font-semibold text-ink' : 'border-transparent text-muted hover:text-ink',
+              )}
+              onClick={() => setTab(candidate)}
+            >
+              {candidate === 'content' ? t("Content") : t("Look")}
+            </button>
+          ))}
+        </div>
       )}
+
+      <div className="space-y-4 px-4 py-4">
+        {locale !== 'en' && (
+          <p className="rounded-control bg-well px-3 py-2 text-xs text-muted" data-testid="panel-language">
+            {t("Writing in {language}. A field left empty is read in English.", { language: LOCALE_NAMES[locale] })}
+          </p>
+        )}
+
+        {band === 'PRICING' && (
+          <p className="text-sm text-muted" data-testid="pricing-reads-the-catalogue">
+            {t("The amounts are the product's public offers, read from the catalogue. Only the heading is written here.")}
+          </p>
+        )}
+
+        {tab === 'content' && authored !== null && (
+          <>
+            {unfinished && (
+              <p role="status" data-testid="band-unfinished" className="rounded-control border border-line bg-well px-3 py-2 text-sm">
+                {sideBySide
+                  ? t("Choose what each side shows — a demonstration or a picture. The page draws this band once both have one.")
+                  : t("Choose what it shows — a demonstration or a picture. The page cannot be saved with this band empty.")}
+              </p>
+            )}
+
+            {only !== undefined ? (
+              form(only.block, only.index)
+            ) : (
+              <ul className="space-y-1" data-testid="panel-rows">
+                {rows.map(({ block, index }, place) => {
+                  const shown = sideBySide || open === block.key;
+                  const first = BAND_FIELDS[block.block][0];
+                  const name = first === undefined ? '' : (block.fields[first.name]?.en ?? '').trim();
+
+                  return (
+                    <li
+                      key={block.key}
+                      data-row={block.key}
+                      className={cn('rounded-card border', shown ? 'border-line' : 'border-transparent hover:border-line')}
+                    >
+                      <div className="group flex items-center">
+                        <button
+                          type="button"
+                          aria-expanded={shown}
+                          data-testid={`row-${block.key}`}
+                          className="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                          onClick={() => setOpen(shown && !sideBySide ? null : block.key)}
+                        >
+                          <span className="mr-2 text-xs font-normal text-muted">{place + 1}</span>
+                          {name === '' ? <span className="font-normal text-muted">{t("Not written yet")}</span> : name}
+                        </button>
+
+                        {/* Out of the way until the row is open or pointed at. */}
+                        <span className={cn('flex', shown ? '' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100')}>
+                          {rows.length > 1 && (
+                            <>
+                              <button type="button" className={toolClass(false, 'w-8')} disabled={place === 0} aria-label={t("Move this one earlier")} data-testid={`row-up-${block.key}`} onClick={() => swap(index, rows[place - 1]?.index ?? index)}>
+                                <Glyph d="M12 19V5M6 11l6-6 6 6" />
+                              </button>
+                              <button type="button" className={toolClass(false, 'w-8')} disabled={place === rows.length - 1} aria-label={t("Move this one later")} data-testid={`row-down-${block.key}`} onClick={() => swap(index, rows[place + 1]?.index ?? index)}>
+                                <Glyph d="M12 5v14M6 13l6 6 6-6" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className={toolClass(false, 'w-8')}
+                            aria-label={t("Remove")}
+                            data-testid={`remove-${block.key}`}
+                            onClick={() => change({ ...state, draft: state.draft.filter((_, gone) => gone !== index) })}
+                          >
+                            <Glyph d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+                          </button>
+                        </span>
+                      </div>
+
+                      {shown && <div className="border-t border-line p-3">{form(block, index)}</div>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {rows.length === 0 && <p className="text-sm text-muted">{t("Nothing written yet")}</p>}
+
+            {!full && (
+              <button
+                type="button"
+                data-testid="add-row"
+                className="text-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                onClick={() => {
+                  const row = blank(authored);
+
+                  change({ ...state, draft: [...state.draft, row] });
+                  setOpen(row.key);
+                }}
+              >
+                {rows.length === 0 ? t("Write it") : `+ ${t("Add one")}`}
+              </button>
+            )}
+          </>
+        )}
+
+        {(tab === 'look' || authored === null) && (
+          <>
+            {layouts.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t("Layout")}</h3>
+                <div className="flex flex-wrap gap-2" role="group" aria-label={t("Layout")}>
+                  {layouts.map((code, index) => {
+                    // The first is the usual one, stored as no choice at all.
+                    const on = index === 0 ? !layouts.includes(layout) || layout === code : layout === code;
+
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        aria-pressed={on}
+                        data-testid={`layout-${code}`}
+                        onClick={() => setHeading('layout', { en: index === 0 ? '' : code })}
+                        className={cn(
+                          'rounded-control border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2',
+                          on ? 'border-accent bg-accent-wash font-semibold text-ink' : 'border-line text-ink hover:bg-well',
+                        )}
+                      >
+                        {t(LAYOUT_NAMES[code] ?? code)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {titled && (
+              <div className="space-y-4" data-heading={band}>
+                <h3 className="text-sm font-medium">{t("Title above the band")}</h3>
+                {HEADING_FIELDS.map((name) => (
+                  <PanelField
+                    key={name.name}
+                    id={`heading-${band}-${name.name}`}
+                    field={name}
+                    value={heading[name.name] ?? EMPTY}
+                    locale={locale}
+                    onChange={(next) => setHeading(name.name, next, `heading-${band}-${name.name}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -948,7 +972,10 @@ function DemonstrationPicker({
   }
 
   return (
-    <Field id={id} label={t("Choose a demonstration")} hint={t("The ones this product has. Its address is under More options.")}>
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-sm font-medium">
+        {t("Choose a demonstration")}
+      </label>
       <select
         id={id}
         data-testid={`demonstration-${id}`}
@@ -969,7 +996,7 @@ function DemonstrationPicker({
           </option>
         ))}
       </select>
-    </Field>
+    </div>
   );
 }
 
@@ -1040,12 +1067,18 @@ function PagePanel({
         <Languages left={left} />
       </PanelSection>
 
-      <PanelSection title={t("Start from a template")}>
-        <p className="text-sm text-muted">
-          {t("An order and sentences that say what goes where, to replace with your own. Only the English is filled, and nothing is saved until you press Save.")}
-        </p>
-        <TemplateChoice replaces={state.draft.length > 0} onChoose={onTemplate} />
-      </PanelSection>
+      <section className="border-b border-line px-4 py-3">
+        {/* Closed: a template replaces the page, and is chosen once. */}
+        <details data-testid="panel-templates">
+          <summary className="cursor-pointer text-sm font-medium">{t("Start from a template")}</summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-muted">
+              {t("An order and sentences that say what goes where, to replace with your own. Only the English is filled, and nothing is saved until you press Save.")}
+            </p>
+            <TemplateChoice replaces={state.draft.length > 0} onChoose={onTemplate} />
+          </div>
+        </details>
+      </section>
     </div>
   );
 }
