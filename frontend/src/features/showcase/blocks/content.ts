@@ -128,6 +128,13 @@ export interface QuestionRow {
 }
 
 /** A row as it arrives: its fields, and the picture it may carry. */
+/** A form a visitor writes to the people behind the product with (2026-11-23). */
+export interface ContactRow {
+  readonly intro: string | null;
+  readonly consent: string;
+  readonly thanks: string | null;
+}
+
 /** A line of news above the page (2026-11-23). */
 export interface AnnounceRow {
   readonly text: string;
@@ -191,6 +198,7 @@ export interface ShowcaseContent {
   readonly tour: readonly ShowcaseRow<TourRow>[];
   readonly compare: readonly ShowcaseRow<CompareRow>[];
   readonly announce: readonly ShowcaseRow<AnnounceRow>[];
+  readonly contact: readonly ShowcaseRow<ContactRow>[];
   readonly video: readonly ShowcaseRow<VideoRow>[];
   readonly versus: readonly ShowcaseRow<VersusRow>[];
   readonly hotspots: readonly ShowcaseRow<HotspotRow>[];
@@ -253,6 +261,7 @@ export const NO_CONTENT: ShowcaseContent = {
   tour: [],
   compare: [],
   announce: [],
+  contact: [],
   video: [],
   versus: [],
   hotspots: [],

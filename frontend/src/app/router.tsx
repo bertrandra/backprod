@@ -57,6 +57,7 @@ import { TenantWorkspaceScreen } from '@/features/console/TenantWorkspaceScreen'
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
 import { ProjectSettingsScreen } from '@/features/console/ProjectSettingsScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
+import { ContactRequestsScreen } from '@/features/console/ContactRequestsScreen';
 import { DemoScreen } from '@/features/console/DemoScreen';
 import { DemoPage } from '@/features/demo/DemoPage';
 import { AppShell } from '@/app/shells/AppShell';
@@ -127,6 +128,7 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/readiness', component: ReadinessScreen },
   { path: '/console/tenants', component: StaffTenantsScreen },
   { path: '/console/conversations', component: SupportConversationsScreen },
+  { path: '/console/contact-requests', component: ContactRequestsScreen },
   { path: '/console/metrics', component: MetricsScreen },
   { path: '/console/vat-reports', component: PlatformVatReportsScreen },
   { path: '/console/directory', component: DirectoryScreen },

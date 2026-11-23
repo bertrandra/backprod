@@ -68,6 +68,9 @@ final class ShowcaseBlock
     /** One picture, and points on it that explain what is where (2026-11-23). */
     public const HOTSPOT = 'HOTSPOT';
 
+    /** A form a visitor writes to the operator with (2026-11-23). */
+    public const CONTACT = 'CONTACT';
+
     /**
      * Every kind an operator writes rows for.
      *
@@ -96,6 +99,7 @@ final class ShowcaseBlock
         self::COMPARE,
         self::DEMO,
         self::QUESTION,
+        self::CONTACT,
         self::CTA,
     ];
 
@@ -159,7 +163,7 @@ final class ShowcaseBlock
      *
      * @var list<string>
      */
-    public const SINGLETONS = [self::HEADLINE, self::CTA, self::ANNOUNCE, self::VIDEO];
+    public const SINGLETONS = [self::HEADLINE, self::CTA, self::ANNOUNCE, self::VIDEO, self::CONTACT];
 
     /**
      * What one way of doing it does about one criterion, in a comparison

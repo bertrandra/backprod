@@ -3213,6 +3213,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/products/{code}/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write to the people behind a product
+         * @description A visitor's message through a product's contact form (2026-11-23). No account and no credential: **refused `404 CONTACT_NOT_OFFERED` unless the product's published page carries a `CONTACT` band**, so this is not a mailbox for every product code. Five an hour per address and product, on top of the public limit. `website` is a field a person never sees: filled, the message is thrown away and the answer is the same `202`, so a robot learns nothing. The consent sentence stored is the band's, in the language read.
+         */
+        post: operations["sendContactRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/contact-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What visitors wrote through product pages
+         * @description Still to answer first, newest first within each (2026-11-23). Behind `support.read`, like a conversation. `product` narrows to one product by code.
+         */
+        get: operations["listContactRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/contact-requests/{requestId}/handled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a request answered
+         * @description Behind `support.respond`, the permission that answers a conversation. A second press keeps whoever answered first.
+         */
+        post: operations["handleContactRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/products/{code}/showcase": {
         parameters: {
             query?: never;
@@ -4620,6 +4680,12 @@ export interface components {
             note?: string;
             /** @description HOTSPOT: how far across the picture the point is, 0 to 100. A code, required. */
             x?: string;
+            /** @description CONTACT: the sentence beside the box a visitor ticks. Kept with each request as it was read. */
+            consent?: string;
+            /** @description CONTACT: a line above the form. */
+            intro?: string;
+            /** @description CONTACT: what the visitor reads once it is sent. */
+            thanks?: string;
             /** @description HOTSPOT: how far down the picture the point is, 0 to 100. A code, required. */
             y?: string;
         };
@@ -4629,7 +4695,7 @@ export interface components {
              * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE and one CTA per page, and at most two COMPARE.
              * @enum {string}
              */
-            block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
+            block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CONTACT" | "CTA";
             /**
              * @description Within its kind. In tens, so one can be slipped between two others without renumbering anybody.
              * @default 10
@@ -4654,7 +4720,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
+            block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CONTACT" | "CTA";
             position: number;
             content: components["schemas"]["ShowcaseBlockContent"];
             /**
@@ -4688,6 +4754,26 @@ export interface components {
                  */
                 embed_url: string;
             }[];
+        };
+        /** @description What a visitor wrote through a product's contact form (2026-11-23). `consent` is the sentence they ticked, as they read it — kept because the product may reword it later. Nothing is kept that was not typed: no address, no browser. */
+        ContactRequest: {
+            /** Format: uuid */
+            id: string;
+            /** @description The product's code. */
+            product: string;
+            name: string;
+            email: string;
+            message: string;
+            consent: string;
+            /** @description The language the page was read in. */
+            locale: string;
+            /** Format: date-time */
+            received_at: string;
+            /**
+             * Format: date-time
+             * @description When support marked it answered; null until then.
+             */
+            handled_at: string | null;
         };
         /**
          * @description A band's own heading (2026-09-28): the eyebrow above it, its title, and the sentence under it. Every field optional, and **absent is the band's compiled default** — the words its component was written with — never an empty title. Blank removes one, which is how a band goes back to that default.
@@ -4734,7 +4820,7 @@ export interface components {
          *
          *     `PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.
          */
-        ShowcaseSectionOrder: ("HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "PRICING" | "QUESTION" | "CTA")[];
+        ShowcaseSectionOrder: ("HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "PRICING" | "QUESTION" | "CONTACT" | "CTA")[];
         /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
         Showcase: {
             product: {
@@ -4749,7 +4835,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CTA";
+                block: "HEADLINE" | "ANNOUNCE" | "TRUST" | "PROBLEM" | "STATS" | "VIDEO" | "STEPS" | "FEATURE" | "HOTSPOT" | "TOUR" | "USE_CASE" | "VERSUS" | "QUOTE" | "PROOF" | "COMPARE" | "DEMO" | "QUESTION" | "CONTACT" | "CTA";
                 position: number;
                 content: components["schemas"]["ShowcaseBlockContent"];
                 /** @description Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them. */
@@ -14370,6 +14456,140 @@ export interface operations {
                     };
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    sendContactRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description The language to answer in, on the reads a stranger makes. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared would impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform.
+                 *
+                 *     It decides *names* a person reads — an offer's, a feature's, a showcase band's. A code is never translated: it is what an entitlement, a quota check and a product's own source name the thing by.
+                 */
+                "Accept-Language"?: components["parameters"]["AcceptLanguage"];
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    email: string;
+                    message: string;
+                    /** @description Must be true: the visitor agreed to be answered. */
+                    consent: boolean;
+                    /** @description Left empty by a person; see above. */
+                    website?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Received. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        received: boolean;
+                    };
+                };
+            };
+            /** @description `INVALID_BODY` or `VALIDATION_FAILED` — the body is not a JSON object, or `token` is not a string. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `SHARE_NOT_FOUND` — the link opens nothing, whatever the reason. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listContactRequests: {
+        parameters: {
+            query?: {
+                product?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of requests, the total, and how many are still to answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: components["schemas"]["ContactRequest"][];
+                        total: number;
+                        open: number;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    handleContactRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request, answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        request: components["schemas"]["ContactRequest"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

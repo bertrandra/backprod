@@ -82,6 +82,7 @@ final class ShowcaseBlocks
         ShowcaseBlock::VIDEO => ['required' => ['caption'], 'optional' => ['alt']],
         ShowcaseBlock::VERSUS => ['required' => ['criterion'], 'optional' => ['note']],
         ShowcaseBlock::HOTSPOT => ['required' => ['title'], 'optional' => ['body', 'alt']],
+        ShowcaseBlock::CONTACT => ['required' => ['consent'], 'optional' => ['intro', 'thanks']],
     ];
 
     /**

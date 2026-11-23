@@ -77,6 +77,7 @@ const FULL: ShowcaseContent = {
   // Everything but the news: a line above the page, drawn there whatever
   // the order says, so it has its own test below.
   announce: [],
+  contact: [row('ct', { intro: null, consent: 'I agree to be contacted about my message.', thanks: null })],
   video: [row('v', { caption: 'Two minutes of Plan', videoUrl: 'https://vimeo.com/76979871' })],
   versus: [row('vs', { criterion: 'Your plot in 3D', note: null, ours: 'yes', others: ['no', null, null] })],
   hotspots: [
@@ -103,6 +104,7 @@ const EMPTY: ShowcaseContent = {
   tour: [],
   compare: [],
   announce: [],
+  contact: [],
   video: [],
   versus: [],
   hotspots: [],
@@ -364,7 +366,7 @@ describe('the order the page is read in', () => {
   // The page as it was before the four bands of 2026-11-20: these cases are
   // about orders written against nine sections, and a band that did not
   // exist then is put back by a rule that has its own case.
-  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [], video: [], versus: [], hotspots: [] };
+  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [], video: [], versus: [], hotspots: [], contact: [] };
   const bandsOn = (container: HTMLElement) =>
     [...container.querySelectorAll('[data-band]')].map((band) => band.getAttribute('data-band'));
 

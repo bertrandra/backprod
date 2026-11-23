@@ -133,6 +133,8 @@ use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
 use App\Privacy\Domain\ErasureRepository;
 use App\Privacy\Infrastructure\PostgresErasureRepository;
+use App\Product\Controller\SendContactRequestController;
+use App\Product\Domain\ContactRequests;
 use App\Product\Domain\ProductAccessLog;
 use App\Product\Domain\ProductAssets;
 use App\Product\Domain\ProductCapabilities;
@@ -148,6 +150,7 @@ use App\Product\Domain\ProductUsageLedger;
 use App\Product\Domain\TenantHoldings;
 use App\Product\Infrastructure\CurlProductDemonstrations;
 use App\Product\Infrastructure\CurlProductManifests;
+use App\Product\Infrastructure\PostgresContactRequests;
 use App\Product\Infrastructure\PostgresProductAccessLog;
 use App\Product\Infrastructure\PostgresProductAssets;
 use App\Product\Infrastructure\PostgresProductCapabilities;
@@ -400,6 +403,11 @@ return static function (array $overrides = []): ContainerInterface {
         WebhookTransport::class => autowire(CurlWebhookTransport::class),
         ProductManifests::class => autowire(CurlProductManifests::class),
         ProductDemonstrations::class => autowire(CurlProductDemonstrations::class),
+        ContactRequests::class => autowire(PostgresContactRequests::class),
+        // The contact form keys its own hourly limit by address, so it is
+        // told which proxies to believe, exactly as the rate limiter is.
+        SendContactRequestController::class => autowire()
+            ->constructorParameter('trustedProxies', $list($env('TRUSTED_PROXIES'))),
         ProductUsageLedger::class => autowire(PostgresProductUsage::class),
         ReportedUsage::class => autowire(PostgresProductUsage::class),
         TenantHoldings::class => autowire(PostgresTenantHoldings::class),

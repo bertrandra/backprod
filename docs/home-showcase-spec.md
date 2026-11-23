@@ -973,3 +973,27 @@ types, and is written separately.
 
 A migration widens the three constraints that list band kinds, as each new band
 has.
+
+## 21. A contact form (2026-11-23)
+
+The ninth of the operator's list, and the only one that keeps what a stranger
+types. A `CONTACT` band (one per page) draws name, email, message and a box to
+tick beside the operator's own sentence; what is sent reaches support.
+
+- **Only where the published page offers one.** `POST /public/products/{code}/contact`
+  answers `404 CONTACT_NOT_OFFERED` unless the *published* page carries the
+  band, so the public route is not a mailbox for every product code.
+- **The consent is kept as it was read** — the band's sentence, in the language
+  the page was read in, stored with each request, as an invoice keeps its
+  snapshot.
+- **Nothing is kept that was not typed**: no address, no browser, no referrer.
+- **Robots**: a hidden `website` field a person never fills; filled, the message
+  is thrown away and the answer is the same `202`. Five an hour per address and
+  product, on top of the public limit.
+- **Support reads and answers** at `/console/contact-requests`
+  (`support.read`; marking one answered is `support.respond`). The answer goes
+  from the reader's own mail: the platform sends nothing on support's behalf,
+  and there is no notification of a new message yet — the menu entry is where
+  they are.
+- **Not sent from the editor**: the page drawn for its author has no product to
+  write to, and says so where the button would be.

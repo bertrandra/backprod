@@ -36,6 +36,7 @@ export function Showcase({
   onChooseOffer,
   buyLabel,
   retired = false,
+  productCode,
   sections,
   underBar = false,
 }: {
@@ -61,6 +62,8 @@ export function Showcase({
    * the section nav sticks beneath it rather than behind it. Inside the
    * shell the nav's scroll container already starts below the context bar.
    */
+  /** The product a contact form writes to; absent in the editor (2026-11-23). */
+  productCode?: string | undefined;
   underBar?: boolean | undefined;
 }) {
   const props: BandProps = {
@@ -72,6 +75,7 @@ export function Showcase({
     onChooseOffer,
     buyLabel,
     retired,
+    productCode,
   };
 
   const spoken = bandsInOrder(sections).filter((kind) => BAND_VIEWS[kind].speaks(props));

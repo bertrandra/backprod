@@ -679,6 +679,11 @@ appartenance à un tenant** — c'est la frontière, et elle est dans deux table
 de ce que le personnel consultait a été retiré avec
 l'ADR-069.
 
+`listContactRequests` lit ce que des visiteurs ont écrit par le formulaire de la
+page d'un produit (2026-11-23), à traiter d'abord ; `handleContactRequest` en
+marque un comme répondu (`support.respond`) — la réponse elle-même part de la
+messagerie de celui qui répond, la plateforme n'envoie rien à sa place.
+
 ### La plateforme — `admin.*`
 
 | Action | Permission | Ce que ça change |
@@ -710,11 +715,12 @@ l'ADR-069.
 
 # Ce qu'aucun des trois n'atteint à la main
 
-### Publiques — neuf opérations, aucun compte
+### Publiques — dix opérations, aucun compte
 
 `signUp`, `getPublicOffers`, `getPublicOffer`, `listPublicProducts`,
-`getPublicShowcase`, `showPublicTenant`, `showPublicDemo`, `getPublicPalette` et
-`openSharedProject` — ce dernier n'ouvre qu'un projet dont on tient le jeton de
+`getPublicShowcase`, `showPublicTenant`, `showPublicDemo`, `getPublicPalette`,
+`sendContactRequest` — refusé si la page publiée n'a pas de formulaire, cinq par
+heure et par adresse — et `openSharedProject` — ce dernier n'ouvre qu'un projet dont on tient le jeton de
 partage (ADR-073), et répond le même 404 pour tout lien qui ne s'ouvre pas ; la
 palette, c'est la palette que l'organisation porte pour ce produit, celle que voient ses
 membres, puisque la page la montre déjà à n'importe qui. La vitrine vend à des
@@ -749,15 +755,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              134
 
-  PLATFORM_ADMIN                                  93
-  publiques, sans compte                           9
+  PLATFORM_ADMIN                                  95
+  publiques, sans compte                          10
   machines et sondes                               8
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          248
+  total                                          251
 ```
 
-Dont **119 lectures** et **129 écritures**. Chaque écriture a sa ligne dans les
+Dont **120 lectures** et **131 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

@@ -945,6 +945,78 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
     }
 
     /**
+     * A visitor writes through the page's form (2026-11-23): only where the
+     * published page offers one, with the consent kept as it was read, a
+     * trap that keeps nothing, a limit per address, and support reading and
+     * answering.
+     */
+    public function testAVisitorWritesThroughThePageAndSupportAnswers(): void
+    {
+        $send = fn (array $body, string $language = 'en'): ResponseInterface => $this->request(
+            'POST',
+            '/api/v1/public/products/plan/contact',
+            ['Accept-Language' => $language],
+            $this->json($body),
+        );
+        $message = ['name' => 'Ada', 'email' => 'ada@example.test', 'message' => 'Does it draw a pergola?', 'consent' => true];
+
+        // No form on the page, or no page at all: nobody's mailbox.
+        self::assertSame(404, $send($message)->getStatusCode());
+
+        $written = $this->write([
+            self::headline(),
+            [
+                'block' => 'CONTACT',
+                'position' => 10,
+                'content' => ['consent' => 'I agree to be contacted.'],
+                'translations' => ['fr' => ['consent' => 'J’accepte d’être recontacté.']],
+            ],
+        ]);
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        // Written but not published is still no form.
+        self::assertSame(404, $send($message)->getStatusCode());
+        $this->publish(true);
+
+        self::assertSame(202, $send($message, 'fr')->getStatusCode());
+        // The trap: the same answer, and nothing kept.
+        self::assertSame(202, $send([...$message, 'website' => 'https://spam.test'])->getStatusCode());
+        // No consent, no address that answers.
+        self::assertSame(400, $send([...$message, 'consent' => false])->getStatusCode());
+        self::assertSame(400, $send([...$message, 'email' => 'not an address'])->getStatusCode());
+
+        self::assertSame(1, (int) $this->connection->fetchOne('SELECT count(*) FROM contact_requests'));
+        // Kept as it was read, in the language it was read in.
+        self::assertSame('J’accepte d’être recontacté.', $this->connection->fetchOne('SELECT consent FROM contact_requests'));
+
+        // Five an hour from one address, the refused ones included.
+        self::assertSame(202, $send($message)->getStatusCode());
+        self::assertSame(429, $send($message)->getStatusCode());
+
+        // Support reads them, those to answer first, and answers one.
+        $list = $this->request('GET', '/api/v1/staff/contact-requests?product=plan', ['Authorization' => 'Bearer sam-token']);
+        self::assertSame(200, $list->getStatusCode(), (string) $list->getBody());
+        $page = $this->decode($list);
+        self::assertSame(2, $page['total'] ?? null);
+        self::assertSame(2, $page['open'] ?? null);
+        $requests = $page['requests'] ?? null;
+        self::assertIsArray($requests);
+        self::assertIsArray($requests[0] ?? null);
+        $id = $requests[0]['id'] ?? null;
+        self::assertIsString($id);
+
+        $handled = $this->request('POST', '/api/v1/staff/contact-requests/' . $id . '/handled', ['Authorization' => 'Bearer sam-token']);
+        self::assertSame(200, $handled->getStatusCode(), (string) $handled->getBody());
+
+        $after = $this->decode($this->request('GET', '/api/v1/staff/contact-requests', ['Authorization' => 'Bearer sam-token']));
+        self::assertSame(1, $after['open'] ?? null);
+
+        self::assertSame(404, $this->request('POST', '/api/v1/staff/contact-requests/not-an-id/handled', ['Authorization' => 'Bearer sam-token'])->getStatusCode());
+        // A stranger reads nothing.
+        self::assertSame(401, $this->request('GET', '/api/v1/staff/contact-requests')->getStatusCode());
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function headline(): array

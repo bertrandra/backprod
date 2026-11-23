@@ -179,6 +179,7 @@ export function StorefrontScreen({
         // rendering of it for strangers would be the one nobody proofread.
         <Showcase
           productName={storefront.data?.product?.name ?? t("What we sell")}
+          productCode={productCode ?? undefined}
           content={contentFrom(story.data)}
           sections={sectionsFrom(story.data)}
           offers={storefront.data?.offers ?? []}

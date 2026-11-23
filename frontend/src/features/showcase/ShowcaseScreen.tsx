@@ -64,6 +64,7 @@ export function ShowcaseScreen() {
     <div className="-mx-4 md:-mx-6 lg:-mx-8">
       <Showcase
       productName={product?.name ?? productCode ?? t("This product")}
+      productCode={productCode ?? undefined}
       content={contentFrom(story.data)}
       // The order is the product's since 2026-09-28, not the bundle's.
       sections={sectionsFrom(story.data)}
