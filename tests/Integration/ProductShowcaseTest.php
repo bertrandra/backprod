@@ -952,13 +952,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAVisitorWritesThroughThePageAndSupportAnswers(): void
     {
-        /** @param array<string, mixed> $body */
-        $send = fn (array $body, string $language = 'en'): ResponseInterface => $this->request(
-            'POST',
-            '/api/v1/public/products/plan/contact',
-            ['Accept-Language' => $language],
-            $this->json($body),
-        );
+        $send = fn (array $body, string $language = 'en'): ResponseInterface => $this->contact($body, $language);
         $message = ['name' => 'Ada', 'email' => 'ada@example.test', 'message' => 'Does it draw a pergola?', 'consent' => true];
 
         // No form on the page, or no page at all: nobody's mailbox.
@@ -1015,6 +1009,27 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame(404, $this->request('POST', '/api/v1/staff/contact-requests/not-an-id/handled', ['Authorization' => 'Bearer sam-token'])->getStatusCode());
         // A stranger reads nothing.
         self::assertSame(401, $this->request('GET', '/api/v1/staff/contact-requests')->getStatusCode());
+    }
+
+    /**
+     * A visitor's message, sent the way the page's form sends it.
+     *
+     * @param array<array-key, mixed> $body
+     */
+    private function contact(array $body, string $language): ResponseInterface
+    {
+        $fields = [];
+
+        foreach ($body as $field => $value) {
+            $fields[(string) $field] = $value;
+        }
+
+        return $this->request(
+            'POST',
+            '/api/v1/public/products/plan/contact',
+            ['Accept-Language' => $language],
+            $this->json($fields),
+        );
     }
 
     /**
