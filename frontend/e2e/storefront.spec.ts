@@ -351,6 +351,11 @@ test.describe('choosing an offer', () => {
 
 test.describe('the storefront is a screen like any other', () => {
   test('passes an accessibility scan', async ({ page }) => {
+    // The page as it is drawn, not half-way through a band fading in: a scan
+    // that landed mid-fade measured a blended colour and failed a contrast
+    // the page does not have (CI, 2026-11-23). Asking for less motion is
+    // what draws every band at once, which is the state to judge.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await stubStorefront(page);
 
     await page.goto('/?product=atlas');
@@ -366,6 +371,7 @@ test.describe('the storefront is a screen like any other', () => {
   });
 
   test('the sign-up form passes one too', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await stubStorefront(page);
 
     await page.goto('/?product=atlas');
