@@ -61,7 +61,7 @@ final class ContactDesk
         $page = $this->showcase->published($productCode);
         $form = null;
 
-        foreach ($page?->blocks ?? [] as $block) {
+        foreach ($page->blocks ?? [] as $block) {
             if ($block->block === ShowcaseBlock::CONTACT) {
                 $form = $block;
             }
@@ -91,7 +91,8 @@ final class ContactDesk
             throw self::invalid('consent', 'true: the visitor agreed to be answered');
         }
 
-        $consent = $form->contentIn($locale)['consent'] ?? '';
+        $said = $form->contentIn($locale)['consent'] ?? '';
+        $consent = is_string($said) ? $said : '';
 
         return $this->requests->add($page->productId, trim($name), $email, trim($message), $consent, $locale);
     }
@@ -104,7 +105,7 @@ final class ContactDesk
         $productId = null;
 
         if ($productCode !== null) {
-            $productId = $this->products->findByCode($productCode)?->id
+            $productId = $this->products->findByCode($productCode)->id
                 ?? throw new NotFoundException('No such product.', [], 'PRODUCT_NOT_FOUND');
         }
 

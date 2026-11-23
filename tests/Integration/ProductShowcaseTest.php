@@ -952,6 +952,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAVisitorWritesThroughThePageAndSupportAnswers(): void
     {
+        /** @param array<string, mixed> $body */
         $send = fn (array $body, string $language = 'en'): ResponseInterface => $this->request(
             'POST',
             '/api/v1/public/products/plan/contact',
@@ -985,7 +986,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame(400, $send([...$message, 'consent' => false])->getStatusCode());
         self::assertSame(400, $send([...$message, 'email' => 'not an address'])->getStatusCode());
 
-        self::assertSame(1, (int) $this->connection->fetchOne('SELECT count(*) FROM contact_requests'));
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM contact_requests'));
         // Kept as it was read, in the language it was read in.
         self::assertSame('J’accepte d’être recontacté.', $this->connection->fetchOne('SELECT consent FROM contact_requests'));
 
