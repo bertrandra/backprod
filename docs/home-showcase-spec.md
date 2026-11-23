@@ -932,3 +932,24 @@ rather than in the bands.
 - **A band that cannot be drawn yet says what it is waiting for.**
 - **The band's title is closed until asked for**: three fields in front of
   every band, for words most bands never change.
+
+## 19. A panel that can be read (2026-11-23)
+
+The operator again: the right-hand panel was not readable — too much in it.
+What was in it, for a band of two steps: a layout, two row cards with three
+icons each, under every text field a language button and a line of five
+language codes, a hint under every label, the band's title, and a section of
+its own to remove the band.
+
+- **Two tabs: Content and Look.** What a band says opens first; its layout and
+  title, changed once, are the second tab.
+- **One language at a time, chosen once.** The header's language is the one the
+  page is shown in *and* the one the fields edit. A field is a label and a box;
+  in another language the English stands in the empty box. The per-field
+  language button and the row of codes are gone from the editor (the console's
+  form keeps them).
+- **Hints appear when a field is used**, not under every label.
+- **One row open at a time**, the first by default; a band with one row has no
+  list at all. Row actions show on the open row, or on hover.
+- **Removing the band is an icon beside moving it**, with undo behind it.
+- **Templates are folded** on the page panel: a template is chosen once.
