@@ -440,6 +440,35 @@ describe('the page editor', () => {
     expect(screen.queryByDisplayValue('Draw the parcel')).toBeNull();
   });
 
+  it('offers the photo slider by name, and asks for a photo on each side and nothing else', async () => {
+    open({
+      'GET /api/v1/staff/configuration/demonstrations': {
+        data: { source: 'admin/vitrine/{n}', embed: '?file={n}', demonstrations: [{ number: 1, name: 'The plot', embed_url: 'https://plan.example.test/?file=1' }] },
+      },
+    });
+    await editor();
+
+    fireEvent.click(screen.getByTestId('open-library'));
+    fireEvent.click(screen.getByTestId('add-COMPARE-photos'));
+
+    expect(screen.getByTestId('compare-mode-photos').getAttribute('aria-checked')).toBe('true');
+    // A photo on each side, and no address or demonstration to choose.
+    expect(screen.getAllByTestId('band-picture')).toHaveLength(2);
+    expect(screen.queryByLabelText('Choose a demonstration')).toBeNull();
+    expect(screen.queryByLabelText('Address to embed')).toBeNull();
+    expect(screen.getByTestId('band-unfinished').textContent).toContain('a photo on each side');
+
+    // The other kind of side is one choice away, and photos go.
+    fireEvent.click(screen.getByTestId('compare-mode-live'));
+
+    expect(screen.queryAllByTestId('band-picture')).toHaveLength(0);
+    expect(await screen.findAllByLabelText('Choose a demonstration')).toHaveLength(2);
+
+    // And the library will not add a second comparison either way.
+    fireEvent.click(screen.getByTestId('open-library'));
+    expect(screen.getByTestId<HTMLButtonElement>('add-COMPARE-photos').disabled).toBe(true);
+  });
+
   it('lets no link navigate the page drawn in the editor, a place on it included', async () => {
     open();
     await editor();
