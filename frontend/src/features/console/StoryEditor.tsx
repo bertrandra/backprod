@@ -94,6 +94,9 @@ export function StoryEditor({
   const [device, setDevice] = useState<Device>('desktop');
   const [locale, setLocale] = useState<LocaleCode>('en');
   const [pane, setPane] = useState<Pane>('page');
+  // Which way a comparison was asked for from the library (2026-11-24):
+  // the panel opens on that kind of side, photos or live views.
+  const [startsAs, setStartsAs] = useState<CompareMode | null>(null);
   const [dialog, setDialog] = useState<'library' | 'review' | null>(null);
   const [past, setPast] = useState<readonly StoryState[]>([]);
   const [future, setFuture] = useState<readonly StoryState[]>([]);
@@ -217,7 +220,7 @@ export function StoryEditor({
     change({ ...state, order });
   };
 
-  const add = (band: AuthoredBandKind) => {
+  const add = (band: AuthoredBandKind, photos = false) => {
     const order = [...state.order];
 
     // After the band being looked at, which is where somebody adding one
@@ -228,6 +231,7 @@ export function StoryEditor({
     }
 
     change({ ...state, order, draft: [...state.draft, ...startOf(band)] });
+    setStartsAs(band === 'COMPARE' ? (photos ? 'photos' : 'live') : null);
     setDialog(null);
     choose(band, 'panel');
   };
@@ -462,6 +466,7 @@ export function StoryEditor({
               productCode={product.code}
               band={chosen}
               locale={locale}
+              startsAs={startsAs}
               state={state}
               present={present}
               change={change}
@@ -489,6 +494,9 @@ export function StoryEditor({
     </div>
   );
 }
+
+/** What the two sides of a comparison are. */
+type CompareMode = 'photos' | 'live';
 
 type Found = { readonly heading: string } | { readonly row: number; readonly field: string };
 
@@ -632,6 +640,7 @@ function BandPanel({
   state,
   present,
   locale,
+  startsAs,
   change,
   onMove,
   onDone,
@@ -642,6 +651,7 @@ function BandPanel({
   state: StoryState;
   present: readonly BandKind[];
   locale: LocaleCode;
+  startsAs: CompareMode | null;
   change: (next: StoryState, about?: string) => void;
   onMove: (band: BandKind, towards: BandKind) => void;
   onDone: () => void;
@@ -664,12 +674,55 @@ function BandPanel({
   // Asked only where a band can embed one: the read leaves this host.
   const demonstrations = useProductDemonstrations(embeds ? productCode : null).data?.demonstrations ?? [];
   const sideBySide = band === 'COMPARE';
+
+  /**
+   * What the two sides of a comparison are (2026-11-24): photos with a line
+   * to drag across them, or live views turned by hand. The band always did
+   * both — two pictures draw the slider, two addresses the switch — but the
+   * panel offered the demonstrations first and never said a photo on each
+   * side was all the slider needed, so the operator went looking for a
+   * widget that was already there. Now it is the first thing asked.
+   *
+   * Read from what the sides hold, so an existing band opens on what it is;
+   * the library's own choice wins for a band just added.
+   */
+  const [mode, setMode] = useState<CompareMode>(() =>
+    startsAs ??
+    (rows.some(({ block }) => (block.fields[EMBED]?.en ?? '').trim() !== '')
+      ? 'live'
+      : 'photos'),
+  );
+  const photos = sideBySide && mode === 'photos';
+
+  const switchTo = (next: CompareMode) => {
+    setMode(next);
+    // A side is one or the other — the server refuses both — so what the
+    // other mode put there goes, in one step undo can take back.
+    change({
+      ...state,
+      draft: state.draft.map((block) =>
+        block.block !== 'COMPARE'
+          ? block
+          : next === 'photos'
+            ? { ...block, fields: { ...block.fields, [EMBED]: { en: '' } } }
+            : { ...block, assetId: null, image: null },
+      ),
+    });
+  };
+
   const unfinished =
     embeds &&
-    (rows.some(({ block }) => (block.fields[EMBED]?.en ?? '').trim() === '' && block.assetId === null && block.image === null) ||
+    (rows.some(({ block }) =>
+      photos
+        ? block.assetId === null && block.image === null
+        : (block.fields[EMBED]?.en ?? '').trim() === '' && block.assetId === null && block.image === null,
+    ) ||
       (sideBySide && rows.length < 2));
 
   /** What waits under *More options*: what a band can do without. */
+  /** What a mode has no use for: an address, where the sides are photos. */
+  const unused = (field: string): boolean => photos && field === EMBED;
+
   const later = (field: string): boolean =>
     field === 'alt' ||
     field === 'ratio' ||
@@ -711,7 +764,7 @@ function BandPanel({
 
   const form = (block: DraftBlock, index: number) => (
     <div className="space-y-4">
-      {embeds && (
+      {embeds && !photos && (
         <DemonstrationPicker
           id={`${block.key}-demonstration`}
           found={demonstrations}
@@ -729,7 +782,7 @@ function BandPanel({
         />
       )}
 
-      {carriesAPicture(block.block) && (band !== 'HOTSPOT' || index === rows[0]?.index) && (
+      {carriesAPicture(block.block) && (band !== 'HOTSPOT' || index === rows[0]?.index) && !(sideBySide && !photos) && (
         <BandPicture
           productId={productId}
           image={block.image}
@@ -738,13 +791,13 @@ function BandPanel({
         />
       )}
 
-      {BAND_FIELDS[block.block].filter((candidate) => !later(candidate.name)).map((candidate) => field(block, index, candidate))}
+      {BAND_FIELDS[block.block].filter((candidate) => !later(candidate.name) && !unused(candidate.name)).map((candidate) => field(block, index, candidate))}
 
-      {BAND_FIELDS[block.block].some((candidate) => later(candidate.name)) && (
+      {BAND_FIELDS[block.block].some((candidate) => later(candidate.name) && !unused(candidate.name)) && (
         <details data-testid={`more-${block.key}`}>
           <summary className="cursor-pointer text-xs font-medium text-muted hover:text-ink">{t("More options")}</summary>
           <div className="mt-3 space-y-4">
-            {BAND_FIELDS[block.block].filter((candidate) => later(candidate.name)).map((candidate) => field(block, index, candidate))}
+            {BAND_FIELDS[block.block].filter((candidate) => later(candidate.name) && !unused(candidate.name)).map((candidate) => field(block, index, candidate))}
           </div>
         </details>
       )}
@@ -819,9 +872,32 @@ function BandPanel({
 
         {tab === 'content' && authored !== null && (
           <>
+            {sideBySide && (
+              <div role="radiogroup" aria-label={t("What the two sides are")} className="grid grid-cols-2 gap-2" data-testid="compare-mode">
+                {(['photos', 'live'] as const).map((candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    role="radio"
+                    aria-checked={mode === candidate}
+                    data-testid={`compare-mode-${candidate}`}
+                    onClick={() => mode !== candidate && switchTo(candidate)}
+                    className={cn(
+                      'rounded-control border px-3 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2',
+                      mode === candidate ? 'border-accent bg-accent-wash font-semibold text-ink' : 'border-line text-ink hover:bg-well',
+                    )}
+                  >
+                    {candidate === 'photos' ? t("Two photos, a line to drag") : t("Two live views")}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {unfinished && (
               <p role="status" data-testid="band-unfinished" className="rounded-control border border-line bg-well px-3 py-2 text-sm">
-                {sideBySide
+                {photos
+                  ? t("Add a photo on each side. The line to drag appears once both have one.")
+                  : sideBySide
                   ? t("Choose what each side shows — a demonstration or a picture. The page draws this band once both have one.")
                   : t("Choose what it shows — a demonstration or a picture. The page cannot be saved with this band empty.")}
               </p>
@@ -1262,9 +1338,11 @@ function Library({
   onClose,
 }: {
   state: StoryState;
-  onAdd: (band: AuthoredBandKind) => void;
+  onAdd: (band: AuthoredBandKind, photos?: boolean) => void;
   onClose: () => void;
 }) {
+  const compared = state.draft.some((block) => block.block === 'COMPARE');
+
   return (
     <Modal title={t("Add a band")} testId="band-library" onClose={onClose} wide>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1291,6 +1369,34 @@ function Library({
             </li>
           );
         })}
+
+        {/* The same band, asked for by what it shows (2026-11-24): a photo
+            slider is what people look for, and it was a mode of "Before
+            and after" nobody could guess. */}
+        <li>
+          <button
+            type="button"
+            disabled={compared}
+            data-testid="add-COMPARE-photos"
+            onClick={() => onAdd('COMPARE', true)}
+            className={cn(
+              'flex h-full w-full flex-col gap-2 rounded-card border border-line bg-surface p-3 text-left',
+              'focus-visible:outline-2 focus-visible:outline-offset-2',
+              compared ? 'opacity-50' : 'hover:border-accent',
+            )}
+          >
+            <svg viewBox="0 0 140 58" className="h-16 w-full rounded-control bg-well text-ink" aria-hidden="true">
+              <rect x="10" y="8" width="120" height="42" rx="2" fill="currentColor" opacity="0.18" />
+              <rect x="10" y="8" width="60" height="42" rx="2" fill="currentColor" opacity="0.35" />
+              <rect x="69" y="6" width="2" height="46" fill="currentColor" opacity="0.7" />
+              <circle cx="70" cy="29" r="6" fill="currentColor" opacity="0.7" />
+            </svg>
+            <span className="text-sm font-semibold">{t("Before and after, in photos")}</span>
+            <span className="text-xs text-muted">
+              {compared ? t("Already on the page — it grows from its own panel.") : t("Two photos of the same place, and a line the reader drags across them.")}
+            </span>
+          </button>
+        </li>
       </ul>
     </Modal>
   );
