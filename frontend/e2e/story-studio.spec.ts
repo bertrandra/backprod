@@ -129,6 +129,31 @@ test.describe('editing a product’s page with its preview', () => {
     await expect(page.getByTestId('editor-state')).toHaveAttribute('data-dirty', 'false');
   });
 
+  test('keeps the page in its frame when a link on it is followed, under the live site’s headers', async ({ page }) => {
+    // What production sends and the preview server does not: without it a
+    // link that navigated the frame loaded the console inside it unnoticed;
+    // with it the frame showed "refused to connect" (2026-11-23).
+    await page.route(/\/console\//, async (route) => {
+      const response = await route.fetch();
+
+      await route.fulfill({ response, headers: { ...response.headers(), 'x-frame-options': 'DENY' } });
+    });
+
+    const inside = await openStudio(page);
+    const turn = page.getByTestId('studio-show-page');
+
+    if (await turn.isVisible()) {
+      await turn.click();
+    }
+
+    // The call to action and the page's own menu both point at a place on it.
+    await inside.getByRole('link', { name: 'See the offers' }).first().click();
+    await page.waitForTimeout(300);
+
+    await expect(inside.getByTestId('showcase-headline')).toHaveText('Draw a terrace');
+    expect(await page.locator('[data-testid="preview-frame"]').evaluate((frame) => (frame as HTMLIFrameElement).contentWindow?.location.href)).toBe('about:srcdoc');
+  });
+
   test('previews a phone as a phone: the breakpoints read the frame, not the window', async ({ page }) => {
     const inside = await openStudio(page);
 

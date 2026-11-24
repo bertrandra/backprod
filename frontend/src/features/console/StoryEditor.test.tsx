@@ -469,6 +469,22 @@ describe('the page editor', () => {
     expect(screen.getByTestId<HTMLButtonElement>('add-COMPARE-photos').disabled).toBe(true);
   });
 
+  it('lets no link navigate the page drawn in the editor, a place on it included', async () => {
+    open();
+    await editor();
+
+    // In the frame, `#prices` resolves against the console's own address;
+    // followed, it loaded the console into the frame, which the live site
+    // refuses to be framed in. It is scrolled to instead.
+    for (const link of inFrame()!.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      const followed = link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+      expect(followed, link.getAttribute('href') ?? '').toBe(false);
+    }
+
+    expect(inFrame()!.querySelectorAll('a[href^="#"]').length).toBeGreaterThan(0);
+  });
+
   it('says a published page changes for its visitors when it is saved', async () => {
     open({}, '2026-11-19T17:42:00Z');
     await editor();
