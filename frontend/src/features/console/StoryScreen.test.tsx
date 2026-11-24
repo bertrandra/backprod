@@ -62,9 +62,11 @@ describe('the editor', () => {
       'add-USE_CASE',
       'add-VERSUS',
       'add-QUOTE',
+      'add-REVIEW',
       'add-PROOF',
       'add-COMPARE',
       'add-DEMO',
+      'add-REASSURE',
       'add-QUESTION',
       'add-CONTACT',
       'add-CTA',
@@ -135,7 +137,7 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CONTACT', 'CTA'],
+      sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'REVIEW', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'REASSURE', 'QUESTION', 'CONTACT', 'CTA'],
       // Nothing retitled, so nothing sent: a band left out of the map reads
       // the words its component was written with.
       bands: {},
@@ -708,7 +710,7 @@ describe('starting from a template', () => {
     expect(body.blocks.map((block) => block.block)).toEqual([
       'HEADLINE', 'STEPS', 'STEPS', 'STEPS', 'QUESTION', 'QUESTION', 'CTA',
     ]);
-    expect(body.sections.slice(0, 5)).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'CTA']);
+    expect(body.sections.slice(0, 6)).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'REASSURE', 'QUESTION', 'CTA']);
   });
 });
 

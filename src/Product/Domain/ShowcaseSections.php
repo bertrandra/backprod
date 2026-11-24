@@ -61,10 +61,12 @@ final class ShowcaseSections
         ShowcaseBlock::USE_CASE,
         ShowcaseBlock::VERSUS,
         ShowcaseBlock::QUOTE,
+        ShowcaseBlock::REVIEW,
         ShowcaseBlock::PROOF,
         ShowcaseBlock::COMPARE,
         ShowcaseBlock::DEMO,
         self::PRICING,
+        ShowcaseBlock::REASSURE,
         ShowcaseBlock::QUESTION,
         ShowcaseBlock::CONTACT,
         ShowcaseBlock::CTA,
@@ -99,7 +101,7 @@ final class ShowcaseSections
         ShowcaseBlock::COMPARE => ['overlay', 'beside'],
         ShowcaseBlock::STATS => ['plain', 'counter'],
         ShowcaseBlock::TRUST => ['row', 'marquee'],
-        self::PRICING => ['cards', 'table'],
+        self::PRICING => ['cards', 'table', 'toggle'],
     ];
 
     /**

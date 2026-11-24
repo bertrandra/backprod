@@ -615,6 +615,7 @@ const LAYOUT_NAMES: Record<string, string> = {
   marquee: 'Passing by',
   cards: 'Cards',
   table: 'Cards and a table',
+  toggle: 'Monthly or yearly, the reader chooses',
   overlay: 'One over the other',
   beside: 'Next to each other',
 };
@@ -1283,6 +1284,8 @@ const BAND_ABOUT: Record<AuthoredBandKind, string> = {
   VIDEO: 'A film of the product, played on a click.',
   VERSUS: 'This product against the other ways, criterion by criterion.',
   HOTSPOT: 'One picture, with points that explain what is where.',
+  REASSURE: 'Under the prices: secure payment, cancel anytime, a real answer.',
+  REVIEW: 'Reviews you received, each with its stars.',
 };
 
 /**
@@ -1310,6 +1313,8 @@ const BAND_SHAPE: Record<AuthoredBandKind, readonly Box[]> = {
   QUESTION: [[10, 10, 120, 8, 0], [10, 24, 120, 8, 0], [10, 38, 120, 8, 0]],
   CTA: [[30, 14, 80, 7, 1], [44, 26, 52, 4, 0], [56, 36, 28, 10, 1]],
   CONTACT: [[10, 8, 56, 8, 0], [74, 8, 56, 8, 0], [10, 22, 120, 18, 0], [10, 44, 6, 6, 0], [100, 42, 30, 10, 1]],
+  REASSURE: [[10, 22, 8, 8, 1], [22, 24, 24, 4, 0], [54, 22, 8, 8, 1], [66, 24, 24, 4, 0], [98, 22, 8, 8, 1], [110, 24, 24, 4, 0]],
+  REVIEW: [[10, 10, 22, 5, 1], [10, 20, 34, 4, 0], [10, 28, 28, 4, 0], [54, 10, 22, 5, 1], [54, 20, 34, 4, 0], [54, 28, 28, 4, 0], [98, 10, 22, 5, 1], [98, 20, 34, 4, 0], [98, 28, 28, 4, 0]],
   ANNOUNCE: [[0, 4, 140, 10, 1], [10, 22, 60, 6, 0], [10, 32, 90, 4, 0], [10, 40, 80, 4, 0]],
   VIDEO: [[20, 6, 100, 46, 0], [62, 21, 16, 16, 1]],
   VERSUS: [[10, 8, 40, 5, 0], [58, 8, 22, 5, 1], [88, 8, 22, 5, 0], [10, 20, 40, 5, 0], [64, 19, 8, 8, 1], [94, 19, 8, 8, 0], [10, 34, 40, 5, 0], [64, 33, 8, 8, 1], [94, 33, 8, 8, 0]],

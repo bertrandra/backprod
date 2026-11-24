@@ -182,7 +182,7 @@ describe('the page editor', () => {
     const sent = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
 
     expect(sent.sections.indexOf('QUESTION')).toBeLessThan(sent.sections.indexOf('PRICING'));
-    expect(sent.sections).toHaveLength(20);
+    expect(sent.sections).toHaveLength(22);
   });
 
   it('adds a band from the library, after the one being looked at', async () => {
@@ -438,6 +438,26 @@ describe('the page editor', () => {
     expect(screen.getByTestId('row-b-2').getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByDisplayValue('The terrace follows')).toBeTruthy();
     expect(screen.queryByDisplayValue('Draw the parcel')).toBeNull();
+  });
+
+  it('adds a review with its stars already chosen, and promises under the prices with an icon', async () => {
+    open();
+    await editor();
+
+    fireEvent.click(screen.getByTestId('open-library'));
+    fireEvent.click(screen.getByTestId('add-REVIEW'));
+
+    // Five stars to start from, changed in one choice; never left to be
+    // drawn as none.
+    expect(screen.getByLabelText<HTMLSelectElement>('Stars').value).toBe('5');
+    expect(screen.getByLabelText('Who wrote it')).toBeTruthy();
+    expect(screen.getByLabelText('What they wrote')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('open-library'));
+    fireEvent.click(screen.getByTestId('add-REASSURE'));
+
+    expect(screen.getByLabelText('What you promise')).toBeTruthy();
+    expect(screen.getByLabelText<HTMLSelectElement>('Icon').value).toBe('check');
   });
 
   it('offers the photo slider by name, and asks for a photo on each side and nothing else', async () => {

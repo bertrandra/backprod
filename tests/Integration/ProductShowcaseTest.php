@@ -165,7 +165,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
             $this->decode($fresh)['sections'] ?? null,
         );
 
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS', 'CONTACT'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS', 'CONTACT', 'REASSURE', 'REVIEW'];
 
         $written = $this->request(
             'PUT',
@@ -201,7 +201,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
     {
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS', 'CONTACT'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'DEMO', 'PROOF', 'CTA', 'FEATURE', 'STATS', 'TRUST', 'COMPARE', 'TOUR', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS', 'CONTACT', 'REASSURE', 'REVIEW'];
 
         $this->request(
             'PUT',
@@ -942,6 +942,89 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
 
         // Columns belong to the comparison alone.
         self::assertSame(400, $put([], ['STEPS' => ['content' => ['columns' => 'A; B']]])->getStatusCode());
+    }
+
+    /**
+     * Two bands beside the prices (2026-11-24). A review carries a whole
+     * number of stars or is refused; the page's count and average are the
+     * server's, drawn from the rows it reads out; and the prices may be laid
+     * out with a switch between periods.
+     */
+    public function testReviewsCarryAMarkAndTheServerCountsThem(): void
+    {
+        $written = $this->writeWith([
+            ['block' => 'REASSURE', 'position' => 10, 'content' => ['title' => 'Secure payment', 'detail' => 'By card.', 'icon' => 'lock'], 'translations' => ['fr' => ['title' => 'Paiement sécurisé']]],
+            ['block' => 'REASSURE', 'position' => 20, 'content' => ['title' => 'Cancel whenever you like']],
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['author' => 'Marie Durand', 'body' => 'My quotes go out the same evening.', 'rating' => '5', 'role' => 'Landscaper', 'date' => '2026-03-01']],
+            ['block' => 'REVIEW', 'position' => 20, 'content' => ['author' => 'Paul Martin', 'body' => 'Good, the export could be faster.', 'rating' => '4']],
+            ['block' => 'REVIEW', 'position' => 30, 'content' => ['author' => 'Anne Petit', 'body' => 'It does the job.', 'rating' => '4']],
+        ], ['PRICING' => ['content' => ['layout' => 'toggle']], 'REVIEW' => ['content' => ['title' => 'What customers say']]]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $this->publish(true);
+        $public = $this->decode($this->public('fr'))['showcase'] ?? null;
+        self::assertIsArray($public);
+
+        // Three marks — 5, 4, 4 — counted once, here: 4.3 to one decimal.
+        $reviews = $public['reviews'] ?? null;
+        self::assertIsArray($reviews);
+        self::assertSame(3, $reviews['count'] ?? null);
+        self::assertEquals(4.3, $reviews['average'] ?? null);
+
+        self::assertSame('toggle', $this->sentenceAt($public, ['bands', 'PRICING', 'layout']));
+
+        $blocks = $public['blocks'] ?? null;
+        self::assertIsArray($blocks);
+        $promises = array_values(array_filter(
+            $blocks,
+            static fn (mixed $block): bool => is_array($block) && ($block['block'] ?? null) === 'REASSURE',
+        ));
+        self::assertCount(2, $promises);
+        self::assertIsArray($promises[0]);
+        // The sentence in the reader's language, the icon as it was chosen.
+        self::assertSame('Paiement sécurisé', $this->sentenceAt($promises[0], ['content', 'title']));
+        self::assertSame('lock', $this->sentenceAt($promises[0], ['content', 'icon']));
+
+        foreach ([
+            // No mark, a mark off the scale, half a star.
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['author' => 'x', 'body' => 'y']],
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['author' => 'x', 'body' => 'y', 'rating' => '6']],
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['author' => 'x', 'body' => 'y', 'rating' => '4.5']],
+            // Nobody's review.
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['body' => 'y', 'rating' => '5']],
+            // A day that is not one.
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['author' => 'x', 'body' => 'y', 'rating' => '5', 'date' => 'last spring']],
+            // A mark in a translation.
+            ['block' => 'REVIEW', 'position' => 10, 'content' => ['author' => 'x', 'body' => 'y', 'rating' => '5'], 'translations' => ['fr' => ['rating' => '4']]],
+            // An icon nobody draws.
+            ['block' => 'REASSURE', 'position' => 10, 'content' => ['title' => 'x', 'icon' => 'unicorn']],
+        ] as $refused) {
+            self::assertSame(400, $this->writeWith([$refused])->getStatusCode(), json_encode($refused) ?: '');
+        }
+
+        // A page with no review answers no summary, rather than nought.
+        self::assertSame(200, $this->writeWith([])->getStatusCode());
+        $without = $this->decode($this->public())['showcase'] ?? null;
+        self::assertIsArray($without);
+        self::assertArrayHasKey('reviews', $without);
+        self::assertNull($without['reviews']);
+    }
+
+    /**
+     * The headline, the given rows and the given headings, written at once.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @param array<string, mixed>       $bands
+     */
+    private function writeWith(array $blocks, array $bands = []): ResponseInterface
+    {
+        return $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => [self::headline(), ...$blocks], 'bands' => (object) $bands]),
+        );
     }
 
     /**

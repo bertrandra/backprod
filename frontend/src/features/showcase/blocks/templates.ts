@@ -91,12 +91,26 @@ const FEATURES: readonly TemplateBlock[] = [
   row('FEATURE', ['title', 'What keeps their work safe'], ['body', 'What that gives the customer.'], ['icon', 'shield']),
 ];
 
+/**
+ * What a buyer is owed beside the prices (2026-11-24): prompts, like every
+ * row here, to be replaced by what this product really promises.
+ *
+ * **No template writes a review.** A review is somebody's judgement with
+ * their name on it; a placeholder one published by mistake is an invented
+ * customer, which a placeholder step is not.
+ */
+const REASSURANCES = [
+  row('REASSURE', ['title', 'What makes paying safe'], ['detail', 'Who takes the payment, and how.'], ['icon', 'lock']),
+  row('REASSURE', ['title', 'How they can leave'], ['detail', 'When, and what it costs them.'], ['icon', 'calendar']),
+  row('REASSURE', ['title', 'Who answers them'], ['detail', 'In what language, and how fast.'], ['icon', 'chat']),
+];
+
 export const STORY_TEMPLATES: readonly StoryTemplate[] = [
   {
     id: 'complete',
     name: 'The whole story',
     description: 'Every band the page has: who trusts it, the trouble it ends, its numbers, how it works, what it includes, who it is for, the proof, the prices, the questions and a last call to action. For a product people have not heard of.',
-    sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'QUESTION', 'CONTACT', 'CTA'],
+    sections: ['HEADLINE', 'ANNOUNCE', 'TRUST', 'PROBLEM', 'STATS', 'VIDEO', 'STEPS', 'FEATURE', 'HOTSPOT', 'TOUR', 'USE_CASE', 'VERSUS', 'QUOTE', 'REVIEW', 'PROOF', 'COMPARE', 'DEMO', 'PRICING', 'REASSURE', 'QUESTION', 'CONTACT', 'CTA'],
     blocks: [
       HEADLINE,
       row('TRUST', ['name', 'A customer people know']),
@@ -113,6 +127,7 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
       row('QUOTE', ['quote', 'What a customer said, in their own words.'], ['author', 'Their name, and what they do']),
       row('PROOF', ['caption', 'What this screenshot shows, and why it matters.']),
       row('PROOF', ['caption', 'A second thing worth seeing, said in one sentence.']),
+      ...REASSURANCES,
       ...QUESTIONS,
       CTA,
     ],
@@ -121,7 +136,7 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
     id: 'proof-first',
     name: 'Proof first',
     description: 'The product itself straight after the promise, then what customers say, its numbers and how it works. For a product that convinces by being seen.',
-    sections: ['HEADLINE', 'PROOF', 'COMPARE', 'DEMO', 'VIDEO', 'TOUR', 'QUOTE', 'STATS', 'STEPS', 'FEATURE', 'VERSUS', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'USE_CASE', 'HOTSPOT', 'ANNOUNCE', 'CONTACT'],
+    sections: ['HEADLINE', 'PROOF', 'COMPARE', 'DEMO', 'VIDEO', 'TOUR', 'QUOTE', 'STATS', 'STEPS', 'FEATURE', 'VERSUS', 'PRICING', 'REASSURE', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'USE_CASE', 'HOTSPOT', 'ANNOUNCE', 'CONTACT', 'REVIEW'],
     // The screenshots are the argument, so they get the hero's width and
     // the reader's own pace; the page opens centred on the promise above.
     layouts: { HEADLINE: 'centered', PROOF: 'carousel' },
@@ -142,7 +157,7 @@ export const STORY_TEMPLATES: readonly StoryTemplate[] = [
     id: 'short',
     name: 'Short',
     description: 'The promise, three steps, the prices, two questions and a last call to action. For a product that explains itself, or a page to publish today and grow later.',
-    sections: ['HEADLINE', 'STEPS', 'PRICING', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'STATS', 'FEATURE', 'TOUR', 'USE_CASE', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS', 'CONTACT'],
+    sections: ['HEADLINE', 'STEPS', 'PRICING', 'REASSURE', 'QUESTION', 'CTA', 'TRUST', 'PROBLEM', 'STATS', 'FEATURE', 'TOUR', 'USE_CASE', 'QUOTE', 'PROOF', 'COMPARE', 'DEMO', 'ANNOUNCE', 'VIDEO', 'HOTSPOT', 'VERSUS', 'CONTACT', 'REVIEW'],
     blocks: [HEADLINE, ...STEPS, ...QUESTIONS.slice(0, 2), CTA],
   },
 ];
