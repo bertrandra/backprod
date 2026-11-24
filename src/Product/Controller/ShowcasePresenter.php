@@ -7,6 +7,7 @@ namespace App\Product\Controller;
 use App\Product\Domain\PublishedShowcase;
 use App\Product\Domain\ShowcaseBandHeading;
 use App\Product\Domain\ShowcaseBlock;
+use App\Product\Domain\ShowcaseReviews;
 
 /**
  * A product's story, in the two shapes it is read in.
@@ -52,6 +53,15 @@ final class ShowcasePresenter
      */
     public static function page(PublishedShowcase $showcase, string $locale): array
     {
+        // An announcement past its last day is not news any more
+        // (2026-11-23), decided here rather than by each browser's
+        // clock — which would disagree with the server, and with
+        // each other, about what day it is.
+        $shown = array_values(array_filter(
+            $showcase->blocks,
+            static fn (ShowcaseBlock $block): bool => $block->isShownOn(gmdate('Y-m-d')),
+        ));
+
         return [
             'product' => [
                 'code' => $showcase->code,
@@ -88,15 +98,12 @@ final class ShowcasePresenter
                     // them.
                     'image' => self::pictureAt($showcase->code, $block->assetId),
                 ],
-                // An announcement past its last day is not news any more
-                // (2026-11-23), decided here rather than by each browser's
-                // clock — which would disagree with the server, and with
-                // each other, about what day it is.
-                array_values(array_filter(
-                    $showcase->blocks,
-                    static fn (ShowcaseBlock $block): bool => $block->isShownOn(gmdate('Y-m-d')),
-                )),
+                $shown,
             ),
+            // How many reviews the page shows and their average mark
+            // (2026-11-24): a quantity, so the server's and never a
+            // component's. Null where the page shows none.
+            'reviews' => ShowcaseReviews::summary($shown),
         ];
     }
 

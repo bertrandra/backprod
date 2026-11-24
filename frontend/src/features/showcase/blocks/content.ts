@@ -135,6 +135,33 @@ export interface ContactRow {
   readonly thanks: string | null;
 }
 
+/** What a buyer is owed beside the prices: an icon and a line (2026-11-24). */
+export interface ReassureRow {
+  readonly title: string;
+  readonly detail: string | null;
+  readonly icon: ProblemIcon | null;
+}
+
+/** What a customer said, and the mark they gave (2026-11-24). */
+export interface ReviewRow {
+  readonly author: string;
+  readonly role: string | null;
+  readonly body: string;
+  /** Whole stars, one to five. */
+  readonly rating: 1 | 2 | 3 | 4 | 5;
+  /** The day it was given, `YYYY-MM-DD`. */
+  readonly date: string | null;
+}
+
+/**
+ * What the page's reviews amount to, **as the server counted them**
+ * (2026-11-24). Never added up here: an average is a quantity.
+ */
+export interface ReviewSummary {
+  readonly count: number;
+  readonly average: number;
+}
+
 /** A line of news above the page (2026-11-23). */
 export interface AnnounceRow {
   readonly text: string;
@@ -202,6 +229,10 @@ export interface ShowcaseContent {
   readonly video: readonly ShowcaseRow<VideoRow>[];
   readonly versus: readonly ShowcaseRow<VersusRow>[];
   readonly hotspots: readonly ShowcaseRow<HotspotRow>[];
+  readonly reassure: readonly ShowcaseRow<ReassureRow>[];
+  readonly reviews: readonly ShowcaseRow<ReviewRow>[];
+  /** Null where the server gave none: a draft in the editor, or no review. */
+  readonly reviewSummary: ReviewSummary | null;
   /**
    * Each band's own heading, keyed by section (2026-09-28).
    *
@@ -265,5 +296,8 @@ export const NO_CONTENT: ShowcaseContent = {
   video: [],
   versus: [],
   hotspots: [],
+  reassure: [],
+  reviews: [],
+  reviewSummary: null,
   headings: {},
 };

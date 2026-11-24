@@ -64,6 +64,9 @@ export const BAND_META = {
   USE_CASE: { order: 30, anchor: 'who', surface: 'canvas', nav: 'Who it is for' },
   VERSUS: { order: 33, anchor: 'versus', surface: 'well', nav: 'Why this one' },
   QUOTE: { order: 35, anchor: 'said', surface: 'surface', nav: 'What they say' },
+  // Straight after the chosen voices: the marks, and who gave them
+  // (2026-11-24).
+  REVIEW: { order: 36, anchor: 'reviews', surface: 'canvas', nav: 'Reviews' },
   PROOF: { order: 40, anchor: 'proof', surface: 'well', nav: 'See it' },
   // One plot twice. After the screenshots, because it is the proof made
   // personal: not "here is the product" but "here is what it did".
@@ -72,6 +75,10 @@ export const BAND_META = {
   // nearly convinced wants to try it rather than read another sentence.
   DEMO: { order: 45, anchor: 'demo', surface: 'canvas', nav: 'Try it' },
   PRICING: { order: 50, anchor: 'prices', surface: 'surface', nav: 'Prices' },
+  // Under the prices and nowhere else (2026-11-24): what is owed to
+  // somebody whose hand is on the button — and no use to a reader who has
+  // not seen a price yet.
+  REASSURE: { order: 52, anchor: 'assurances', surface: 'well', nav: 'With confidence', quiet: true },
   QUESTION: { order: 60, anchor: 'questions', surface: 'canvas', nav: 'Questions' },
   CONTACT: { order: 65, anchor: 'contact', surface: 'surface', nav: 'Write to us' },
   // The last thing on the page, and the second dark band: the page opens on
@@ -110,6 +117,12 @@ export const PROBLEM_ICONS = {
   bolt: 'M17 3 L7 17 H15 L13 27 L23 13 H15 Z',
   shield: 'M15 3 L25 7 V14 C25 20 21 25 15 27 C9 25 5 20 5 14 V7 Z M10.5 15 l3.5 3.5 l6 -7',
   layers: 'M15 4 L26 10 L15 16 L4 10 Z M4 15 L15 21 L26 15 M4 20 L15 26 L26 20',
+  // Four a buyer looks for beside a price (2026-11-24): the payment is
+  // safe, by card, somebody answers, and the date they may leave.
+  lock: 'M8 14 H22 V26 H8 Z M11 14 V10 a4 4 0 0 1 8 0 V14 M15 19 v3',
+  card: 'M4 8 H26 V22 H4 Z M4 13 H26 M8 18 h5',
+  chat: 'M5 6 H25 V20 H14 L9 25 V20 H5 Z M10 11 h10 M10 15 h6',
+  calendar: 'M5 7 H25 V26 H5 Z M5 12 H25 M10 4 v6 M20 4 v6 M10 17 h3 M17 17 h3',
 } as const;
 
 export type ProblemIcon = keyof typeof PROBLEM_ICONS;
@@ -142,9 +155,11 @@ export const AUTHORED_BANDS = [
   'USE_CASE',
   'VERSUS',
   'QUOTE',
+  'REVIEW',
   'PROOF',
   'COMPARE',
   'DEMO',
+  'REASSURE',
   'QUESTION',
   'CONTACT',
   'CTA',
@@ -188,7 +203,7 @@ export const BAND_LAYOUTS = {
   COMPARE: ['overlay', 'beside'],
   STATS: ['plain', 'counter'],
   TRUST: ['row', 'marquee'],
-  PRICING: ['cards', 'table'],
+  PRICING: ['cards', 'table', 'toggle'],
 } as const satisfies Partial<Record<BandKind, readonly string[]>>;
 
 /** The layouts one band has, the usual one first; empty where it has one way. */
@@ -281,6 +296,7 @@ export const SECTIONS_WITH_A_HEADING: readonly BandKind[] = [
   'VIDEO',
   'HOTSPOT',
   'VERSUS',
+  'REVIEW',
   'PRICING',
   'QUESTION',
   'CONTACT',

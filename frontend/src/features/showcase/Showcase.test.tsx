@@ -83,6 +83,9 @@ const FULL: ShowcaseContent = {
   hotspots: [
     { id: 'hs', content: { title: 'The terrace', body: null, x: 40, y: 40 }, image: { url: '/plot.webp', alt: 'The plot', ratio: 1.6 } },
   ],
+  reassure: [row('ra', { title: 'Secure payment', detail: 'By card, through Stripe.', icon: 'lock' as const })],
+  reviews: [row('rv', { author: 'Marie Durand', role: 'Landscaper', body: 'My quotes go out the same evening.', rating: 4 as const, date: '2026-03-01' })],
+  reviewSummary: { count: 1, average: 4 },
 };
 
 /** The compiled order, without the news, which is drawn above it all. */
@@ -108,6 +111,9 @@ const EMPTY: ShowcaseContent = {
   video: [],
   versus: [],
   hotspots: [],
+  reassure: [],
+  reviews: [],
+  reviewSummary: null,
   headings: {},
 };
 
@@ -366,7 +372,7 @@ describe('the order the page is read in', () => {
   // The page as it was before the four bands of 2026-11-20: these cases are
   // about orders written against nine sections, and a band that did not
   // exist then is put back by a rule that has its own case.
-  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [], video: [], versus: [], hotspots: [], contact: [] };
+  const NINE: ShowcaseContent = { ...FULL, trust: [], stats: [], features: [], cta: [], tour: [], compare: [], video: [], versus: [], hotspots: [], contact: [], reassure: [], reviews: [], reviewSummary: null };
   const bandsOn = (container: HTMLElement) =>
     [...container.querySelectorAll('[data-band]')].map((band) => band.getAttribute('data-band'));
 
@@ -1174,3 +1180,147 @@ describe('the offers, side by side', () => {
   });
 });
 
+
+/**
+ * Three things beside the prices (2026-11-24): a switch between the periods
+ * the catalogue sells, what a buyer is owed, and what customers said.
+ */
+describe('prices by the month or by the year', () => {
+  const sold = (id: string, name: string, period: 'MONTHLY' | 'YEARLY' | 'CUSTOM', minor: number, freemium = false) => ({
+    ...OFFER,
+    id,
+    name,
+    version: { ...OFFER.version, id: `v-${id}`, billing_period: period, price: { minor_units: minor, currency: 'EUR' }, freemium },
+  });
+  const toggled = { ...FULL, headings: { PRICING: { eyebrow: null, title: null, lede: null, layout: 'toggle' } } };
+  const shown = () => [...screen.getByTestId('showcase-offers').children].map((card) => card.getAttribute('data-offer'));
+
+  it('shows one period at a time, each offer at the price the catalogue gives it', () => {
+    renderStory(toggled, [sold('m', 'Pro, monthly', 'MONTHLY', 3900), sold('y', 'Pro, yearly', 'YEARLY', 39000), sold('f', 'Discovery', 'MONTHLY', 0, true)]);
+
+    const periods = within(screen.getByTestId('pricing-periods'));
+
+    // The first offer's own period is in front; the free period stays.
+    expect(periods.getByRole('button', { name: 'Pay monthly' }).getAttribute('aria-pressed')).toBe('true');
+    expect(shown()).toEqual(['m', 'f']);
+
+    fireEvent.click(periods.getByRole('button', { name: 'Pay yearly' }));
+
+    expect(periods.getByRole('button', { name: 'Pay yearly' }).getAttribute('aria-pressed')).toBe('true');
+    expect(shown()).toEqual(['y', 'f']);
+    // The yearly offer's own amount, as published: nothing is worked out
+    // from the monthly one.
+    expect(screen.getByTestId('showcase-offers').textContent).toContain('390');
+    expect(screen.getByTestId('showcase-offers').textContent).not.toContain('468');
+  });
+
+  it('offers no switch where the catalogue sells one period', () => {
+    renderStory(toggled, [sold('m', 'Solo', 'MONTHLY', 1900), sold('n', 'Pro', 'MONTHLY', 3900)]);
+
+    expect(screen.queryByTestId('pricing-periods')).toBeNull();
+    expect(shown()).toEqual(['m', 'n']);
+  });
+
+  it('keeps an offer with no period to name on both sides', () => {
+    renderStory(toggled, [sold('m', 'Pro, monthly', 'MONTHLY', 3900), sold('y', 'Pro, yearly', 'YEARLY', 39000), sold('c', 'Enterprise', 'CUSTOM', 0)]);
+
+    expect(shown()).toEqual(['m', 'c']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pay yearly' }));
+
+    expect(shown()).toEqual(['y', 'c']);
+  });
+
+  it('shows every offer where the band is laid out as cards', () => {
+    renderStory(FULL, [sold('m', 'Pro, monthly', 'MONTHLY', 3900), sold('y', 'Pro, yearly', 'YEARLY', 39000)]);
+
+    expect(screen.queryByTestId('pricing-periods')).toBeNull();
+    expect(shown()).toEqual(['m', 'y']);
+  });
+});
+
+describe('what a buyer is owed', () => {
+  it('draws each promise with its icon, under a heading only a screen reader meets', () => {
+    renderStory(FULL);
+
+    const band = within(screen.getByTestId('showcase-reassure'));
+
+    expect(band.getByRole('heading', { name: 'Buy with confidence' })).toBeTruthy();
+    expect(band.getByText('Secure payment')).toBeTruthy();
+    expect(band.getByText('By card, through Stripe.')).toBeTruthy();
+    expect(screen.getByTestId('showcase-reassure').querySelector('svg')).not.toBeNull();
+  });
+
+  it('says nothing where nothing was promised', () => {
+    renderStory({ ...FULL, reassure: [] });
+
+    expect(screen.queryByTestId('showcase-reassure')).toBeNull();
+  });
+
+  it('reads the rows, and an icon it cannot draw as none', () => {
+    const content = contentFrom({
+      product: { code: 'plan', name: 'Plan', active: true },
+      sections: [],
+      bands: {},
+      blocks: [
+        { id: 'a', block: 'REASSURE', position: 10, content: { title: 'Cancel whenever you like', icon: 'calendar' }, image: null },
+        { id: 'b', block: 'REASSURE', position: 20, content: { title: 'An answer within a day', icon: 'from-a-newer-server' }, image: null },
+      ],
+    } as never);
+
+    expect(content.reassure.map((row) => row.content)).toEqual([
+      { title: 'Cancel whenever you like', detail: null, icon: 'calendar' },
+      { title: 'An answer within a day', detail: null, icon: null },
+    ]);
+  });
+});
+
+describe('what customers said, with the mark they gave', () => {
+  it('draws the stars as one picture with a sentence, and the author under the words', () => {
+    renderStory(FULL);
+
+    const band = within(screen.getByTestId('showcase-reviews'));
+
+    expect(band.getByRole('img', { name: '4 out of 5' })).toBeTruthy();
+    expect(band.getByText('My quotes go out the same evening.')).toBeTruthy();
+    expect(band.getByText('Marie Durand')).toBeTruthy();
+    expect(band.getByText(/Landscaper · March 2026/)).toBeTruthy();
+  });
+
+  it('says the server’s average for what it is, and adds nothing up itself', () => {
+    renderStory({ ...FULL, reviewSummary: { count: 12, average: 4.7 } });
+
+    // One review on the page and a summary of twelve: the figure is the
+    // one that was given, not one counted from the cards.
+    const summary = screen.getByTestId('review-summary').textContent ?? '';
+
+    expect(summary).toContain('4.7');
+    expect(summary).toContain('average of the 12 reviews shown on this page');
+  });
+
+  it('shows no average where the server gave none', () => {
+    renderStory({ ...FULL, reviewSummary: null });
+
+    expect(screen.getByTestId('showcase-reviews')).toBeTruthy();
+    expect(screen.queryByTestId('review-summary')).toBeNull();
+  });
+
+  it('drops a review with no mark it can draw, rather than inventing one', () => {
+    const content = contentFrom({
+      product: { code: 'plan', name: 'Plan', active: true },
+      sections: [],
+      bands: {},
+      reviews: { count: 1, average: 5 },
+      blocks: [
+        { id: 'a', block: 'REVIEW', position: 10, content: { author: 'Marie', body: 'Very good.', rating: '5', date: '2026-03-01' }, image: null },
+        { id: 'b', block: 'REVIEW', position: 20, content: { author: 'Paul', body: 'Good.', rating: '4.5' }, image: null },
+        { id: 'c', block: 'REVIEW', position: 30, content: { author: 'Anne', body: 'Good.' }, image: null },
+      ],
+    } as never);
+
+    expect(content.reviews.map((row) => row.content)).toEqual([
+      { author: 'Marie', role: null, body: 'Very good.', rating: 5, date: '2026-03-01' },
+    ]);
+    expect(content.reviewSummary).toEqual({ count: 1, average: 5 });
+  });
+});

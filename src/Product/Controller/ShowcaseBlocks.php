@@ -83,6 +83,11 @@ final class ShowcaseBlocks
         ShowcaseBlock::VERSUS => ['required' => ['criterion'], 'optional' => ['note']],
         ShowcaseBlock::HOTSPOT => ['required' => ['title'], 'optional' => ['body', 'alt']],
         ShowcaseBlock::CONTACT => ['required' => ['consent'], 'optional' => ['intro', 'thanks']],
+        // Two beside the prices (2026-11-24). `REASSURE` is a line and what
+        // it rests on. `REVIEW` is who said it and what they said; its mark
+        // and its day are codes, below.
+        ShowcaseBlock::REASSURE => ['required' => ['title'], 'optional' => ['detail']],
+        ShowcaseBlock::REVIEW => ['required' => ['author', 'body'], 'optional' => ['role']],
     ];
 
     /**
@@ -100,6 +105,8 @@ final class ShowcaseBlocks
         ShowcaseBlock::FEATURE => ['icon' => ShowcaseBlock::ICONS],
         ShowcaseBlock::DEMO => ['ratio' => ShowcaseBlock::RATIOS],
         ShowcaseBlock::COMPARE => ['ratio' => ShowcaseBlock::RATIOS],
+        ShowcaseBlock::REASSURE => ['icon' => ShowcaseBlock::ICONS],
+        ShowcaseBlock::REVIEW => ['rating' => ShowcaseBlock::RATINGS],
     ];
 
     /**
@@ -137,6 +144,7 @@ final class ShowcaseBlocks
 
     private const DATES = [
         ShowcaseBlock::ANNOUNCE => ['until'],
+        ShowcaseBlock::REVIEW => ['date'],
     ];
 
     private const VIDEOS = [
@@ -307,6 +315,12 @@ final class ShowcaseBlocks
         // A point is somewhere: both shares, or the point is drawn nowhere.
         if ($kind === ShowcaseBlock::HOTSPOT && (!isset($content['x']) || !isset($content['y']))) {
             throw self::invalid($index, 'content.' . (isset($content['x']) ? 'y' : 'x'), 'a share of the picture, from 0 to 100');
+        }
+
+        // A review is its mark: stars drawn for a sentence nobody rated would
+        // be a rating the page made up.
+        if ($kind === ShowcaseBlock::REVIEW && !isset($content['rating'])) {
+            throw self::invalid($index, 'content.rating', 'a whole number of stars, from 1 to 5');
         }
 
         return new ShowcaseBlock(

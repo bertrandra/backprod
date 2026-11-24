@@ -72,6 +72,24 @@ final class ShowcaseBlock
     public const CONTACT = 'CONTACT';
 
     /**
+     * What a hesitating buyer is owed beside the prices (2026-11-24): the
+     * payment is safe, leaving is allowed, somebody answers. An icon and a
+     * line each.
+     */
+    public const REASSURE = 'REASSURE';
+
+    /**
+     * What a customer said, with the mark they gave (2026-11-24).
+     *
+     * Not a `QUOTE` with a number on it: a quote is a sentence chosen for
+     * how it reads, a review is a judgement with a scale, and a page that
+     * drew stars beside a sentence nobody rated would have invented the
+     * rating. The operator enters the reviews they received; the platform
+     * writes none.
+     */
+    public const REVIEW = 'REVIEW';
+
+    /**
      * Every kind an operator writes rows for.
      *
      * `PRICING` is absent and must stay absent: it is a position in the
@@ -95,9 +113,11 @@ final class ShowcaseBlock
         self::USE_CASE,
         self::VERSUS,
         self::QUOTE,
+        self::REVIEW,
         self::PROOF,
         self::COMPARE,
         self::DEMO,
+        self::REASSURE,
         self::QUESTION,
         self::CONTACT,
         self::CTA,
@@ -133,7 +153,22 @@ final class ShowcaseBlock
         // drawn for the problem band, and a feature list illustrated only
         // with a warning triangle and a cross reads as a list of faults.
         'check', 'bolt', 'shield', 'layers',
+        // Four a buyer looks for beside a price (2026-11-24): the payment
+        // is safe, by card, somebody answers, and the date they may leave.
+        'lock', 'card', 'chat', 'calendar',
     ];
+
+    /**
+     * The marks a `REVIEW` may carry: whole stars, one to five.
+     *
+     * A code, like an icon: the page draws it, it has no French, and it is
+     * refused in a translation. Strings because a band's content is its
+     * fields as written; half a star is not offered, because a customer
+     * who said "four" did not say "four and a half".
+     *
+     * @var list<string>
+     */
+    public const RATINGS = ['5', '4', '3', '2', '1'];
 
     /**
      * The shapes a `DEMO` row may reserve, as width over height.

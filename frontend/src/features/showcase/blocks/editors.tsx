@@ -194,6 +194,19 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
     { name: 'second', label: 'Second other way', required: false, choices: ['yes', 'partly', 'no'] },
     { name: 'third', label: 'Third other way', required: false, choices: ['yes', 'partly', 'no'] },
   ],
+  REASSURE: [
+    { name: 'title', label: 'What you promise', required: true, hint: 'A few words: Secure payment, Cancel whenever you like, An answer within a day.' },
+    { name: 'detail', label: 'What it rests on', required: false, hint: 'One short line under it. Leave it empty if the promise says it all.' },
+    { name: 'icon', label: 'Icon', required: false, choices: PROBLEM_ICON_NAMES, initial: 'check', hint: 'Drawn by the page, so it has no translation.' },
+  ],
+  REVIEW: [
+    // The author first: it is what the row is called in the list.
+    { name: 'author', label: 'Who wrote it', required: true },
+    { name: 'rating', label: 'Stars', required: true, choices: ['5', '4', '3', '2', '1'], initial: '5', hint: 'The mark this customer gave, as they gave it.' },
+    { name: 'body', label: 'What they wrote', required: true, long: true, hint: 'Their words, from a review you really received.' },
+    { name: 'role', label: 'Who they are', required: false, hint: 'What they do, or where: Architect, Lyon.' },
+    { name: 'date', label: 'When', required: false, code: 'date' },
+  ],
   HOTSPOT: [
     { name: 'title', label: 'What is here', required: true },
     { name: 'body', label: 'What it does', required: false, long: true },

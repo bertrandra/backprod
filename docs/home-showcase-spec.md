@@ -997,3 +997,43 @@ tick beside the operator's own sentence; what is sent reaches support.
   they are.
 - **Not sent from the editor**: the page drawn for its author has no product to
   write to, and says so where the button would be.
+
+## 22. Three things beside the prices (2026-11-24)
+
+Asked for by the operator once the page could sell: what a reader looks for
+with a hand on the button.
+
+- **Prices by the month or by the year** — a third layout of the prices band,
+  `toggle`, and not a band: `PRICING` still has no row anybody could type an
+  amount into (§9). A product sold both ways publishes an offer for each period,
+  at its own price; the switch decides which of them are on screen.
+  **Nothing is derived**: no yearly figure divided by twelve, no "two months
+  free" worked out from the pair — either would be an amount on no offer. A
+  saving the operator wants said is a sentence in the band's heading. The sides
+  are the periods the catalogue actually sells, in the order its offers come;
+  with one period there is no switch. The free period, a `CUSTOM` period and an
+  offer with no price stay on both sides, because hiding one would make it
+  unreachable from the page.
+- **`REASSURE`** — an icon and a line, with an optional second line, drawn in a
+  short row straight under the prices: the payment is safe, leaving is allowed,
+  somebody answers. Four icons joined the closed set for it (`lock`, `card`,
+  `chat`, `calendar`), which the problem and feature bands may use too. It has no
+  heading on screen and one for a screen reader. The operator writes every
+  promise: the platform cannot know which ones this product keeps.
+- **`REVIEW`** — who wrote it, what they wrote and **a whole number of stars,
+  one to five**, with an optional line about the author and the day it was
+  given. A code, required, refused in a translation; half a star is not
+  offered. It is not a `QUOTE` with a number on it: a quote is a sentence chosen
+  for how it reads, and stars beside a sentence nobody rated would be a rating
+  the page made up.
+  - **The reviews are the operator's own.** No template writes one and the
+    demonstration seeds none: a placeholder review published by mistake is an
+    invented customer, which a placeholder step is not.
+  - **The count and the average are the server's** (`Showcase.reviews`,
+    `ShowcaseReviews`), computed on read from the rows the page reads out and
+    stored nowhere. A component formats them and adds nothing up (§4). The
+    editor's preview of a draft therefore shows the cards and no average: it
+    appears once the page is saved and read back.
+  - **Said for what it is**: "average of the 12 reviews shown on this page".
+    The operator chose which to show, so it is not a rating of the product and
+    the page does not present it as one — no structured data is emitted for it.

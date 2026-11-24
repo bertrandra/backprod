@@ -350,6 +350,73 @@ test.describe('choosing an offer', () => {
 });
 
 test.describe('the storefront is a screen like any other', () => {
+  test('switches between the periods the catalogue sells, with promises and reviews beside the prices', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    const yearly = {
+      ...OFFER,
+      id: '44444444-4444-4444-8444-555555555555',
+      code: 'pro-yearly',
+      name: 'Pro, yearly',
+      version: { ...OFFER.version, id: '66666666-6666-4666-8666-777777777777', billing_period: 'YEARLY', price: { minor_units: 29000, currency: 'EUR' } },
+    };
+
+    await stubStorefront(page, { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER, yearly] });
+    await page.route(/\/api\/v1\/public\/products\/atlas\/showcase(\?|$)/, (route) =>
+      route.fulfill({
+        json: {
+          showcase: {
+            product: { code: 'atlas', name: 'Atlas', active: true },
+            sections: ['HEADLINE', 'REVIEW', 'PRICING', 'REASSURE'],
+            bands: { PRICING: { layout: 'toggle' } },
+            reviews: { count: 2, average: 4.5 },
+            blocks: [
+              { id: 'b1', block: 'HEADLINE', position: 10, content: { headline: 'Maps your whole team can read' }, image: null },
+              { id: 'b2', block: 'REVIEW', position: 10, content: { author: 'Marie Durand', role: 'Surveyor', body: 'The plans go out the same evening.', rating: '5', date: '2026-03-01' }, image: null },
+              { id: 'b3', block: 'REVIEW', position: 20, content: { author: 'Paul Martin', body: 'Good, the export could be faster.', rating: '4' }, image: null },
+              { id: 'b4', block: 'REASSURE', position: 10, content: { title: 'Secure payment', detail: 'By card.', icon: 'lock' }, image: null },
+              { id: 'b5', block: 'REASSURE', position: 20, content: { title: 'Cancel whenever you like', icon: 'calendar' }, image: null },
+              { id: 'b6', block: 'REASSURE', position: 30, content: { title: 'An answer within a day', icon: 'chat' }, image: null },
+            ],
+          },
+        },
+      }),
+    );
+
+    await page.goto('/?product=atlas');
+
+    const periods = page.getByTestId('pricing-periods');
+    const offers = page.getByTestId('showcase-offers');
+
+    // One period at a time, the first offer's in front.
+    await expect(periods.getByRole('button', { name: 'Pay monthly' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(offers.locator('[data-offer]')).toHaveCount(1);
+    await expect(offers).toContainText('Pro, monthly');
+
+    await periods.getByRole('button', { name: 'Pay yearly' }).click();
+
+    // The yearly offer at its own published price: nothing worked out.
+    await expect(offers.locator('[data-offer]')).toHaveCount(1);
+    await expect(offers).toContainText('Pro, yearly');
+    await expect(offers).toContainText('290');
+
+    // The server's average, said for what it is, and the stars as a picture.
+    await expect(page.getByTestId('review-summary')).toContainText('4.5');
+    await expect(page.getByTestId('review-summary')).toContainText('average of the 2 reviews shown on this page');
+    await expect(page.getByRole('img', { name: '5 out of 5' })).toBeVisible();
+
+    await expect(page.getByTestId('showcase-reassure').locator('[data-reassure]')).toHaveCount(3);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+
+    // Nothing wider than the screen it is read on.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
   test('passes an accessibility scan', async ({ page }) => {
     // The page as it is drawn, not half-way through a band fading in: a scan
     // that landed mid-fade measured a blended colour and failed a contrast

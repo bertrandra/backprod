@@ -6,6 +6,8 @@ import { isProblemIcon } from './meta';
 import {
   NO_CONTENT,
   type BandHeading,
+  type ReviewRow,
+  type ReviewSummary,
   type ShowcaseContent,
   type ShowcaseImage,
   type ShowcaseRow,
@@ -197,8 +199,46 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
       // A point that is nowhere is not drawn, rather than drawn in a corner.
       return title === null || x === null || y === null ? null : { title, body: text(c.body), x, y };
     }),
+    reassure: pick('REASSURE', (c) => {
+      const title = text(c.title);
+      const icon = text(c.icon);
+
+      return title === null ? null : { title, detail: text(c.detail), icon: isProblemIcon(icon) ? icon : null };
+    }),
+    reviews: pick('REVIEW', (c) => {
+      const author = text(c.author);
+      const body = text(c.body);
+      const rating = stars(c.rating);
+
+      // No mark, no review: stars drawn for a sentence nobody rated would
+      // be a rating this page made up.
+      return author === null || body === null || rating === null
+        ? null
+        : { author, body, rating, role: text(c.role), date: day(c.date) };
+    }),
+    reviewSummary: summaryFrom(showcase.reviews),
     headings: headingsFrom(showcase.bands),
   };
+}
+
+/** The server's count and average, or nothing where it sent none it could be. */
+function summaryFrom(reviews: unknown): ReviewSummary | null {
+  if (typeof reviews !== 'object' || reviews === null) {
+    return null;
+  }
+
+  const { count, average } = reviews as { count?: unknown; average?: unknown };
+
+  return typeof count === 'number' && typeof average === 'number' && count > 0 ? { count, average } : null;
+}
+
+function stars(value: unknown): ReviewRow['rating'] | null {
+  return value === '1' ? 1 : value === '2' ? 2 : value === '3' ? 3 : value === '4' ? 4 : value === '5' ? 5 : null;
+}
+
+/** A day as the contract writes it, or nothing. */
+function day(value: unknown): string | null {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
 /**

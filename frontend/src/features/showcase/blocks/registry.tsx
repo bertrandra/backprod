@@ -17,6 +17,8 @@ import { FeaturesBand } from './FeaturesBand';
 import { ProofBand } from './ProofBand';
 import { QuestionsBand } from './QuestionsBand';
 import { QuoteBand } from './QuoteBand';
+import { ReassureBand } from './ReassureBand';
+import { ReviewBand } from './ReviewBand';
 import { StatsBand } from './StatsBand';
 import { StepsBand } from './StepsBand';
 import { TourBand } from './TourBand';
@@ -123,6 +125,14 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
   VERSUS: {
     speaks: (p) => p.content.versus.length > 0,
     view: (p) => <VersusBand rows={p.content.versus} heading={heading(p, 'VERSUS')} productName={p.productName} />,
+  },
+  REASSURE: {
+    speaks: (p) => p.content.reassure.length > 0,
+    view: (p) => <ReassureBand rows={p.content.reassure} />,
+  },
+  REVIEW: {
+    speaks: (p) => p.content.reviews.length > 0,
+    view: (p) => <ReviewBand rows={p.content.reviews} summary={p.content.reviewSummary} heading={heading(p, 'REVIEW')} />,
   },
   TRUST: {
     speaks: (p) => p.content.trust.length > 0,
