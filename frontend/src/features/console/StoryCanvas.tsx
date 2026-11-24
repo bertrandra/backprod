@@ -78,12 +78,29 @@ export function StoryCanvas({
   const choose = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as Element;
 
-    // A link out of the page would replace the frame's document, and the
-    // draft drawn in it, with somebody else's site.
+    // **No link navigates the frame** (2026-11-23). One out of the page
+    // would replace the draft with somebody else's site — and one to a place
+    // on it does too: the frame's document is `about:srcdoc`, whose base is
+    // the console's own address, so `#prices` resolved to the console page
+    // and loaded it into the frame, where the live site's `X-Frame-Options:
+    // DENY` drew "www.raillard.org refused to connect". Locally nothing sends
+    // that header, which is why it was only seen in production.
+    //
+    // A place on the page is scrolled to instead, which is what it means.
     const link = target.closest('a');
 
-    if (link !== null && !(link.getAttribute('href') ?? '').startsWith('#')) {
+    if (link !== null) {
       event.preventDefault();
+
+      const href = link.getAttribute('href') ?? '';
+
+      if (href.startsWith('#') && href.length > 1) {
+        const place = link.ownerDocument.getElementById(decodeURIComponent(href.slice(1)));
+
+        if (place !== null && typeof place.scrollIntoView === 'function') {
+          place.scrollIntoView({ block: 'start' });
+        }
+      }
     }
 
     const band = bandOf(target);
