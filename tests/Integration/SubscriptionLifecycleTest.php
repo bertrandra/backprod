@@ -1042,10 +1042,11 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame('SUBSCRIPTION_ENDING', $error->errorCode());
 
         $unchanged = $this->subscriptions()->current($this->tenant, $this->product, $this->user);
-        self::assertSame('pro', $unchanged?->offer->code);
+        self::assertNotNull($unchanged);
+        self::assertSame('pro', $unchanged->offer->code);
         self::assertSame(
             $ending->currentPeriodEnd?->format(DATE_ATOM),
-            $unchanged?->currentPeriodEnd?->format(DATE_ATOM),
+            $unchanged->currentPeriodEnd?->format(DATE_ATOM),
         );
         self::assertSame([], $this->charge->charged, 'nothing is billed for a move that did not happen');
 
