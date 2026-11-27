@@ -572,6 +572,33 @@ raised — which is the only way the tests ever paid one:
   index and never a check — and the change is written against the row it was
   decided from (`SUBSCRIPTION_CHANGED`).
 
+**A change of plan is not a way out, nor a way to keep what was not bought**
+(ADR-077, 2026-11-27). The commitment's *date* already survived a change; its
+meaning did not — `cancellation_policy` and `early_termination` were re-copied
+from the arriving offer, and `CancellationPolicy` reads those, so two years on
+"no exit before the end" became "leave at the end of the month" by moving to a
+plan sold as cancellable at any time. While the commitment held is the one that
+survives, **the exit conditions it was agreed with are kept**, and a buy-out is
+priced at the version it was agreed on (`commitment_version_id`, null meaning
+the one held) — never at whatever plan is held on the day of leaving. Where the
+arriving offer's commitment ends later, that one is in force, on its own
+conditions.
+
+And the rest of the same audit, each a single rule: scheduling a move down makes
+the refusal an immediate one makes, judged **at the boundary it takes effect
+at**; a subscription due to end refuses any change of plan (`SUBSCRIPTION_ENDING`
+— one ending, and the cancellation is it); an immediate change clears a pending
+one, and says so on the event.
+
+**The `users` quota bounds who is covered, not only who may be added.** A
+subscription that moves to an offer selling fewer places stops covering the
+people beyond the new number, on the transaction that moves the plan: the most
+recently added first, never the holder, never an administrator. They keep their
+account and their role and lose coverage; the holder is told who and each person
+is told themselves, and the preview says how many before the click. "A number a
+customer pays for has to bound something" was written about joining; it was not
+yet true about changing plan.
+
 Early exit is a product decision (`FORBIDDEN` / `CHARGE_REMAINING` / `FREE`).
 When it is charged, it is invoiced through the normal billing chain, never a
 special path — and on the **cancellation's own transaction**, because a

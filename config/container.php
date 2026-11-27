@@ -57,6 +57,7 @@ use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\OrganisationSubscriptions;
+use App\Commerce\Domain\PlacesWithdrawn;
 use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
@@ -181,6 +182,7 @@ use App\Sales\Service\ChargeOnRenewal;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
 use App\Sales\Service\RenewalPaymentRequest;
+use App\Sales\Service\TellWhoLostTheirPlace;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -494,6 +496,7 @@ return static function (array $overrides = []): ContainerInterface {
         RenewalCharge::class => autowire(ChargeOnRenewal::class),
         // …and the mail that asks for it, with the link the customer pays from
         // (2026-10-05). The address is the deployment's, like a reset link's.
+        PlacesWithdrawn::class => autowire(TellWhoLostTheirPlace::class),
         RenewalPaymentRequest::class => autowire(RenewalPaymentRequest::class)
             ->constructorParameter('appUrl', $env('APP_URL')),
 

@@ -1265,6 +1265,29 @@ arrêter refuse l'annulation (`PAYMENT_STILL_IN_FLIGHT`). L'argent qui se règle
 malgré tout sur une facture annulée repart seul (`payment.return_unowed`, toutes
 les heures), sans avoir : la vente a déjà été défaite par l'annulation.
 
+## Changer d'offre n'est pas une sortie (ADR-077)
+
+```text
+Engagement en cours, offre d'arrivée sans engagement plus long → la date reste, ET les conditions de sortie convenues
+                                                                 (politique de résiliation, sortie anticipée) restent
+Offre d'arrivée dont l'engagement finit plus tard              → c'est lui l'engagement, avec ses propres conditions
+Sortie anticipée facturée                                      → au prix de la version sur laquelle l'engagement a été pris
+Descente programmée sur une offre au terme trop court          → refusée, COMMITMENT_OUTLASTS_TERM, jugée à la date d'effet
+Changement alors qu'une résiliation est programmée             → refusé, SUBSCRIPTION_ENDING : on reprend d'abord
+Montée alors qu'une descente était programmée                  → la descente est retirée, et c'est écrit
+Offre d'arrivée avec moins de places                           → les personnes en trop ne sont plus couvertes
+```
+
+**Les places.** Le quota `users` borne ce qu'un abonnement couvre, pas seulement
+ce qu'on peut y ajouter. Quand l'offre tenue vend moins de places qu'il n'y en a
+de prises, les personnes au-delà cessent d'être couvertes, **sur la transaction
+qui change l'offre** : les dernières ajoutées d'abord, jamais le titulaire, et
+jamais un administrateur (qui ne prend pas de place). Elles gardent leur compte,
+leur appartenance et leur rôle ; l'atelier leur répond `SUBSCRIPTION_REQUIRED`.
+Le titulaire est prévenu, avec les noms (`subscription.places_withdrawn`), et
+chaque personne aussi (`subscription.place_withdrawn`). L'aperçu
+(`preview-change`) dit combien, avant le clic : `people_losing_their_place`.
+
 ## API
 
 ```text

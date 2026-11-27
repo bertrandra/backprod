@@ -492,10 +492,10 @@ const IF_CANCELLED = {
   reasons: ['The commitment has three months left to run.'],
 };
 
-function previewing(decision: unknown) {
+function previewing(decision: unknown, losing = 0) {
   return {
     'POST /api/v1/subscription/preview-change': {
-      data: { subscription: live(), if_changed_now: decision },
+      data: { subscription: live(), if_changed_now: decision, people_losing_their_place: losing },
     },
   };
 }
@@ -560,6 +560,34 @@ describe('what one offer would do to the seat already held (§7)', () => {
     expect(line.querySelector('[data-minor-units="2450"]')).not.toBeNull();
     expect(line.querySelector('[data-minor-units="3000"]')).toBeNull();
     expect(line.textContent).toMatch(/to pay today/i);
+  });
+
+  it('warns, with the server’s count, that an offer with fewer places stops covering people', async () => {
+    render(
+      clientFor(
+        [offer('o-1', ZEBRA), offer('o-down', GAMMA)],
+        { ...subscriptionRead(null, live()), ...scheduling(), ...previewing(MOVING_DOWN, 2) },
+        SUBSCRIBER,
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('people-losing-their-place')).toBeTruthy());
+
+    expect(screen.getByTestId('people-losing-their-place').textContent).toMatch(/2 people .* no longer be covered/i);
+  });
+
+  it('says nothing about places when everybody still fits', async () => {
+    render(
+      clientFor(
+        [offer('o-1', ZEBRA), offer('o-down', GAMMA)],
+        { ...subscriptionRead(null, live()), ...scheduling(), ...previewing(MOVING_DOWN) },
+        SUBSCRIBER,
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('what-it-would-do')).toBeTruthy());
+
+    expect(screen.queryByTestId('people-losing-their-place')).toBeNull();
   });
 
   it('says when a lower plan takes effect, on the server’s date', async () => {

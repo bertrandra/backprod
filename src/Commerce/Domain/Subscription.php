@@ -111,7 +111,27 @@ final class Subscription
          */
         public readonly ?DateTimeImmutable $pastDueSince = null,
         public readonly ?string $pastDueInvoiceId = null,
+        /**
+         * The offer as it was when the commitment still in force was agreed,
+         * when that is not the offer held today (ADR-077); null when it is.
+         *
+         * A commitment survives a change of plan, and so do the conditions it
+         * was agreed on. The exit rules are kept on the row itself; the
+         * *price* a buy-out is counted in is the version's, and this is the
+         * version — otherwise moving to the cheapest plan the day before
+         * leaving would price two years of commitment at that plan's rate.
+         */
+        public readonly ?SubscribedOffer $commitmentOffer = null,
     ) {
+    }
+
+    /**
+     * The offer the commitment in force was agreed on: what an early exit is
+     * priced in. The offer held, unless the plan has changed since.
+     */
+    public function agreedOffer(): SubscribedOffer
+    {
+        return $this->commitmentOffer ?? $this->offer;
     }
 
     /**
@@ -197,6 +217,53 @@ final class Subscription
         $arriving = Commitment::sold($offered, $at);
 
         return $arriving->endsLaterThan($held) ? $arriving : $held;
+    }
+
+    /**
+     * Whether the exit conditions already agreed survive a move to other
+     * terms taking effect at `$at` (ADR-077).
+     *
+     * They do while the commitment they were agreed with still binds at that
+     * moment **and** is the one that survives the move. The rule beside this
+     * one keeps the commitment's *date*; this keeps what the date means. A
+     * customer committed for twenty-four months on "no exit before the end"
+     * who moved to a plan sold as cancellable at any time kept the date and
+     * lost the rule — `CancellationPolicy` reads the rule — and could then
+     * leave at the end of the month. A change of plan is not a new contract,
+     * in either direction.
+     *
+     * Where the arriving offer's own commitment ends later, that is the
+     * commitment now in force, agreed today on that offer's conditions, and
+     * its conditions apply.
+     */
+    public function keepsAgreedExitAfterMovingTo(SubscriptionTerms $offered, DateTimeImmutable $at): bool
+    {
+        if (!$this->isUnderCommitmentAt($at)) {
+            return false;
+        }
+
+        $held = new Commitment($this->terms->commitmentMonths, $this->commitmentEndsAt);
+
+        return !Commitment::sold($offered, $at)->endsLaterThan($held);
+    }
+
+    /**
+     * The terms this subscription carries once it moves to `$offered` at
+     * `$at`: the arriving offer's, except the commitment that survives and —
+     * while it does — the exit conditions it was agreed on.
+     */
+    public function termsAfterMovingTo(SubscriptionTerms $offered, DateTimeImmutable $at): SubscriptionTerms
+    {
+        $keeps = $this->keepsAgreedExitAfterMovingTo($offered, $at);
+
+        return new SubscriptionTerms(
+            $offered->termMonths,
+            $this->commitmentAfterMovingTo($offered, $at)->months,
+            $keeps ? $this->terms->cancellationPolicy : $offered->cancellationPolicy,
+            $offered->renewal,
+            $keeps ? $this->terms->earlyTermination : $offered->earlyTermination,
+            $offered->noticeDays,
+        );
     }
 
     /**
