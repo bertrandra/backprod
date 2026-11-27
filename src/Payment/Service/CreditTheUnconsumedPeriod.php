@@ -8,7 +8,7 @@ use App\Billing\Domain\CreditNoteRepository;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
-use App\Billing\Service\Invoicing;
+use App\Billing\Service\InvoiceCancellation;
 use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\CollectedPeriod;
 use App\Commerce\Domain\Subscription;
@@ -64,7 +64,7 @@ final class CreditTheUnconsumedPeriod implements ChangeCredit
         private readonly InvoiceRepository $invoices,
         private readonly CreditNoteRepository $creditNotes,
         private readonly Payments $refunds,
-        private readonly Invoicing $invoicing,
+        private readonly InvoiceCancellation $cancellation,
     ) {
     }
 
@@ -167,7 +167,14 @@ final class CreditTheUnconsumedPeriod implements ChangeCredit
         // document that no longer exists. One it cannot stop refuses here,
         // before anything has moved.
         $this->refunds->abandonAttempts($subscription->tenantId, $subscription->productId, $invoiceId, $actorUserId);
-        $this->invoicing->cancel($subscription->tenantId, $subscription->productId, $invoiceId, $actorUserId);
+
+        $invoice = $this->invoices->find($subscription->tenantId, $subscription->productId, $invoiceId);
+
+        if ($invoice !== null) {
+            // Not through `Invoicing`, which depends on `Subscriptions` — the
+            // service this is called from. The same rule, reached directly.
+            $this->cancellation->cancel($invoice, $actorUserId);
+        }
     }
 
     /**
