@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commerce\Domain;
 
+use DateTimeImmutable;
+
 /**
  * The unconsumed value of a period that is being cut short, and giving it back
  * (spec §3.3).
@@ -27,13 +29,36 @@ namespace App\Commerce\Domain;
 interface ChangeCredit
 {
     /**
-     * What the current period collected, and how much of it may still go back.
+     * What the period being cut collected, and how much of it may still go back.
+     *
+     * **The invoice of that period, and no other** (ADR-076). It used to be
+     * "the latest settled payment of any invoice of this subscription", which
+     * was the period being cut only while every invoice was paid the moment it
+     * was raised. A renewal invoice raised seven days ahead, or an upgrade's
+     * invoice not yet paid, made the newest *settled* payment the one before —
+     * and the customer was refunded for a period they had consumed while the
+     * one they were in stayed owed.
      *
      * Never throws for "nothing was collected": a period nobody paid for has
      * no unconsumed value, which is an answer rather than an error — see
      * {@see CollectedPeriod}.
      */
-    public function collectedFor(Subscription $subscription): CollectedPeriod;
+    public function collectedFor(Subscription $subscription, DateTimeImmutable $now): CollectedPeriod;
+
+    /**
+     * Withdraws the invoice {@see CollectedPeriod::$supersedesInvoiceId} names
+     * (ADR-076): a renewal raised ahead for the plan being left, unpaid, for a
+     * period that will now never run on those terms.
+     *
+     * Any attempt still live against it is abandoned at the provider first,
+     * and one the provider can no longer stop refuses the whole change —
+     * that money is coming, and the document it pays must still be there. The
+     * cancellation reverses the invoice's VAT in the period it is made in.
+     *
+     * Before the credit and before the plan moves, for the reason the credit
+     * goes first: it is the half that can still be refused.
+     */
+    public function withdrawSuperseded(Subscription $subscription, CollectedPeriod $collected, ?string $actorUserId): void;
 
     /**
      * Returns money against the payment that collected the period, with the

@@ -126,6 +126,29 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         return $this->hydrateAll($rows)[0] ?? null;
     }
 
+    public function periodInvoicesOf(string $tenantId, string $productId, string $subscriptionId, int $limit): array
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($subscriptionId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::COLUMNS . <<<'SQL'
+                 FROM invoices
+                WHERE tenant_id = :tenantId AND product_id = :productId
+                  AND subscription_id = :subscriptionId
+                  AND status NOT IN ('DRAFT', 'CANCELLED')
+                  AND period_end IS NOT NULL
+                ORDER BY period_start DESC NULLS LAST, issued_at DESC NULLS LAST, id DESC
+                LIMIT :limit
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'subscriptionId' => $subscriptionId, 'limit' => max(1, $limit)],
+            ['limit' => ParameterType::INTEGER],
+        );
+
+        return $this->hydrateAll($rows);
+    }
+
     public function issue(
         string $tenantId,
         string $productId,

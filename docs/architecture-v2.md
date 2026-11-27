@@ -1237,6 +1237,34 @@ Différées. Elles appartiennent au `StorageProvider` de §15 : un message
 référencera un asset une fois M7 livré. Stocker une pièce jointe dans
 PostgreSQL contredirait le non-négociable #9.
 
+## Changer d'offre : l'argent suit le document qu'il paie (ADR-076)
+
+Un changement immédiat (montée, ou même rang) rend la part non consommée de la
+période qu'il coupe, puis facture la nouvelle période entière.
+
+```text
+La part rendue est celle de LA facture de la période coupée, jamais « le dernier
+paiement réglé » de l'abonnement.
+
+Facture de la période payée                  → part au temps, rendue sur le moyen de paiement, avec son avoir
+Facture de la période impayée, période commencée → rien à rendre ; le changement a lieu, la facture reste due
+Facture de reconduction émise d'avance, impayée  → elle est RETIRÉE (tentatives abandonnées chez le prestataire,
+                                                   TVA contre-passée) ; la part rendue est celle de la période en cours
+Abonnement suspendu (PAST_DUE)               → refusé, CHANGE_AWAITS_PAYMENT : on paie d'abord
+```
+
+Un prorata se fait **une fois par période coupée** (`refunds_once_per_purpose`) :
+une nouvelle tentative après une panne retrouve le remboursement déjà fait. Le
+changement s'écrit **contre la ligne dont il a été décidé** (version quittée, fin
+de période, statut) : deux demandes simultanées, la seconde reçoit
+`SUBSCRIPTION_CHANGED`.
+
+Une facture n'est jamais annulée sous un paiement qui peut encore aboutir : la
+tentative est d'abord abandonnée chez le prestataire, et celle qu'il ne peut plus
+arrêter refuse l'annulation (`PAYMENT_STILL_IN_FLIGHT`). L'argent qui se règle
+malgré tout sur une facture annulée repart seul (`payment.return_unowed`, toutes
+les heures), sans avoir : la vente a déjà été défaite par l'annulation.
+
 ## API
 
 ```text
