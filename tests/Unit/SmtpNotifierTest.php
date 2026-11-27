@@ -132,6 +132,10 @@ final class SmtpNotifierTest extends TestCase
                 // A sign-in ended because its token was used twice (ADR-062).
                 // SECURITY, so it cannot be muted — and still editable here.
                 'account.session_revoked',
+                // A change of plan to an offer with fewer places (ADR-077):
+                // the holder is told who, and each person is told themselves.
+                'subscription.places_withdrawn',
+                'subscription.place_withdrawn',
                 // The formal demand (spec §5.2, 2026-09-27). Editable like the
                 // others, and one of the two in this list with legal effect — so what
                 // an administrator wrote is what is kept as sent.

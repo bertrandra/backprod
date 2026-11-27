@@ -1122,7 +1122,9 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $told = $this->connection->fetchAllKeyValue(
             "SELECT type, recipient_user_id FROM notifications WHERE type LIKE 'subscription.place%' ORDER BY type",
         );
-        self::assertSame(
+        // Compared as a set: which of the two types sorts first is the
+        // database's collation, and not what is being said here.
+        self::assertEquals(
             ['subscription.place_withdrawn' => $last, 'subscription.places_withdrawn' => $this->user],
             $told,
         );
