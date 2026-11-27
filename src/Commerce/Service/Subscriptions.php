@@ -12,6 +12,7 @@ use App\Commerce\Domain\ChangeCharge;
 use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\ChangeDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
+use App\Commerce\Domain\FreemiumPeriod;
 use App\Commerce\Domain\Places;
 use App\Commerce\Domain\PlacesWithdrawn;
 use App\Commerce\Domain\ProrationPolicy;
@@ -969,9 +970,20 @@ final class Subscriptions
      * that notices arrives with M7. It exists now so the behaviour is
      * written and tested rather than waiting on a scheduler — a renewal path
      * first exercised in production is a renewal path nobody has seen work.
+     *
+     * @param FreemiumPeriod|null $freePeriod how long this product's free period
+     *                                        lasts, for a change that lands on it
+     *                                        (ADR-078). The product's, so whoever
+     *                                        holds its configuration passes it —
+     *                                        the pass does. Absent, such a change
+     *                                        is refused rather than given no end.
      */
-    public function renew(string $tenantId, string $productId, string $holderUserId): Subscription
-    {
+    public function renew(
+        string $tenantId,
+        string $productId,
+        string $holderUserId,
+        ?FreemiumPeriod $freePeriod = null,
+    ): Subscription {
         $subscription = $this->renewable($tenantId, $productId, $holderUserId);
         $from = $subscription->currentPeriodEnd ?? new DateTimeImmutable();
 
@@ -994,7 +1006,12 @@ final class Subscriptions
         // exactly the promise §13.1 says has to stay checkable. A deferral
         // to a commitment further out does not block anything: it is only
         // due once its date arrives.
-        if ($subscription->isDueToEndBy($from)) {
+        //
+        // Nor past one whose date has already come, whatever the period says
+        // (ADR-078): only arrears under commitment are renewed after their
+        // period lapsed, and a cancellation the customer was given a date for
+        // is not undone by the debt. Those are the sweep's.
+        if ($subscription->isDueToEndBy(max($from, new DateTimeImmutable()))) {
             throw new ConflictException(
                 'CANCELLATION_DUE',
                 'This subscription is due to end and cannot be renewed.',
@@ -1022,15 +1039,16 @@ final class Subscriptions
                     $subscription->offer->plan->rank,
                     $subscription->pending->plan->rank,
                 ),
-                // A period with no length (the free period's `CUSTOM`) has no
-                // end to bill to, and nothing to price: no document.
-                function (Subscription $changed, ?DateTimeImmutable $periodEnd) use ($from): ?string {
+                // Billed like any period; `billPeriod` raises nothing for a
+                // price of zero, which is what a free period costs.
+                function (Subscription $changed, DateTimeImmutable $periodEnd) use ($from): ?string {
                     // The places first, on the same transaction (ADR-077): a
                     // move down is the usual way to an offer that sells fewer.
                     $this->withdrawPlacesBeyond($changed);
 
-                    return $periodEnd === null ? null : $this->billPeriod($changed, $from, $periodEnd);
+                    return $this->billPeriod($changed, $from, $periodEnd);
                 },
+                $freePeriod,
             );
         }
 

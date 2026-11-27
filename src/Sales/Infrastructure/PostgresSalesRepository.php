@@ -366,6 +366,16 @@ final class PostgresSalesRepository implements SalesRepository
         return $this->connection->transactional(function () use ($order, $fulfilment, $actorUserId): Order {
             $raised = $fulfilment->invoice($order, $actorUserId);
 
+            if ($raised['invoice_id'] === null) {
+                // Nothing to collect, so no document and nothing to wait for
+                // (ADR-078). The order never passes through AWAITING_PAYMENT —
+                // `orders_awaiting_payment_has_invoice` would refuse it, and
+                // rightly: there is no payment it could be waiting for.
+                $this->applyCompleteOrder($order, $fulfilment, $actorUserId);
+
+                return $this->requireOrder($order->tenantId, $order->productId, $order->id);
+            }
+
             $this->connection->executeStatement(
                 <<<'SQL'
                     UPDATE orders
@@ -375,20 +385,6 @@ final class PostgresSalesRepository implements SalesRepository
                      WHERE id = :id
                     SQL,
                 ['invoice' => $raised['invoice_id'], 'id' => $order->id],
-            );
-
-            if ($raised['awaiting_payment']) {
-                return $this->requireOrder($order->tenantId, $order->productId, $order->id);
-            }
-
-            // Nothing to collect, so nothing to wait for. Completing here
-            // rather than leaving a free order parked behind a payment that
-            // will never arrive — read back first, because completing works
-            // from the order as it now is, invoice and all.
-            $this->applyCompleteOrder(
-                $this->requireOrder($order->tenantId, $order->productId, $order->id),
-                $fulfilment,
-                $actorUserId,
             );
 
             return $this->requireOrder($order->tenantId, $order->productId, $order->id);
@@ -432,14 +428,16 @@ final class PostgresSalesRepository implements SalesRepository
         // The sale a payment settled, written where a payment can be read
         // back from: §20 wants the chain followable in both directions, and
         // the payment row is the end a reconciliation starts from.
-        $this->connection->executeStatement(
-            <<<'SQL'
-                UPDATE payments
-                   SET order_id = :order, updated_at = now()
-                 WHERE invoice_id = :invoice AND order_id IS NULL
-                SQL,
-            ['order' => $order->id, 'invoice' => $order->invoiceId],
-        );
+        if ($order->invoiceId !== null) {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE payments
+                       SET order_id = :order, updated_at = now()
+                     WHERE invoice_id = :invoice AND order_id IS NULL
+                    SQL,
+                ['order' => $order->id, 'invoice' => $order->invoiceId],
+            );
+        }
 
         $this->record(
             $order->tenantId,

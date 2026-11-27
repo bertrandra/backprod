@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Job\Service;
 
+use App\Commerce\Domain\FreemiumPeriod;
 use App\Commerce\Domain\RenewalPolicy;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
@@ -132,7 +133,15 @@ final class RenewSubscriptions implements JobHandler
                 }
 
                 try {
-                    $this->service->renew($due->tenantId, $due->productId, $due->subscriberUserId);
+                    $this->service->renew(
+                        $due->tenantId,
+                        $due->productId,
+                        $due->subscriberUserId,
+                        // How long this product's free period lasts, for a
+                        // change that lands on it (ADR-078): the product's
+                        // number, read where its other settings are.
+                        FreemiumPeriod::fromConfiguration($this->settings->all($due->productId)),
+                    );
                     $renewed++;
                 } catch (HttpException $refusal) {
                     // A rule said no, and which rule is the whole of the answer: a

@@ -658,3 +658,19 @@ La portée de l'unicité du freemium est écrite **par produit**
 « une seule fois par compte » voulait dire *un seul freemium sur toute la
 plateforme, tous produits confondus*, c'est l'index du §6.4 qui change, et lui
 seul.
+
+## 10. Un abonnement a toujours une issue (ADR-078, 27 novembre 2026)
+
+L'audit du cycle complet a trouvé quatre états dont un abonnement ne sortait
+jamais. Aucun n'était sur le chemin nominal : chacun demandait que deux règles se
+rencontrent.
+
+| État sans issue | Ce qui se passait | La règle maintenant |
+|---|---|---|
+| Offre gratuite reconductible achetée par le tunnel | Facture à 0 €, paiement de 0 € demandé au prestataire, puis place suspendue pour impayé | **Rien à encaisser, aucun document** : la commande se termine sans facture, à la première période comme aux suivantes ; la relance ne lit jamais une facture à zéro |
+| Changement programmé vers la période gratuite | Fin de période vide, droits sans fin, ligne que plus aucune tâche ne lit | La période gratuite finit comme si elle avait été prise à la porte (`FreemiumPeriod`, comptée depuis la frontière) ; sans durée connue, le changement est **refusé** (`CHANGE_HAS_NO_PERIOD`) |
+| Impayé sous engagement, résilié légitimement | Ni le renouvellement ni le balayage ne prenaient la ligne : suspendue pour toujours, et la personne ne pouvait plus se réabonner | Le balayage la termine quand la date de résiliation est venue (`EXPIRED`, motif `CANCELLATION_DUE_IN_ARREARS`) ; la dette reste due |
+| Dette derrière deux cents plus anciennes | La relance ne lisait qu'une page : jamais déclarée, jamais annoncée | La relance lit par pages, comme le renouvellement |
+
+Le renouvellement et le balayage restent disjoints : la condition de l'un est la
+négation de celle de l'autre.

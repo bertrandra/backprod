@@ -27,13 +27,17 @@ namespace App\Sales\Domain;
 interface OrderFulfilment
 {
     /**
-     * Raises the invoice the order is to be paid against.
+     * Raises the invoice the order is to be paid against — or none.
      *
-     * `awaiting_payment` is false when there is nothing to collect — a free
-     * offer prices an order at zero — and the caller then completes the order
-     * at once rather than parking it behind a payment that would never come.
+     * **Nothing to collect raises no document** (ADR-078). A free offer prices
+     * an order at zero: `invoice_id` is null, and
+     * the caller completes the order at once rather than parking it behind a
+     * payment that would never come. Until 2026-11-27 this raised a €0 invoice
+     * anyway — a permanent number in a gapless series for no transaction,
+     * which the checkout then tried to collect and the collection pass then
+     * suspended the free seat for.
      *
-     * @return array{invoice_id: string, awaiting_payment: bool}
+     * @return array{invoice_id: string|null}
      */
     public function invoice(Order $order, ?string $actorUserId = null): array;
 

@@ -530,6 +530,16 @@ two jobs never hold the same row. Paying the invoice the column names reopens
 only when no other invoice of that subscription is unpaid past the grace;
 otherwise the suspension moves to the oldest such debt, keeping its date.
 
+**And a subscription always has a way out** (ADR-078, 2026-11-27). Two rules
+meeting must never leave a row no job reads. A lawful cancellation is not undone
+by a debt: committed arrears whose `cancel_effective_at` has come are the
+sweep's, and the renewal never reads them — each condition the other's negation,
+so the two jobs still never hold the same row. What was owed stays owed. A change
+that lands on the free period ends where taking it at the door would have
+(`FreemiumPeriod`, counted from the boundary), and with no known length it is
+refused, never started with no end. The collection pass pages like the renewal
+does: a debt behind two hundred older ones is still a debt.
+
 A subscription **always names a tenant and a product**, even when the
 subscriber is a person — the tenant is the isolation context, the subscriber
 is the contracting party. The subscriber must be a member of that tenant.
@@ -619,6 +629,11 @@ Two rules about what that charge costs, both easy to get wrong:
 
 Nothing outstanding raises **no document at all**. Numbering is gapless, so a
 €0 invoice is a permanent, unremovable record of no transaction.
+
+That holds for a sale too (ADR-078): a free offer that renews completes its
+order with no invoice and no payment, on the first period as on every next one,
+and the collection pass never reads a document of zero — nothing can pay one, so
+it would be overdue for ever.
 
 **Every subscription** is addressed to people, so capability resolution asks
 who is asking and excludes any subscription that is not theirs. Resolve

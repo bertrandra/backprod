@@ -293,8 +293,19 @@ interface SubscriptionRepository
      * changed subscription and the end of the period it moved into, and runs
      * on this method's transaction. The plan already paid for stays granted
      * to the end of its period, and the arriving one starts there.
+     *
+     * `$freePeriod` is how long the product's free period lasts, for a change
+     * that lands on it (ADR-078): a free period is never billed, so its offer
+     * has no billing period to count, and it ends where taking it at the door
+     * would have ended it. With neither a billing period nor this, the change
+     * is refused — `CHANGE_HAS_NO_PERIOD` — rather than started with no end.
      */
-    public function applyPendingChange(Subscription $subscription, string $direction, callable $alsoBill): Subscription;
+    public function applyPendingChange(
+        Subscription $subscription,
+        string $direction,
+        callable $alsoBill,
+        ?FreemiumPeriod $freePeriod = null,
+    ): Subscription;
 
     /**
      * How many people a subscription would stop covering if it sold `$quota`
@@ -500,9 +511,14 @@ interface SubscriptionRepository
      * One row per recipient, exactly as `dueForRenewalNotice` — see
      * {@see OverdueSubscription} for why, including the null one.
      *
+     * Only an invoice with **something to collect** (ADR-078): a document of
+     * zero is nobody's debt. And read by page, like the renewal and the
+     * notices: the order is stable and nothing this pass does removes a row
+     * from it, so an offset reaches the debts a first page of older ones hid.
+     *
      * @return list<OverdueSubscription>
      */
-    public function overdue(int $limit): array;
+    public function overdue(int $limit, int $offset = 0): array;
 
     /**
      * Declares a subscription in arrears, naming the debt that did it

@@ -634,7 +634,59 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('PAYMENT_FAILED', $read['status'] ?? null);
     }
 
+    /**
+     * A free offer that renews, bought through the door every offer is bought
+     * through (ADR-078).
+     *
+     * It completed the order with a €0 invoice and then asked the provider to
+     * authorize a payment of nothing against it. Nothing ever settled that
+     * invoice, so once the grace ran out the collection pass put the free seat
+     * in arrears — for owing zero.
+     */
+    public function testAFreeOfferThatRenewsCompletesWithNoDocumentAndNoPayment(): void
+    {
+        $this->saveProfile();
+        $this->offer = $this->seedFreeTier();
+
+        $response = $this->open();
+
+        self::assertSame(201, $response->getStatusCode());
+
+        $session = $this->sessionOf($response);
+
+        self::assertSame('COMPLETED', $session['status'] ?? null);
+        self::assertIsString($session['subscription_id'] ?? null);
+        self::assertEquals(0, $this->connection->fetchOne('SELECT count(*) FROM payments'));
+        self::assertEquals(0, $this->connection->fetchOne('SELECT count(*) FROM invoices'));
+        self::assertSame('ACTIVE', $this->connection->fetchOne('SELECT status FROM subscriptions'));
+    }
+
     // --- Helpers ------------------------------------------------------------
+
+    /** A plan that costs nothing and renews: a tier, not a free period. */
+    private function seedFreeTier(): string
+    {
+        $plan = $this->id(
+            "INSERT INTO plans (product_id, code, name, rank) VALUES (:product, 'FREE', 'Free', 10) RETURNING id",
+            ['product' => $this->product],
+        );
+
+        $offer = $this->id(
+            'INSERT INTO offers (product_id, plan_id, code, name)'
+            . " VALUES (:product, :plan, 'free', 'Atlas Free') RETURNING id",
+            ['product' => $this->product, 'plan' => $plan],
+        );
+
+        $this->id(
+            'INSERT INTO offer_versions'
+            . ' (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)'
+            . " VALUES (:offer, 1, 'ACTIVE', 'MONTHLY', 0, 'EUR', now() - interval '1 day')"
+            . ' RETURNING id',
+            ['offer' => $offer],
+        );
+
+        return $offer;
+    }
 
     private function open(): ResponseInterface
     {
