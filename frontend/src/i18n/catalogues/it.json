@@ -1526,6 +1526,8 @@
   "This message was deleted. Its place in the sequence is kept.": "Questo messaggio è stato eliminato. Il suo posto nella sequenza è conservato.",
   "This offer covers an unlimited number of people.": "Questa offerta copre un numero illimitato di persone.",
   "This offer grants nothing yet, which is a configuration answer rather than an error.": "Questa offerta non concede ancora nulla, il che è una risposta di configurazione e non un errore.",
+  "This offer has fewer places: {count} people on your subscription will no longer be covered. The most recently added go first, and they are told.": "Questa offerta ha meno posti: {count} persone del tuo abbonamento non saranno più coperte. Le ultime aggiunte escono per prime, e vengono avvisate.",
+  "This offer has fewer places: one person on your subscription will no longer be covered. The most recently added goes first, and they are told.": "Questa offerta ha meno posti: una persona del tuo abbonamento non sarà più coperta. L'ultima aggiunta esce per prima, e viene avvisata.",
   "This one is answered by an upgrade rather than by an administrator.": "A questo risponde un upgrade anziché un amministratore.",
   "This organisation is a taxable person": "Questa organizzazione è un soggetto passivo",
   "This organisation is the bare host.": "Questa organizzazione è l'host base.",

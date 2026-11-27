@@ -57,6 +57,7 @@ use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\OrganisationSubscriptions;
+use App\Commerce\Domain\PlacesWithdrawn;
 use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
@@ -99,6 +100,7 @@ use App\Job\Service\JobHandlers;
 use App\Job\Service\JobScheduler;
 use App\Job\Service\PruneJobs;
 use App\Job\Service\RenewSubscriptions;
+use App\Job\Service\ReturnUnowedPayments;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
 use App\Job\Service\SweepRateLimits;
@@ -180,6 +182,7 @@ use App\Sales\Service\ChargeOnRenewal;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
 use App\Sales\Service\RenewalPaymentRequest;
+use App\Sales\Service\TellWhoLostTheirPlace;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -493,6 +496,7 @@ return static function (array $overrides = []): ContainerInterface {
         RenewalCharge::class => autowire(ChargeOnRenewal::class),
         // …and the mail that asks for it, with the link the customer pays from
         // (2026-10-05). The address is the deployment's, like a reset link's.
+        PlacesWithdrawn::class => autowire(TellWhoLostTheirPlace::class),
         RenewalPaymentRequest::class => autowire(RenewalPaymentRequest::class)
             ->constructorParameter('appUrl', $env('APP_URL')),
 
@@ -676,6 +680,7 @@ return static function (array $overrides = []): ContainerInterface {
         JobHandlers::class => factory(
             static fn (
                 ExpireQuotes $quotes,
+                ReturnUnowedPayments $unowed,
                 ExpireSubscriptions $subscriptions,
                 ExportProject $exports,
                 DispatchNotifications $notify,
@@ -687,7 +692,7 @@ return static function (array $overrides = []): ContainerInterface {
                 RenewSubscriptions $renewals,
                 PruneJobs $prune,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune],
+                [$quotes, $unowed, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune],
             ),
         ),
 

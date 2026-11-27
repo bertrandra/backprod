@@ -25,6 +25,20 @@ interface InvoiceRepository
     public function find(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): ?Invoice;
 
     /**
+     * The invoices raised for the periods of one subscription, newest period
+     * first (ADR-076).
+     *
+     * What a change of plan reads to find the invoice of the period it cuts.
+     * Not drafts, which were never sent, and not cancelled ones, which are no
+     * longer a claim on anybody; and only documents that name a period — a
+     * buy-out raised on an early exit is this subscription's invoice and is
+     * for no period at all.
+     *
+     * @return list<Invoice>
+     */
+    public function periodInvoicesOf(string $tenantId, string $productId, string $subscriptionId, int $limit): array;
+
+    /**
      * Issues an invoice in one transaction: writes the document and its
      * lines, records the tax per rate, allocates the legal number, and
      * appends to the ledger.

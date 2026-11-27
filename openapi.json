@@ -1918,7 +1918,8 @@
               "change.prorated_now",
               "change.deferred_to_period_end",
               "change.period_not_priceable",
-              "change.currency_mismatch"
+              "change.currency_mismatch",
+              "change.awaits_payment"
             ]
           },
           "direction": {
@@ -9346,7 +9347,7 @@
             }
           },
           "409": {
-            "description": "`CHECKOUT_NOT_CANCELLABLE` — the order is completed or already cancelled. `CHECKOUT_ALREADY_PAID` — a payment has settled against its invoice.",
+            "description": "`CHECKOUT_NOT_CANCELLABLE` — the order is completed or already cancelled. `CHECKOUT_ALREADY_PAID` — a payment has settled against its invoice. `PAYMENT_STILL_IN_FLIGHT` — the payment is past the point where the provider can stop it (a debit in processing, a card already charged): that money is coming, so the purchase stays (ADR-076).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17073,7 +17074,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4): the freemium is the lowest rank, so a move to it is a move *down* and met neither of the two doors that know about free periods — which left it the way round the once-ever rule. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`.",
+            "description": "No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. `SUBSCRIPTION_ENDING` — a cancellation is already scheduled: a move up would run the service past the date the customer was given, so they resume it first (ADR-077). `CHANGE_AWAITS_PAYMENT` — the subscription is suspended for an unpaid invoice: pay it, then change the plan (ADR-076); the details name the invoice. `SUBSCRIPTION_CHANGED` — the subscription moved while this change was being made (another request, a renewal): read it again. `PAYMENT_STILL_IN_FLIGHT` — a payment of the renewal invoice this change would withdraw can no longer be stopped. `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4): the freemium is the lowest rank, so a move to it is a move *down* and met neither of the two doors that know about free periods — which left it the way round the once-ever rule. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17146,7 +17147,8 @@
                   "type": "object",
                   "required": [
                     "subscription",
-                    "if_changed_now"
+                    "if_changed_now",
+                    "people_losing_their_place"
                   ],
                   "properties": {
                     "subscription": {
@@ -17154,6 +17156,11 @@
                     },
                     "if_changed_now": {
                       "$ref": "#/components/schemas/ChangeDecision"
+                    },
+                    "people_losing_their_place": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "How many of the people this subscription covers would stop being covered, because the offer asked about sells fewer places than are taken (ADR-077). The most recently added go first; the holder never does, and an administrator takes no place. Zero when everybody fits. The same count the change then acts on, when it takes effect — at once for a move up, at the end of the period for a move down — so a screen can warn before the click."
                     }
                   }
                 }
@@ -17164,7 +17171,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The refusals the change itself would make, made here for the same reason and with nothing written: `ALREADY_ON_OFFER`, `COMMITMENT_OUTLASTS_TERM` where the commitment already agreed would outlast the offer's own term, or `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4) — the refusal a catalogue renders as a sentence rather than discovering after a click. A move that merely cannot be *priced* is not one of these — it comes back as a 200 with `accepted: false` and the rule that says why, exactly as a refused cancellation does.",
+            "description": "The refusals the change itself would make, made here for the same reason and with nothing written: `ALREADY_ON_OFFER`, `SUBSCRIPTION_ENDING` where a cancellation is already scheduled (resume it first, ADR-077), `COMMITMENT_OUTLASTS_TERM` where the commitment already agreed would outlast the offer's own term, or `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4) — the refusal a catalogue renders as a sentence rather than discovering after a click. A move that merely cannot be *priced* is not one of these — it comes back as a 200 with `accepted: false` and the rule that says why, exactly as a refused cancellation does.",
             "content": {
               "application/json": {
                 "schema": {

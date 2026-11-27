@@ -1237,6 +1237,57 @@ Différées. Elles appartiennent au `StorageProvider` de §15 : un message
 référencera un asset une fois M7 livré. Stocker une pièce jointe dans
 PostgreSQL contredirait le non-négociable #9.
 
+## Changer d'offre : l'argent suit le document qu'il paie (ADR-076)
+
+Un changement immédiat (montée, ou même rang) rend la part non consommée de la
+période qu'il coupe, puis facture la nouvelle période entière.
+
+```text
+La part rendue est celle de LA facture de la période coupée, jamais « le dernier
+paiement réglé » de l'abonnement.
+
+Facture de la période payée                  → part au temps, rendue sur le moyen de paiement, avec son avoir
+Facture de la période impayée, période commencée → rien à rendre ; le changement a lieu, la facture reste due
+Facture de reconduction émise d'avance, impayée  → elle est RETIRÉE (tentatives abandonnées chez le prestataire,
+                                                   TVA contre-passée) ; la part rendue est celle de la période en cours
+Abonnement suspendu (PAST_DUE)               → refusé, CHANGE_AWAITS_PAYMENT : on paie d'abord
+```
+
+Un prorata se fait **une fois par période coupée** (`refunds_once_per_purpose`) :
+une nouvelle tentative après une panne retrouve le remboursement déjà fait. Le
+changement s'écrit **contre la ligne dont il a été décidé** (version quittée, fin
+de période, statut) : deux demandes simultanées, la seconde reçoit
+`SUBSCRIPTION_CHANGED`.
+
+Une facture n'est jamais annulée sous un paiement qui peut encore aboutir : la
+tentative est d'abord abandonnée chez le prestataire, et celle qu'il ne peut plus
+arrêter refuse l'annulation (`PAYMENT_STILL_IN_FLIGHT`). L'argent qui se règle
+malgré tout sur une facture annulée repart seul (`payment.return_unowed`, toutes
+les heures), sans avoir : la vente a déjà été défaite par l'annulation.
+
+## Changer d'offre n'est pas une sortie (ADR-077)
+
+```text
+Engagement en cours, offre d'arrivée sans engagement plus long → la date reste, ET les conditions de sortie convenues
+                                                                 (politique de résiliation, sortie anticipée) restent
+Offre d'arrivée dont l'engagement finit plus tard              → c'est lui l'engagement, avec ses propres conditions
+Sortie anticipée facturée                                      → au prix de la version sur laquelle l'engagement a été pris
+Descente programmée sur une offre au terme trop court          → refusée, COMMITMENT_OUTLASTS_TERM, jugée à la date d'effet
+Changement alors qu'une résiliation est programmée             → refusé, SUBSCRIPTION_ENDING : on reprend d'abord
+Montée alors qu'une descente était programmée                  → la descente est retirée, et c'est écrit
+Offre d'arrivée avec moins de places                           → les personnes en trop ne sont plus couvertes
+```
+
+**Les places.** Le quota `users` borne ce qu'un abonnement couvre, pas seulement
+ce qu'on peut y ajouter. Quand l'offre tenue vend moins de places qu'il n'y en a
+de prises, les personnes au-delà cessent d'être couvertes, **sur la transaction
+qui change l'offre** : les dernières ajoutées d'abord, jamais le titulaire, et
+jamais un administrateur (qui ne prend pas de place). Elles gardent leur compte,
+leur appartenance et leur rôle ; l'atelier leur répond `SUBSCRIPTION_REQUIRED`.
+Le titulaire est prévenu, avec les noms (`subscription.places_withdrawn`), et
+chaque personne aussi (`subscription.place_withdrawn`). L'aperçu
+(`preview-change`) dit combien, avant le clic : `people_losing_their_place`.
+
 ## API
 
 ```text

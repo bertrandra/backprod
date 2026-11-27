@@ -39,26 +39,18 @@ interface PaymentRepository
     public function latestForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment;
 
     /**
-     * The most recent **settled** payment against an invoice of a subscription
-     * (2026-09-27).
+     * The most recent **settled** payment of one invoice (ADR-076).
      *
-     * What a proration credit is a share of: the money that actually bought
-     * the period now being cut short (spec §3.3). Settled and not merely
-     * started, because an authorization nobody collected is not money to give
-     * back.
+     * What a proration credit is a share of: the money that bought the period
+     * being cut (spec §3.3). Settled and not merely started, because an
+     * authorization nobody collected is not money to give back.
      *
-     * Asked through the invoice rather than through `payments.subscription_id`,
-     * and the reason is a real one: a seat's first invoice is raised *before*
-     * the subscription exists — the money is what starts it — so that payment
-     * carries no subscription id and only the invoice is ever linked back. A
-     * query on the column would silently miss the very first period of every
-     * subscription bought through the sales chain.
+     * By invoice, and it used to be "of any invoice of the subscription". The
+     * period being cut has one invoice; the newest settled payment of the
+     * subscription is that invoice's only while every invoice is paid as it is
+     * raised, and a renewal invoice is raised days before it is due.
      */
-    public function latestSettledForSubscription(
-        string $tenantId,
-        string $productId,
-        string $subscriptionId,
-    ): ?Payment;
+    public function latestSettledForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment;
 
     /**
      * How many attempts an invoice has already had, settled or not.
@@ -140,6 +132,15 @@ interface PaymentRepository
      * The provider is called with a transaction open. That is the price of
      * the lock, and it is paid by refunds of the same invoice only.
      *
+     * **`$onceFor` makes the refund happen once** (ADR-076). It names what
+     * the money is being returned *for* — a proration names the subscription
+     * and the period it cuts — and a second call with the same name finds the
+     * first refund under the lock and answers it, without asking the provider
+     * again. `refunds_once_per_purpose` is the constraint behind that; the read
+     * under the lock is only what lets the answer be the earlier refund rather
+     * than a violation. A refund that FAILED frees the name, because no money
+     * moved.
+     *
      * @param callable(): array{refund: ProviderRefund, amount: Money, alsoRecord: (callable(Refund): ?string)|null} $underLock
      */
     public function recordRefund(
@@ -147,7 +148,20 @@ interface PaymentRepository
         string $reason,
         ?string $actorUserId,
         callable $underLock,
+        ?string $onceFor = null,
     ): Refund;
+
+    /**
+     * Settled payments whose invoice is CANCELLED and whose money has not all
+     * gone back (ADR-076), oldest first.
+     *
+     * Across tenants, like every question a scheduled pass asks: money against
+     * a void document is nobody's until it is returned, and the pass that
+     * returns it has no tenant of its own.
+     *
+     * @return list<Payment>
+     */
+    public function settledAgainstVoidInvoices(int $limit): array;
 
     /**
      * The attempts against an invoice that can still collect — PENDING or

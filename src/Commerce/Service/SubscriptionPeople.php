@@ -326,12 +326,6 @@ final class SubscriptionPeople
     /** The `users` quota the offer sold, counting the owner; 1 when it sold none; null for unlimited. */
     public static function quotaOf(Subscription $subscription): ?int
     {
-        foreach ($subscription->offer->version->grants as $grant) {
-            if ($grant->feature->code === self::USERS_FEATURE) {
-                return Places::sold(true, $grant->limit);
-            }
-        }
-
-        return Places::sold(false, null);
+        return Places::soldBy($subscription->offer->version);
     }
 }

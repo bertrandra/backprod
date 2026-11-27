@@ -59,6 +59,7 @@ final class PreviewChangeController implements RouteHandler
         return new JsonResponse([
             'subscription' => SubscriptionPresenter::one($view['subscription']),
             'if_changed_now' => $view['decision']->toArray(),
+            'people_losing_their_place' => $view['people_losing_their_place'],
         ], 200);
     }
 }

@@ -308,6 +308,33 @@ interface SubscriptionRepository
     ): Subscription;
 
     /**
+     * How many people a subscription would stop covering if it sold `$quota`
+     * places (ADR-077). Zero for unlimited, and whenever everybody fits.
+     *
+     * The same count {@see self::applyWithdrawPlacesBeyond()} acts on, so a
+     * preview cannot promise a different number from the one the change
+     * removes.
+     */
+    public function placesBeyond(string $subscriptionId, ?int $quota): int;
+
+    /**
+     * Stops covering the people beyond `$quota` places, and answers who
+     * (ADR-077).
+     *
+     * **Participates in the caller's transaction**: the plan moving and the
+     * places going are one fact. The holder is never among them — a
+     * subscription covers whoever took it out — and neither is anybody who
+     * administers the organisation, who takes no place to begin with
+     * (2026-09-30). Of the rest, **the most recently added go first**: whoever
+     * has been on the subscription longest keeps their place, which is the
+     * order a holder would guess and the only one that needs no question
+     * asked of them at the moment the plan changes.
+     *
+     * @return list<SubscriptionMember> who was removed, most recently added first
+     */
+    public function applyWithdrawPlacesBeyond(string $subscriptionId, ?int $quota): array;
+
+    /**
      * Withdraws a scheduled cancellation. Only meaningful while the
      * subscription is still live — one that has already ended is restarted
      * by subscribing again, not by resuming.
