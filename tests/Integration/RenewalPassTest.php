@@ -467,7 +467,7 @@ final class RenewalPassTest extends DatabaseApiTestCase
     }
 
     /**
-     * **A lawful cancellation is not undone by a debt** (ADR-076).
+     * **A lawful cancellation is not undone by a debt** (ADR-078).
      *
      * In arrears, under a commitment, and cancelled by a policy that allows it:
      * the renewal refuses to roll past the date the customer was given, and the

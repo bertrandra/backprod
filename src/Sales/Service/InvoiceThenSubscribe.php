@@ -53,7 +53,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         // and it refuses before anything is written, because numbering is
         // gapless and a document raised by mistake cannot be deleted.
         //
-        // **And nothing to collect raises nothing** (ADR-076, 2026-11-27),
+        // **And nothing to collect raises nothing** (ADR-078, 2026-11-27),
         // asked before the parties are: tax on nothing is nothing, so
         // resolving who sells would only be a way of refusing a free seat to
         // an organisation that has not said which country it sells from —

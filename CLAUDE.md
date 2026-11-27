@@ -530,7 +530,7 @@ two jobs never hold the same row. Paying the invoice the column names reopens
 only when no other invoice of that subscription is unpaid past the grace;
 otherwise the suspension moves to the oldest such debt, keeping its date.
 
-**And a subscription always has a way out** (ADR-076, 2026-11-27). Two rules
+**And a subscription always has a way out** (ADR-078, 2026-11-27). Two rules
 meeting must never leave a row no job reads. A lawful cancellation is not undone
 by a debt: committed arrears whose `cancel_effective_at` has come are the
 sweep's, and the renewal never reads them — each condition the other's negation,
@@ -580,7 +580,7 @@ Two rules about what that charge costs, both easy to get wrong:
 Nothing outstanding raises **no document at all**. Numbering is gapless, so a
 €0 invoice is a permanent, unremovable record of no transaction.
 
-That holds for a sale too (ADR-076): a free offer that renews completes its
+That holds for a sale too (ADR-078): a free offer that renews completes its
 order with no invoice and no payment, on the first period as on every next one,
 and the collection pass never reads a document of zero — nothing can pay one, so
 it would be overdue for ever.

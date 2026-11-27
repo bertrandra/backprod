@@ -871,7 +871,7 @@ final class Subscriptions
      *
      * @param FreemiumPeriod|null $freePeriod how long this product's free period
      *                                        lasts, for a change that lands on it
-     *                                        (ADR-076). The product's, so whoever
+     *                                        (ADR-078). The product's, so whoever
      *                                        holds its configuration passes it —
      *                                        the pass does. Absent, such a change
      *                                        is refused rather than given no end.
@@ -906,7 +906,7 @@ final class Subscriptions
         // due once its date arrives.
         //
         // Nor past one whose date has already come, whatever the period says
-        // (ADR-076): only arrears under commitment are renewed after their
+        // (ADR-078): only arrears under commitment are renewed after their
         // period lapsed, and a cancellation the customer was given a date for
         // is not undone by the debt. Those are the sweep's.
         if ($subscription->isDueToEndBy(max($from, new DateTimeImmutable()))) {

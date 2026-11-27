@@ -522,7 +522,7 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
 
     /**
      * A free offer that renews, bought through the door every offer is bought
-     * through (ADR-076).
+     * through (ADR-078).
      *
      * It completed the order with a €0 invoice and then asked the provider to
      * authorize a payment of nothing against it. Nothing ever settled that

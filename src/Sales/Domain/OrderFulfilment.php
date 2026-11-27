@@ -29,7 +29,7 @@ interface OrderFulfilment
     /**
      * Raises the invoice the order is to be paid against — or none.
      *
-     * **Nothing to collect raises no document** (ADR-076). A free offer prices
+     * **Nothing to collect raises no document** (ADR-078). A free offer prices
      * an order at zero: `invoice_id` is null, and
      * the caller completes the order at once rather than parking it behind a
      * payment that would never come. Until 2026-11-27 this raised a €0 invoice

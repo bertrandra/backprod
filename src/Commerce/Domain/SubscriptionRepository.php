@@ -295,7 +295,7 @@ interface SubscriptionRepository
      * to the end of its period, and the arriving one starts there.
      *
      * `$freePeriod` is how long the product's free period lasts, for a change
-     * that lands on it (ADR-076): a free period is never billed, so its offer
+     * that lands on it (ADR-078): a free period is never billed, so its offer
      * has no billing period to count, and it ends where taking it at the door
      * would have ended it. With neither a billing period nor this, the change
      * is refused — `CHANGE_HAS_NO_PERIOD` — rather than started with no end.
@@ -484,7 +484,7 @@ interface SubscriptionRepository
      * One row per recipient, exactly as `dueForRenewalNotice` — see
      * {@see OverdueSubscription} for why, including the null one.
      *
-     * Only an invoice with **something to collect** (ADR-076): a document of
+     * Only an invoice with **something to collect** (ADR-078): a document of
      * zero is nobody's debt. And read by page, like the renewal and the
      * notices: the order is stable and nothing this pass does removes a row
      * from it, so an offset reaches the debts a first page of older ones hid.

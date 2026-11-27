@@ -8,7 +8,7 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
 /**
- * An order with nothing to collect completes without a document (ADR-076).
+ * An order with nothing to collect completes without a document (ADR-078).
  *
  * `orders_completed_is_traceable` required an invoice of every completed
  * order, so a free offer bought through the order chain had to raise a €0

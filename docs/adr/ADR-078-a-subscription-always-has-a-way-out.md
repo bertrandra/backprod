@@ -1,4 +1,4 @@
-# ADR-076 — A subscription always has a way out
+# ADR-078 — A subscription always has a way out
 
 **Status:** accepted (2026-11-27)
 **Amends:** ADR-072 (committed arrears and the sweep), ADR-068 (renewal reads what

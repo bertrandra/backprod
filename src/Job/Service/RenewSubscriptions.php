@@ -138,7 +138,7 @@ final class RenewSubscriptions implements JobHandler
                         $due->productId,
                         $due->subscriberUserId,
                         // How long this product's free period lasts, for a
-                        // change that lands on it (ADR-076): the product's
+                        // change that lands on it (ADR-078): the product's
                         // number, read where its other settings are.
                         FreemiumPeriod::fromConfiguration($this->settings->all($due->productId)),
                     );

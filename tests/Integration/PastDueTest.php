@@ -560,7 +560,7 @@ final class PastDueTest extends DatabaseApiTestCase
     }
 
     /**
-     * A document of zero is nobody's debt (ADR-076).
+     * A document of zero is nobody's debt (ADR-078).
      *
      * Nothing ever marks a €0 invoice paid — there is nothing to pay it with —
      * so the pass read it as overdue for ever and suspended a free seat for

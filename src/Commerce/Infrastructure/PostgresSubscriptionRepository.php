@@ -507,7 +507,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         // An offer billed by period ends where its period does. The free
         // period is `CUSTOM` — never billed, so it has no period to count —
         // and ends where taking it at the door would have ended it: the
-        // product's own number of days, counted from the boundary (ADR-076).
+        // product's own number of days, counted from the boundary (ADR-078).
         // It was left with no end at all until 2026-11-27: entitlements valid
         // for ever on a row neither the renewal nor the sweep ever reads
         // again, which is a free period that never finishes.
@@ -751,7 +751,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    -- The flag cannot say which, because every deferral sets it.
                    AND (s.cancel_effective_at IS NULL
                         OR s.cancel_effective_at > s.current_period_end)
-                   -- Nor anything whose cancellation date has come (ADR-076).
+                   -- Nor anything whose cancellation date has come (ADR-078).
                    -- Only arrears under commitment are read after their period
                    -- lapsed, and one of those the customer lawfully cancelled
                    -- is the sweep's from that date on: this condition and the
@@ -1143,7 +1143,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    AND i.status IN ('ISSUED', 'READY_FOR_EINVOICE', 'SUBMITTED', 'ACCEPTED', 'REJECTED')
                    AND i.issued_at IS NOT NULL
                    AND coalesce(i.due_at, i.issued_at) < now()
-                   -- Nothing to collect is nothing to chase (ADR-076). A
+                   -- Nothing to collect is nothing to chase (ADR-078). A
                    -- document of zero was a debt in this query's eyes until
                    -- 2026-11-27: nothing ever marked it paid, so the pass
                    -- suspended a free seat for owing nothing.
@@ -1368,7 +1368,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             // unpaid — and because two jobs disagreed about the same row.
             //
             // **Unless the customer cancelled and the date has come**
-            // (ADR-076, 2026-11-27). A commitment binds somebody to keep
+            // (ADR-078, 2026-11-27). A commitment binds somebody to keep
             // paying; it does not undo a cancellation the policy accepted.
             // The renewal refuses to roll past that date and this sweep
             // refused the row for being committed arrears, so it stayed

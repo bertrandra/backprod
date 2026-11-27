@@ -368,7 +368,7 @@ final class PostgresSalesRepository implements SalesRepository
 
             if ($raised['invoice_id'] === null) {
                 // Nothing to collect, so no document and nothing to wait for
-                // (ADR-076). The order never passes through AWAITING_PAYMENT —
+                // (ADR-078). The order never passes through AWAITING_PAYMENT —
                 // `orders_awaiting_payment_has_invoice` would refuse it, and
                 // rightly: there is no payment it could be waiting for.
                 $this->applyCompleteOrder($order, $fulfilment, $actorUserId);

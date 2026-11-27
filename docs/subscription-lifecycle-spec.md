@@ -659,7 +659,7 @@ La portée de l'unicité du freemium est écrite **par produit**
 plateforme, tous produits confondus*, c'est l'index du §6.4 qui change, et lui
 seul.
 
-## 10. Un abonnement a toujours une issue (ADR-076, 27 novembre 2026)
+## 10. Un abonnement a toujours une issue (ADR-078, 27 novembre 2026)
 
 L'audit du cycle complet a trouvé quatre états dont un abonnement ne sortait
 jamais. Aucun n'était sur le chemin nominal : chacun demandait que deux règles se

@@ -816,7 +816,7 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertIsString($fulfilled['subscription_id'] ?? null);
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM payments'));
 
-        // And no document (ADR-076). It asserted an invoice here until
+        // And no document (ADR-078). It asserted an invoice here until
         // 2026-11-27: a €0 number in a gapless series for no transaction,
         // which nothing ever marked paid and the collection pass then
         // suspended the free seat for.

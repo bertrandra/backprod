@@ -702,7 +702,7 @@ final class FreemiumTest extends DatabaseApiTestCase
     }
 
     /**
-     * And it ends when taking it at the door would have ended it (ADR-076).
+     * And it ends when taking it at the door would have ended it (ADR-078).
      *
      * A free period is never billed, so its offer has no billing period to
      * count, and the change used to leave `current_period_end` empty: a row
