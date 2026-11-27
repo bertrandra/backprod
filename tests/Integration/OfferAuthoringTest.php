@@ -261,6 +261,42 @@ final class OfferAuthoringTest extends DatabaseApiTestCase
         self::assertCount(1, $offers);
     }
 
+    /**
+     * Terms that renew by themselves and never can are refused at the last
+     * moment they can be changed (ADR-079).
+     *
+     * A term rolls only once its customer was told `notice_days` before the
+     * day the renewal is decided. A one-month term with thirty days' notice
+     * would need that notice sent before the subscription began, so every
+     * subscription on it ended at its first term — sold as "renews by itself".
+     */
+    public function testATermTooShortForItsOwnNoticeCannotBePublishedAsRenewing(): void
+    {
+        $offerId = $this->offerOf($this->create([
+            'terms' => ['term_months' => 1, 'notice_days' => 30, 'renewal' => 'AUTO_RENEW'],
+        ]))['id'] ?? null;
+        self::assertIsString($offerId);
+
+        $response = $this->publish($offerId, 1);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('OFFER_TERM_CANNOT_RENEW', $this->errorOf($response)['code'] ?? null);
+
+        // Sold as ending at its term, the same figures are an honest offer.
+        $honest = $this->offerOf($this->create([
+            'terms' => ['term_months' => 1, 'notice_days' => 30, 'renewal' => 'ENDS_AT_TERM'],
+        ]))['id'] ?? null;
+        self::assertIsString($honest);
+        self::assertSame(200, $this->publish($honest, 1)->getStatusCode());
+
+        // And a year with thirty days' notice renews as before.
+        $yearly = $this->offerOf($this->create([
+            'terms' => ['term_months' => 12, 'notice_days' => 30, 'renewal' => 'AUTO_RENEW'],
+        ]))['id'] ?? null;
+        self::assertIsString($yearly);
+        self::assertSame(200, $this->publish($yearly, 1)->getStatusCode());
+    }
+
     public function testGrantsTravelWithTheVersion(): void
     {
         $response = $this->create([

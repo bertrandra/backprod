@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commerce\Controller;
 
 use App\Commerce\Service\Freemium;
+use App\Commerce\Service\SubscriptionOutlook;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Context\RequestContextReader;
 use App\Shared\Http\RouteHandler;
@@ -32,6 +33,7 @@ final class ShowSubscriptionController implements RouteHandler
     public function __construct(
         private readonly Subscriptions $subscriptions,
         private readonly Freemium $freemium,
+        private readonly SubscriptionOutlook $outlook,
     ) {
     }
 
@@ -88,6 +90,11 @@ final class ShowSubscriptionController implements RouteHandler
             // the wider question; this one carries the offer and the terms,
             // because they bought it.
             'seat' => $seat === null ? null : SubscriptionPresenter::one($seat),
+            // What happens next to that seat, derived here and never on the
+            // screen (ADR-079): until when it is paid, whether it continues by
+            // itself, when a term renews and the last day to refuse it, and
+            // what cancelling now would do. Theirs, like `seat`.
+            'outlook' => $seat === null ? null : $this->outlook->for($seat),
             // Whether the caller's one free period is spent (spec §6.4). The
             // caller's own fact, like `seat` and never withheld, and here
             // rather than on the offer because it is a property of the person

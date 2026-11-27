@@ -28,4 +28,14 @@ interface PaymentSettlement
      * have been marked paid by hand in the meantime.
      */
     public function settle(Payment $payment): void;
+
+    /**
+     * Called only for an attempt that has just **failed** — refused by the
+     * provider, not abandoned for a newer one — and from inside the
+     * transaction recording that (ADR-079).
+     *
+     * Nothing about the invoice moves: it is still owed. What follows is
+     * telling whoever was waiting on it, which is somebody else's knowledge.
+     */
+    public function failed(Payment $payment): void;
 }

@@ -52,6 +52,7 @@ use App\Tax\Service\Taxation;
 final class Sales
 {
     public const SEAT_ALREADY_ACTIVE = 'SEAT_ALREADY_ACTIVE';
+    public const SEAT_IN_ARREARS = 'SEAT_IN_ARREARS';
 
     /**
      * No longer thrown, and still recorded (2026-09-25).
@@ -222,7 +223,7 @@ final class Sales
      * unique indexes (§13.1) — the other, one subscription per organisation,
      * stands in front of nothing a customer can now reach.
      *
-     * @throws ConflictException SEAT_ALREADY_ACTIVE
+     * @throws ConflictException SEAT_ALREADY_ACTIVE, SEAT_IN_ARREARS
      */
     private function refuseWhileSeated(string $tenantId, string $productId, string $userId): void
     {
@@ -232,6 +233,20 @@ final class Sales
                     self::SEAT_ALREADY_ACTIVE,
                     'You already hold a live seat on this product. Change it from the subscription rather than buying a second one.',
                     ['subscription_id' => $live->id, 'offer_id' => $live->offer->offerId],
+                );
+            }
+
+            // Suspended for an unpaid invoice is still held (ADR-079). The
+            // index counts it — being in arrears is not an exit — so selling
+            // here took the person's money and then could start nothing: the
+            // order was held, and the old seat stayed shut because the money
+            // had gone to a different invoice. The answer is the invoice they
+            // owe, and the refusal names it.
+            if ($live->isPastDue()) {
+                throw new ConflictException(
+                    self::SEAT_IN_ARREARS,
+                    'Your seat on this product is suspended for an unpaid invoice. Paying that invoice reopens it; a second purchase would not.',
+                    ['subscription_id' => $live->id, 'past_due_invoice_id' => $live->pastDueInvoiceId],
                 );
             }
         }

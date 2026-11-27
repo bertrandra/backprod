@@ -95,8 +95,26 @@ final class SubscriptionTerms
     }
 
     /**
-     * @return list<string>
+     * Whether a term sold as renewing by itself can ever do so (ADR-079).
+     *
+     * It rolls only once the customer was told `notice_days` before the day
+     * the renewal is decided, and that day is a renewal lead before the term
+     * ends. A term shorter than the two together would need its notice sent
+     * before the subscription began. The shortest a term of N months can be is
+     * N times twenty-eight days, which is the figure to be safe against.
+     *
+     * No term, no notice promised, or not sold as renewing: nothing to check.
      */
+    public function termCanRoll(int $renewalLeadDays): bool
+    {
+        if ($this->termMonths === null || $this->renewal !== self::AUTO_RENEW || $this->noticeDays === 0) {
+            return true;
+        }
+
+        return $this->termMonths * 28 > $this->noticeDays + $renewalLeadDays;
+    }
+
+    /** @return list<string> */
     public static function policies(): array
     {
         return [self::ANYTIME, self::AT_COMMITMENT_END, self::AT_TERM];

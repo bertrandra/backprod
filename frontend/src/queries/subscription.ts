@@ -27,6 +27,8 @@ import { toApiError } from './session';
 
 export type Subscription = Schemas['Subscription'];
 export type CancellationDecision = Schemas['CancellationDecision'];
+/** What happens next to a subscription, derived by the server (ADR-079). */
+export type SubscriptionOutlook = Schemas['SubscriptionOutlook'];
 /** What a change of offer would do (spec §3, §7): the credit, the net, the date, the rule. */
 export type ChangeDecision = Schemas['ChangeDecision'];
 export type Entitlement = Schemas['Entitlement'];

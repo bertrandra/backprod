@@ -12,6 +12,7 @@ use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\Quote;
 use App\Sales\Domain\QuoteStatus;
 use App\Sales\Domain\SalesRepository;
+use App\Sales\Domain\StrandedOrder;
 use App\Shared\Database\DocumentPersonSql;
 use App\Shared\Database\DocumentWindowSql;
 use App\Shared\Database\Row;
@@ -488,6 +489,88 @@ final class PostgresSalesRepository implements SalesRepository
 
             return $this->requireOrder($order->tenantId, $order->productId, $order->id);
         });
+    }
+
+    public function heldOrders(int $limit): array
+    {
+        return $this->hydrateOrders($this->connection->fetchAllAssociative(
+            'SELECT ' . self::ORDER_COLUMNS . <<<'SQL'
+                 FROM orders o
+                WHERE o.status = 'AWAITING_PAYMENT'
+                  AND EXISTS (
+                        SELECT 1 FROM financial_events e
+                         WHERE e.order_id = o.id AND e.type = 'ORDER_HELD'
+                      )
+                ORDER BY o.created_at, o.id
+                LIMIT :limit
+                SQL,
+            ['limit' => $limit],
+        ));
+    }
+
+    public function closeHeldOrder(Order $order, callable $also): bool
+    {
+        return $this->connection->transactional(function () use ($order, $also): bool {
+            $closed = $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE orders
+                       SET status = 'CANCELLED', cancelled_at = now(), updated_at = now()
+                     WHERE id = :id AND status = 'AWAITING_PAYMENT'
+                    SQL,
+                ['id' => $order->id],
+            );
+
+            if ($closed === 0) {
+                return false;
+            }
+
+            // The same ledger type every cancelled order writes, saying which
+            // kind this was: nothing was abandoned here, the money came and
+            // went back. No actor — the pass did it.
+            $this->record(
+                $order->tenantId,
+                $order->productId,
+                'ORDER_CANCELLED',
+                $order->id,
+                $order->gross,
+                null,
+                ['reason' => 'REFUNDED_WHILE_SEATED'],
+            );
+
+            $also($order);
+
+            return true;
+        });
+    }
+
+    public function ordersAwaitingPaymentFor(int $minimumHours, int $limit, int $offset = 0): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::ORDER_COLUMNS . <<<'SQL'
+                    , floor(extract(epoch FROM now() - o.updated_at) / 3600)::int AS hours_waiting
+                 FROM orders o
+                WHERE o.status = 'AWAITING_PAYMENT'
+                  AND o.updated_at <= now() - make_interval(hours => :hours)
+                  -- A held order is not abandoned: its money arrived. It is
+                  -- the other half of the pass, and closed by a refund.
+                  AND NOT EXISTS (
+                        SELECT 1 FROM financial_events e
+                         WHERE e.order_id = o.id AND e.type = 'ORDER_HELD'
+                      )
+                ORDER BY o.updated_at, o.id
+                LIMIT :limit OFFSET :offset
+                SQL,
+            ['hours' => $minimumHours, 'limit' => $limit, 'offset' => $offset],
+        );
+
+        $orders = $this->hydrateOrders($rows);
+        $stranded = [];
+
+        foreach ($orders as $i => $order) {
+            $stranded[] = new StrandedOrder($order, Row::integer($rows[$i], 'hours_waiting'));
+        }
+
+        return $stranded;
     }
 
     public function expireLapsedQuotes(): int

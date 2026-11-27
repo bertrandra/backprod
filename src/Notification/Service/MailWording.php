@@ -139,6 +139,45 @@ final class MailWording
                 . "Nothing is needed to keep it. To stop it, cancel it from the subscription screen before {cancel_by}: that is the day the renewal is decided.\n\n"
                 . 'You are told {notice_days} days or more before that day, as your offer provides.',
         ],
+        // A purchase, said to the person who made it (ADR-079). Until
+        // 2026-11-27 buying was silent from end to end; the only mail about
+        // money was the one asking for it. None of these three is kept as
+        // sent: the invoice and the credit note are the documents.
+        'purchase.confirmed' => [
+            'about' => 'An order completed and what it bought has started — a paid purchase once the money arrived, or a free one at once.',
+            'placeholders' => ['offer', 'link'],
+            'subject' => 'Your purchase is confirmed — {offer}',
+            'body' => "Your purchase of {offer} is confirmed and your seat has started.\n\n"
+                . "What you hold, its period and its documents are here:\n{link}",
+        ],
+        'purchase.payment_failed' => [
+            'about' => 'A payment attempt for a purchase still in progress was refused. Nothing was charged and the order is intact. Not sent for a renewal or an overdue invoice, which the collection schedule speaks for.',
+            'placeholders' => ['offer', 'link'],
+            'subject' => 'Your payment did not go through — {offer}',
+            'body' => "The payment for {offer} was refused, so nothing was charged and nothing has started yet.\n\n"
+                . "Your order is still there. You can pay again, with the same card or another means, from here:\n{link}\n\n"
+                . 'If you no longer want it, you can cancel it from the same page.',
+        ],
+        'purchase.refunded' => [
+            'about' => 'A payment arrived for a seat the person already held (two purchases opened at once), so nothing could be started against it. The payment has been given back and a credit note raised.',
+            'placeholders' => ['offer', 'link'],
+            'subject' => 'Your payment has been refunded — {offer}',
+            'body' => "We received a payment for {offer}, but you already held a seat on this product when it arrived, so nothing was started against it.\n\n"
+                . "The payment has been refunded in full to the means it was made with, and a credit note has been issued. Depending on your bank it can take a few days to appear.\n\n"
+                . "Your seat and your documents are here:\n{link}",
+        ],
+        // The truthful counterpart of the pre-renewal notice (ADR-079): when
+        // the notice the offer promises can no longer be given in time, the
+        // term will not renew by itself, so saying "it renews on X" would be
+        // a promise the platform is about to break. Kept as sent.
+        'subscription.term_ending' => [
+            'about' => 'A subscription reaches the end of its term and will NOT renew by itself, because the notice its offer promises could no longer be given in time. Sent instead of the pre-renewal notice. Kept as sent because it has legal effect.',
+            'placeholders' => ['ends_on', 'notice_days'],
+            'subject' => 'Your subscription ends on {ends_on}',
+            'body' => "Your subscription reaches the end of its term on {ends_on}, and it will end on that day: it does not renew by itself this time.\n\n"
+                . "Your offer provides that you are told {notice_days} days before a renewal, and that notice could not be given in time, so no new term is started on your behalf.\n\n"
+                . 'To keep using the product after that date, take a new subscription from the catalogue.',
+        ],
     ];
 
     /**
@@ -213,6 +252,29 @@ final class MailWording
                     . "Il n'y a rien à faire pour le garder. Pour l'arrêter, résiliez-le depuis l'écran d'abonnement avant le {cancel_by} : c'est le jour où la reconduction est décidée.\n\n"
                     . 'Vous êtes prévenu au moins {notice_days} jours avant cette date, comme le prévoit votre offre.',
             ],
+            'purchase.confirmed' => [
+                'subject' => 'Votre achat est confirmé — {offer}',
+                'body' => "Votre achat de {offer} est confirmé et votre place est ouverte.\n\n"
+                    . "Ce que vous détenez, sa période et ses documents sont ici :\n{link}",
+            ],
+            'purchase.payment_failed' => [
+                'subject' => "Votre paiement n'a pas abouti — {offer}",
+                'body' => "Le paiement de {offer} a été refusé : rien n'a été débité et rien n'a encore commencé.\n\n"
+                    . "Votre commande est toujours là. Vous pouvez payer de nouveau, avec la même carte ou un autre moyen, ici :\n{link}\n\n"
+                    . "Si vous n'en voulez plus, vous pouvez l'annuler depuis la même page.",
+            ],
+            'purchase.refunded' => [
+                'subject' => 'Votre paiement a été remboursé — {offer}',
+                'body' => "Nous avons reçu un paiement pour {offer}, mais vous déteniez déjà une place sur ce produit à son arrivée : rien n'a donc été ouvert en face.\n\n"
+                    . "Le paiement a été remboursé en totalité sur le moyen utilisé, et un avoir a été émis. Selon votre banque, il peut mettre quelques jours à apparaître.\n\n"
+                    . "Votre place et vos documents sont ici :\n{link}",
+            ],
+            'subscription.term_ending' => [
+                'subject' => 'Votre abonnement prend fin le {ends_on}',
+                'body' => "Votre abonnement arrive au terme de sa durée le {ends_on}, et il prendra fin ce jour-là : il n'est pas reconduit automatiquement cette fois.\n\n"
+                    . "Votre offre prévoit que vous soyez prévenu {notice_days} jours avant une reconduction ; ce préavis n'a pas pu être donné à temps, aucune nouvelle durée n'est donc engagée en votre nom.\n\n"
+                    . 'Pour continuer à utiliser le produit après cette date, souscrivez un nouvel abonnement depuis le catalogue.',
+            ],
         ],
         'es' => [
             'account.password_reset' => [
@@ -276,6 +338,29 @@ final class MailWording
                 'body' => "Su suscripción llega al final de su duración: el {renews_on} se renueva automáticamente por una nueva duración, en las mismas condiciones.\n\n"
                     . "No necesita hacer nada para conservarla. Para detenerla, cancélela desde la pantalla de suscripción antes del {cancel_by}: ese día se decide la renovación.\n\n"
                     . 'Se le avisa con al menos {notice_days} días de antelación respecto a esa fecha, como prevé su oferta.',
+            ],
+            'purchase.confirmed' => [
+                'subject' => 'Su compra está confirmada: {offer}',
+                'body' => "Su compra de {offer} está confirmada y su plaza ya está activa.\n\n"
+                    . "Lo que tiene contratado, su periodo y sus documentos están aquí:\n{link}",
+            ],
+            'purchase.payment_failed' => [
+                'subject' => 'Su pago no se ha completado: {offer}',
+                'body' => "El pago de {offer} fue rechazado: no se ha cobrado nada y todavía no ha empezado nada.\n\n"
+                    . "Su pedido sigue ahí. Puede pagar de nuevo, con la misma tarjeta o con otro medio, aquí:\n{link}\n\n"
+                    . 'Si ya no lo quiere, puede cancelarlo desde la misma página.',
+            ],
+            'purchase.refunded' => [
+                'subject' => 'Su pago ha sido reembolsado: {offer}',
+                'body' => "Recibimos un pago por {offer}, pero usted ya tenía una plaza en este producto cuando llegó, así que no se inició nada con él.\n\n"
+                    . "El pago se ha reembolsado íntegramente al medio con el que se hizo y se ha emitido una nota de crédito. Según su banco, puede tardar unos días en aparecer.\n\n"
+                    . "Su plaza y sus documentos están aquí:\n{link}",
+            ],
+            'subscription.term_ending' => [
+                'subject' => 'Su suscripción termina el {ends_on}',
+                'body' => "Su suscripción llega al final de su duración el {ends_on} y terminará ese día: esta vez no se renueva automáticamente.\n\n"
+                    . "Su oferta prevé que se le avise {notice_days} días antes de una renovación; ese aviso no pudo darse a tiempo, así que no se inicia ninguna nueva duración en su nombre.\n\n"
+                    . 'Para seguir usando el producto después de esa fecha, contrate una nueva suscripción desde el catálogo.',
             ],
         ],
         'de' => [
@@ -341,6 +426,29 @@ final class MailWording
                     . "Um es zu behalten, ist nichts zu tun. Um es zu beenden, kündigen Sie es vor dem {cancel_by} über die Abonnementseite: An diesem Tag wird über die Verlängerung entschieden.\n\n"
                     . 'Sie werden mindestens {notice_days} Tage vor diesem Datum benachrichtigt, wie es Ihr Angebot vorsieht.',
             ],
+            'purchase.confirmed' => [
+                'subject' => 'Ihr Kauf ist bestätigt – {offer}',
+                'body' => "Ihr Kauf von {offer} ist bestätigt und Ihr Platz ist aktiv.\n\n"
+                    . "Was Sie gebucht haben, die Periode und Ihre Belege finden Sie hier:\n{link}",
+            ],
+            'purchase.payment_failed' => [
+                'subject' => 'Ihre Zahlung ist nicht durchgegangen – {offer}',
+                'body' => "Die Zahlung für {offer} wurde abgelehnt: Es wurde nichts abgebucht und noch nichts gestartet.\n\n"
+                    . "Ihre Bestellung besteht weiter. Sie können hier erneut bezahlen, mit derselben Karte oder auf anderem Weg:\n{link}\n\n"
+                    . 'Wenn Sie sie nicht mehr möchten, können Sie sie auf derselben Seite stornieren.',
+            ],
+            'purchase.refunded' => [
+                'subject' => 'Ihre Zahlung wurde erstattet – {offer}',
+                'body' => "Wir haben eine Zahlung für {offer} erhalten, aber Sie hatten bei ihrem Eingang bereits einen Platz für dieses Produkt, sodass nichts dafür gestartet wurde.\n\n"
+                    . "Die Zahlung wurde vollständig auf das verwendete Zahlungsmittel erstattet, und eine Gutschrift wurde ausgestellt. Je nach Bank kann es einige Tage dauern, bis sie erscheint.\n\n"
+                    . "Ihren Platz und Ihre Belege finden Sie hier:\n{link}",
+            ],
+            'subscription.term_ending' => [
+                'subject' => 'Ihr Abonnement endet am {ends_on}',
+                'body' => "Ihr Abonnement erreicht am {ends_on} das Ende seiner Laufzeit und endet an diesem Tag: Es verlängert sich diesmal nicht automatisch.\n\n"
+                    . "Ihr Angebot sieht vor, dass Sie {notice_days} Tage vor einer Verlängerung benachrichtigt werden; diese Benachrichtigung konnte nicht rechtzeitig erfolgen, daher wird in Ihrem Namen keine neue Laufzeit begonnen.\n\n"
+                    . 'Um das Produkt danach weiter zu nutzen, schließen Sie im Katalog ein neues Abonnement ab.',
+            ],
         ],
         'it' => [
             'account.password_reset' => [
@@ -404,6 +512,29 @@ final class MailWording
                 'body' => "Il tuo abbonamento arriva alla fine della sua durata: il {renews_on} si rinnova automaticamente per una nuova durata, alle stesse condizioni.\n\n"
                     . "Non serve fare nulla per mantenerlo. Per fermarlo, disdicilo dalla schermata dell'abbonamento prima del {cancel_by}: è il giorno in cui si decide il rinnovo.\n\n"
                     . 'Sei avvisato con almeno {notice_days} giorni di anticipo rispetto a quella data, come prevede la tua offerta.',
+            ],
+            'purchase.confirmed' => [
+                'subject' => 'Il tuo acquisto è confermato — {offer}',
+                'body' => "Il tuo acquisto di {offer} è confermato e il tuo posto è attivo.\n\n"
+                    . "Ciò che hai sottoscritto, il periodo e i documenti sono qui:\n{link}",
+            ],
+            'purchase.payment_failed' => [
+                'subject' => 'Il pagamento non è andato a buon fine — {offer}',
+                'body' => "Il pagamento di {offer} è stato rifiutato: non è stato addebitato nulla e nulla è ancora iniziato.\n\n"
+                    . "Il tuo ordine è ancora lì. Puoi pagare di nuovo, con la stessa carta o con un altro mezzo, da qui:\n{link}\n\n"
+                    . 'Se non lo vuoi più, puoi annullarlo dalla stessa pagina.',
+            ],
+            'purchase.refunded' => [
+                'subject' => 'Il tuo pagamento è stato rimborsato — {offer}',
+                'body' => "Abbiamo ricevuto un pagamento per {offer}, ma al suo arrivo avevi già un posto su questo prodotto, quindi non è stato avviato nulla a fronte di esso.\n\n"
+                    . "Il pagamento è stato rimborsato per intero sul mezzo utilizzato ed è stata emessa una nota di credito. A seconda della banca, possono servire alcuni giorni perché compaia.\n\n"
+                    . "Il tuo posto e i tuoi documenti sono qui:\n{link}",
+            ],
+            'subscription.term_ending' => [
+                'subject' => 'Il tuo abbonamento termina il {ends_on}',
+                'body' => "Il tuo abbonamento arriva al termine della sua durata il {ends_on} e terminerà quel giorno: questa volta non si rinnova automaticamente.\n\n"
+                    . "La tua offerta prevede che tu sia avvisato {notice_days} giorni prima di un rinnovo; l'avviso non ha potuto essere dato in tempo, quindi nessuna nuova durata viene avviata a tuo nome.\n\n"
+                    . 'Per continuare a usare il prodotto dopo quella data, sottoscrivi un nuovo abbonamento dal catalogo.',
             ],
         ],
     ];

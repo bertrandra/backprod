@@ -144,6 +144,13 @@ final class SmtpNotifierTest extends TestCase
                 // (2026-10-05). Kept as sent too: it is a demand for payment.
                 'subscription.renewal_payment_request',
                 'subscription.renewal_notice',
+                // What a person is told about a purchase of theirs (ADR-079).
+                'purchase.confirmed',
+                'purchase.payment_failed',
+                'purchase.refunded',
+                // The truthful counterpart of the renewal notice (ADR-079):
+                // sent when the term will not renew, and kept as sent.
+                'subscription.term_ending',
             ],
             array_column($catalogue, 'type'),
         );

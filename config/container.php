@@ -40,6 +40,7 @@ use App\Billing\Domain\CreditNoteRepository;
 use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\InvoiceDocumentRepository;
 use App\Billing\Domain\InvoicePaid;
+use App\Billing\Domain\InvoicePaymentFailed;
 use App\Billing\Domain\InvoiceRenderer;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Infrastructure\MpdfInvoiceRenderer;
@@ -49,6 +50,7 @@ use App\Billing\Infrastructure\PostgresDocumentPeople;
 use App\Billing\Infrastructure\PostgresInvoiceDocumentRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Billing\Service\EverythingWaitingOnAPaidInvoice;
+use App\Billing\Service\Invoicing;
 use App\Commerce\Domain\CatalogueAdministration;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\ChangeCharge;
@@ -63,6 +65,7 @@ use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
 use App\Commerce\Domain\SubscriptionPlaces;
 use App\Commerce\Domain\SubscriptionRepository;
+use App\Commerce\Domain\UnstartedPeriodRelease;
 use App\Commerce\Infrastructure\PostgresCatalogueAdministration;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
@@ -103,6 +106,7 @@ use App\Job\Service\RenewSubscriptions;
 use App\Job\Service\ReturnUnowedPayments;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
+use App\Job\Service\SettleStrandedOrders;
 use App\Job\Service\SweepRateLimits;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
@@ -133,6 +137,8 @@ use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\CreditTheUnconsumedPeriod;
 use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
+use App\Payment\Service\Payments;
+use App\Payment\Service\ReleaseTheUnstartedPeriod;
 use App\Privacy\Domain\ErasureRepository;
 use App\Privacy\Infrastructure\PostgresErasureRepository;
 use App\Product\Controller\SendContactRequestController;
@@ -181,6 +187,7 @@ use App\Sales\Service\ChargeOnOfferChange;
 use App\Sales\Service\ChargeOnRenewal;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
+use App\Sales\Service\PurchaseNotices;
 use App\Sales\Service\RenewalPaymentRequest;
 use App\Sales\Service\TellWhoLostTheirPlace;
 use App\Shared\Context\RequestContextMiddleware;
@@ -499,6 +506,12 @@ return static function (array $overrides = []): ContainerInterface {
         PlacesWithdrawn::class => autowire(TellWhoLostTheirPlace::class),
         RenewalPaymentRequest::class => autowire(RenewalPaymentRequest::class)
             ->constructorParameter('appUrl', $env('APP_URL')),
+        // What a person is told about a purchase of theirs (ADR-079): that it
+        // started, that the card was refused, that money taken twice went back.
+        // Also the port the payment layer tells a failure through.
+        PurchaseNotices::class => autowire(PurchaseNotices::class)
+            ->constructorParameter('appUrl', $env('APP_URL')),
+        InvoicePaymentFailed::class => get(PurchaseNotices::class),
 
         // Moving up a plan, and the two halves of what that costs (spec §3).
         // Both are ports for the same reason the one above is: subscriptions
@@ -509,6 +522,9 @@ return static function (array $overrides = []): ContainerInterface {
         // with its credit note (ADR-058), so it lives where refunds do.
         ChangeCharge::class => autowire(ChargeOnOfferChange::class),
         ChangeCredit::class => autowire(CreditTheUnconsumedPeriod::class),
+        // A period invoiced ahead and cancelled before it began (ADR-079): its
+        // invoice is cancelled, or refunded with its credit note if it was paid.
+        UnstartedPeriodRelease::class => autowire(ReleaseTheUnstartedPeriod::class),
 
         // The far side of the payment gate. Both ways an invoice can reach
         // PAID — a provider's webhook, an operator reconciling a transfer —
@@ -691,8 +707,9 @@ return static function (array $overrides = []): ContainerInterface {
                 DeliverWebhooks $webhooks,
                 RenewSubscriptions $renewals,
                 PruneJobs $prune,
+                SettleStrandedOrders $orders,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $unowed, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune],
+                [$quotes, $unowed, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune, $orders],
             ),
         ),
 

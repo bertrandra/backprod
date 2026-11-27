@@ -99,6 +99,11 @@ final class Schedule
         // Hourly rather than daily: it is somebody's money on the wrong side,
         // and the pass finds nothing on every hour that there is none.
         'payment.return_unowed' => self::HOURLY,
+        // Orders nothing else ends (ADR-079): money that arrived for a seat
+        // already held goes back, and a checkout nobody is paying is given up
+        // once the product's own delay has passed. Hourly, because the first
+        // is somebody's money and the delay of the second is counted in hours.
+        'sweep.orders' => self::HOURLY,
 
         // The rest turn on dates, so a day is the smallest gap that means
         // anything.

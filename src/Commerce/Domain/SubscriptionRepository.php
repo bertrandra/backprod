@@ -202,14 +202,31 @@ interface SubscriptionRepository
      * against a subscription still running is a customer charged for an exit
      * they did not get; neither may survive a crash between the two.
      *
+     * $takeBack, when given, runs on the same transaction before the event is
+     * written and answers the period that was invoiced ahead and never began
+     * (ADR-079), with what became of its invoice. The row is put back on the
+     * period actually running, the entitlements end with it, and the event
+     * says so — one fact with the cancellation, or a customer is released
+     * while still owing a period they cancelled.
+     *
      * @param (callable(Subscription): void)|null $alsoCharge
+     * @param (callable(): UnstartedPeriod)|null  $takeBack
      */
     public function scheduleCancellation(
         Subscription $subscription,
         CancellationDecision $decision,
         ?string $actorUserId,
         ?callable $alsoCharge = null,
+        ?callable $takeBack = null,
     ): Subscription;
+
+    /**
+     * The period rolled and invoiced ahead that has not begun, if there is one
+     * (ADR-079): where the running period started, what a term roll replaced,
+     * and the invoice raised for it. Null when the row's period is the one
+     * running.
+     */
+    public function unstartedPeriod(Subscription $subscription, DateTimeImmutable $now): ?UnstartedPeriod;
 
     /**
      * Moves a live subscription onto different terms, and opens a new period

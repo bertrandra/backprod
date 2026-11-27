@@ -27,6 +27,7 @@ use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
 use App\Tests\Support\NothingWasCollected;
+use App\Tests\Support\NoUnstartedPeriod;
 use App\Tests\Support\RecordingChangeCharge;
 use App\Tests\Support\RecordingRenewalCharge;
 use DateTimeImmutable;
@@ -861,6 +862,9 @@ final class FreemiumTest extends DatabaseApiTestCase
             // give back. The doubles say so rather than inventing money.
             new NothingWasCollected(),
             new RecordingChangeCharge(),
+            // Nothing here is ever rolled ahead of its start, so no period is
+            // ever taken back (ADR-079).
+            new NoUnstartedPeriod(),
         );
     }
 

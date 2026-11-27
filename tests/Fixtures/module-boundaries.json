@@ -61,6 +61,7 @@
             "User"
         ],
         "Job": [
+            "Checkout",
             "Commerce",
             "Finance",
             "Notification",

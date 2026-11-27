@@ -112,7 +112,7 @@ function subscription(overrides: Record<string, unknown> = {}) {
 function stubsFor(
   extra: Record<string, Stub | (() => Stub)> = {},
   sub: unknown = subscription(),
-  options: { seat?: unknown; session?: unknown; coverage?: unknown } = {},
+  options: { seat?: unknown; session?: unknown; coverage?: unknown; outlook?: unknown } = {},
 ): Stubs {
   // `sub` was the *organisation's* subscription and `seat` the caller's own.
   // One kind of subscription is left (2026-10-01), so `sub` is the caller's —
@@ -134,6 +134,10 @@ function stubsFor(
             : { subscription_id: 'sub-1', status: 'ACTIVE', current_period_end: null, own: true }),
         history: [],
         events: [],
+        // What happens next, as the server derives it (ADR-079). Absent unless
+        // a case says so — which is also what a stub from before the field
+        // sends, and the screen has to survive that.
+        ...(options.outlook === undefined ? {} : { outlook: options.outlook }),
       },
     },
     'GET /api/v1/subscription/schedule': {
@@ -151,6 +155,116 @@ function stubsFor(
 function clientFor(extra: Record<string, Stub | (() => Stub)> = {}, sub: unknown = subscription()) {
   return stubClient(stubsFor(extra, sub));
 }
+
+/**
+ * What the server says happens next (ADR-079).
+ *
+ * **`service_until` deliberately is not the row's `current_period_end`.** The
+ * renewal rolls the row a few days early, so the fixture's period is 1 March to
+ * 1 April while the service is paid until 1 March: a screen that showed the
+ * row's dates, or worked anything out from them, would print April.
+ */
+const OUTLOOK = {
+  service_until: '2026-03-01T00:00:00Z',
+  next_period: { starts_at: '2026-03-01T00:00:00Z', ends_at: '2026-04-01T00:00:00Z', invoice_id: 'inv-next' },
+  continuation: 'RENEWS_PERIOD',
+  ends_on: null,
+  term_renews_on: null,
+  term_cancel_by: null,
+  if_cancelled_now: { accepted: true, rule_id: 'cancel.at_period_end', effect: 'AT_PERIOD_END', effective_at: '2026-03-01T00:00:00Z' },
+};
+
+describe('what happens next', () => {
+  it('says until when the service is paid in the server’s date, not the row’s', async () => {
+    // A router, because the period invoiced ahead *links* to its invoice.
+    renderAtRoute(<SubscriptionScreen />, stubClient(stubsFor({}, subscription(), { outlook: OUTLOOK })), { path: '/subscription' });
+
+    await waitFor(() => expect(screen.getByTestId('service-until')).toBeTruthy());
+
+    const paidUntil = screen.getByTestId('service-until').querySelector('time');
+    expect(paidUntil?.getAttribute('datetime')).toBe('2026-03-01T00:00:00Z');
+
+    // The period already invoiced is named, with the way to its invoice and
+    // what cancelling before it starts does.
+    const next = screen.getByTestId('outlook-next-period');
+    expect(next.querySelector('a')?.getAttribute('href')).toContain('/invoices/inv-next');
+    expect(next.textContent).toMatch(/cancelled, or refunded/i);
+    expect(screen.getByTestId('what-happens-next').getAttribute('data-continuation')).toBe('RENEWS_PERIOD');
+  });
+
+  it('names the day a term renews and the last day to refuse it', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({}, subscription({ terms: { commitment_months: 12, notice_days: 30, term_ends_at: '2026-12-31T00:00:00Z', renewal: 'AUTO_RENEW' } }), {
+        outlook: {
+          ...OUTLOOK,
+          next_period: null,
+          continuation: 'RENEWS_TERM',
+          term_renews_on: '2026-12-31T00:00:00Z',
+          // Not the term's end less a constant the screen knows: the lead is
+          // the product's setting, so the date is the server's.
+          term_cancel_by: '2026-12-17',
+        },
+      })),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('outlook-renews-term')).toBeTruthy());
+
+    expect(screen.getByTestId('term-cancel-by').textContent).toContain('17');
+    expect(screen.getByTestId('term-ends').textContent).toMatch(/renews by itself/i);
+    expect(screen.queryByTestId('outlook-next-period')).toBeNull();
+  });
+
+  it('says when it ends, once that is known', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({}, subscription({ cancel_at_period_end: true }), {
+        outlook: { ...OUTLOOK, next_period: null, continuation: 'ENDS', ends_on: '2026-03-01T00:00:00Z' },
+      })),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('outlook-ends')).toBeTruthy());
+
+    expect(screen.getByTestId('outlook-ends').querySelector('time')?.getAttribute('datetime')).toBe('2026-03-01T00:00:00Z');
+  });
+
+  it('survives an answer with no outlook, and shows the period it was given', async () => {
+    renderWith(<SubscriptionScreen />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('periodicity')).toBeTruthy());
+
+    expect(screen.queryByTestId('what-happens-next')).toBeNull();
+    expect(screen.queryByTestId('service-until')).toBeNull();
+  });
+
+  it('says what became of a period invoiced ahead when it is cancelled before it starts', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      clientFor({
+        'POST /api/v1/subscription/cancel': {
+          data: {
+            ...subscription({ cancel_at_period_end: true }),
+            cancellation: {
+              ...DECISION,
+              effect: 'AT_PERIOD_END',
+              chargeable_months: 0,
+              unstarted_period: { starts_at: '2026-03-01T00:00:00Z', invoice_id: 'inv-next', outcome: 'INVOICE_REFUNDED' },
+            },
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /cancel…/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /cancel…/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel the subscription/i }));
+
+    await waitFor(() => expect(screen.getByTestId('unstarted-period')).toBeTruthy());
+
+    expect(screen.getByTestId('unstarted-period').getAttribute('data-outcome')).toBe('INVOICE_REFUNDED');
+    expect(screen.getByTestId('unstarted-period').textContent).toMatch(/refunded in full/i);
+  });
+});
 
 describe('periodicity and commitment', () => {
   it('are shown as two different things', async () => {

@@ -1838,6 +1838,59 @@
           }
         }
       },
+      "SubscriptionOutlook": {
+        "type": "object",
+        "description": "What happens next to a subscription, said by the server (ADR-079). The renewal rolls and invoices a few days before a period ends, so the row's own `current_period_*` describe the **next** period for those days; `service_until` is the end of the one actually running.",
+        "required": ["service_until", "next_period", "continuation", "ends_on", "term_renews_on", "term_cancel_by", "if_cancelled_now"],
+        "properties": {
+          "service_until": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "The end of the period actually running — what is paid for. Null for terms with no period."
+          },
+          "next_period": {
+            "type": ["object", "null"],
+            "description": "The period invoiced ahead that has not begun, when there is one. Cancelling before it starts withdraws its invoice: cancelled if unpaid, refunded with a credit note if paid.",
+            "required": ["starts_at", "ends_at", "invoice_id"],
+            "properties": {
+              "starts_at": {"type": ["string", "null"], "format": "date-time"},
+              "ends_at": {"type": ["string", "null"], "format": "date-time"},
+              "invoice_id": {"type": ["string", "null"], "format": "uuid", "description": "The invoice raised for it; null for a period that costs nothing."}
+            }
+          },
+          "continuation": {
+            "type": "string",
+            "enum": ["ENDS", "RENEWS_PERIOD", "RENEWS_TERM"],
+            "description": "What happens when the period running ends, if nobody does anything. `RENEWS_PERIOD`: the next period of the same contract. `RENEWS_TERM`: the term ends there and the next one starts, tacitly — once the pre-renewal notice was given in time (ADR-071). `ENDS`: nothing follows — a cancellation due, an offer sold as ending at its term, a product that does not renew by itself."
+          },
+          "ends_on": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the subscription ends, when that is known: a cancellation's effective date, or the term of an offer sold as ending there. Null while it simply continues."
+          },
+          "term_renews_on": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "The day the next term starts, when `continuation` is `RENEWS_TERM`."
+          },
+          "term_cancel_by": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "The last day to refuse that renewal — the product's renewal lead before it, the same date the pre-renewal notice carries."
+          },
+          "if_cancelled_now": {
+            "type": "object",
+            "description": "What a cancellation asked for now would do: the cancellation policy's own decision, the one `cancelSubscription` would take. Read-only; asking changes nothing.",
+            "required": ["accepted", "rule_id", "effect", "effective_at"],
+            "properties": {
+              "accepted": {"type": "boolean"},
+              "rule_id": {"type": "string"},
+              "effect": {"type": ["string", "null"]},
+              "effective_at": {"type": ["string", "null"], "format": "date-time"}
+            }
+          }
+        }
+      },
       "CancellationDecision": {
         "type": "object",
         "description": "Why the answer is what it is. What a customer needs is not `cancelled: true` but *when* it takes effect and which rule decided that (§13.1) — so the rule's id travels with the decision and the reasons are in plain words.",
@@ -5083,9 +5136,10 @@
               "PAYMENT_FAILED",
               "COMPLETED",
               "CANCELLED",
-              "HELD"
+              "HELD",
+              "REFUNDED"
             ],
-            "description": "`PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming. `HELD` is the opposite anomaly: paid and yet not completed. The money arrived after the organisation's subscription to this product had already started — the race between two orders opened before either was paid — so nothing was provisioned twice, and the payment is the operator's to refund."
+            "description": "`PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming. `HELD` is the opposite anomaly: paid and yet not completed. The money arrived after the buyer's seat on this product had already started — the race between two orders opened before either was paid — so nothing was provisioned twice. It does not last: `sweep.orders` gives the payment back through the ordinary refund chain, with its credit note, and the session then reads `REFUNDED` — cancelled, and the money returned, which is not what `CANCELLED` says (nothing was charged). `AWAITING_PAYMENT` with no `payment_id` is a session whose first attempt could not be started; a new one is started from the invoice."
           },
           "invoice_id": {
             "type": [
@@ -16815,6 +16869,7 @@
                     "history",
                     "events",
                     "seat",
+                    "outlook",
                     "freemium_used"
                   ],
                   "properties": {
@@ -16851,6 +16906,17 @@
                         }
                       ],
                       "description": "The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes."
+                    },
+                    "outlook": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/SubscriptionOutlook"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "What happens next to the caller's seat (ADR-079), or null when they hold none. Derived on read from what the platform already holds — the terms the subscription snapshotted, the product's renewal setting, the cancellation policy's own decision — and never stored. A screen renders these dates and computes none of them."
                     },
                     "freemium_used": {
                       "type": "boolean",
@@ -16945,6 +17011,16 @@
                                   ],
                                   "format": "uuid",
                                   "description": "The early-termination invoice, when one was raised. Null when leaving cost nothing."
+                                },
+                                "unstarted_period": {
+                                  "type": ["object", "null"],
+                                  "description": "A period that had been invoiced ahead and had not begun when the cancellation took effect, and what became of its invoice (ADR-079). The renewal raises the next period's invoice a few days early; somebody who cancels in those days ends with the period actually running and does not owe the next. `INVOICE_CANCELLED`: it was unpaid and is cancelled, with the reversal of the VAT it declared. `INVOICE_REFUNDED`: it was paid, and everything it collected goes back to the means it was paid with, with a credit note. `NO_INVOICE`: nothing had been raised, or nothing this could withdraw. Null in the ordinary case.",
+                                  "required": ["starts_at", "invoice_id", "outcome"],
+                                  "properties": {
+                                    "starts_at": {"type": "string", "format": "date-time"},
+                                    "invoice_id": {"type": ["string", "null"], "format": "uuid"},
+                                    "outcome": {"type": "string", "enum": ["INVOICE_CANCELLED", "INVOICE_REFUNDED", "NO_INVOICE"]}
+                                  }
                                 }
                               }
                             }

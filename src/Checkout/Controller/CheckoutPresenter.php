@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Checkout\Controller;
 
 use App\Payment\Domain\Payment;
+use App\Payment\Domain\PaymentStatus;
 use App\Sales\Domain\Order;
 
 /**
@@ -58,7 +59,19 @@ final class CheckoutPresenter
         }
 
         if ($order->status === Order::CANCELLED) {
-            return 'CANCELLED';
+            // Cancelled with the money given back is not "nothing was charged"
+            // (ADR-079): a held order ends this way, and its buyer has to be
+            // able to tell the two apart on the screen they paid from.
+            //
+            // Collected, or already back: a refund is asked of the provider
+            // and settles later, so the payment still reads as collected for
+            // a while after the order was closed. Either way money moved, and
+            // a checkout nobody paid never has a collected payment — giving
+            // one up is refused once the money has arrived.
+            $moneyMoved = $payment !== null
+                && ($payment->isSettled() || $payment->status === PaymentStatus::REFUNDED);
+
+            return $moneyMoved ? 'REFUNDED' : 'CANCELLED';
         }
 
         if ($payment !== null && $payment->isSettled()) {

@@ -33,7 +33,11 @@ final class CancellationPolicy
     ): CancellationDecision {
         $terms = $subscription->terms;
 
-        $periodEnd = $subscription->currentPeriodEnd ?? $now;
+        // The end of the period actually **running** (ADR-079). The renewal
+        // rolls the row a lead early, so `currentPeriodEnd` alone named the
+        // end of a period that had not begun: cancelling "at period end" in
+        // that window cost a whole period more, with nothing saying so.
+        $periodEnd = $subscription->runningPeriodEndAt($now) ?? $now;
 
         $underCommitment = $subscription->isUnderCommitmentAt($now);
 

@@ -25,6 +25,8 @@ use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
 use App\Commerce\Domain\TermRenewal;
+use App\Commerce\Domain\UnstartedPeriod;
+use App\Commerce\Domain\UnstartedPeriodRelease;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use DateTimeImmutable;
@@ -53,6 +55,7 @@ final class Subscriptions
         private readonly ProrationPolicy $proration,
         private readonly ChangeCredit $credit,
         private readonly ChangeCharge $newPeriod,
+        private readonly UnstartedPeriodRelease $unstarted,
         private readonly ?PlacesWithdrawn $placesWithdrawn = null,
     ) {
     }
@@ -790,10 +793,18 @@ final class Subscriptions
      * get. Its id comes back with the decision, because a charge the caller
      * cannot name is a charge they cannot show anyone.
      *
+     * **A period invoiced ahead and never begun is not owed** (ADR-079). The
+     * renewal raises the next period's invoice a lead early; somebody who
+     * cancels in those days ends with the period actually running, and that
+     * invoice is withdrawn in the same act — cancelled with its VAT reversal
+     * if unpaid, refunded with its credit note if paid. What was done comes
+     * back as `unstarted_period`.
+     *
      * @return array{
      *     subscription: Subscription,
      *     decision: CancellationDecision,
      *     charge_invoice_id: string|null,
+     *     unstarted_period: UnstartedPeriod|null,
      * }
      */
     public function cancel(
@@ -805,8 +816,9 @@ final class Subscriptions
         ?string $requestId = null,
     ): array {
         $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
+        $now = new DateTimeImmutable();
 
-        $decision = $this->policy->decide($subscription, new DateTimeImmutable(), $immediately);
+        $decision = $this->policy->decide($subscription, $now, $immediately);
 
         if (!$decision->accepted) {
             throw new ConflictException(
@@ -814,6 +826,25 @@ final class Subscriptions
                 'This subscription cannot be cancelled on these terms.',
                 $decision->toArray(),
             );
+        }
+
+        // The period rolled ahead, when this cancellation ends the
+        // subscription before it begins. A deferral further out — to the end
+        // of a commitment, or of a term — leaves it alone: that period will
+        // run, and is owed.
+        $period = $this->subscriptions->unstartedPeriod($subscription, $now);
+
+        if ($period !== null && ($decision->effectiveAt === null || $decision->effectiveAt > $period->startsAt)) {
+            $period = null;
+        }
+
+        if ($period !== null) {
+            // First, and on its own: a provider cannot be asked inside a
+            // transaction and unasked afterwards. If the period was paid for,
+            // the money goes back here with its credit note; if not, any
+            // attempt still open is abandoned so nothing settles the invoice
+            // behind the cancellation's back.
+            $period = $this->unstarted->giveBack($subscription, $period, $actorUserId);
         }
 
         /** @var string|null $chargeInvoiceId assigned by reference inside the transaction */
@@ -859,12 +890,18 @@ final class Subscriptions
             $decision,
             $actorUserId,
             $alsoCharge,
+            // On the cancellation's own transaction: an invoice still unpaid
+            // is cancelled with the release, or neither happens.
+            $period === null ? null : function () use (&$period, $subscription, $actorUserId): UnstartedPeriod {
+                return $period = $this->unstarted->applyCancel($subscription, $period, $actorUserId);
+            },
         );
 
         return [
             'subscription' => $released,
             'decision' => $decision,
             'charge_invoice_id' => $chargeInvoiceId,
+            'unstarted_period' => $period,
         ];
     }
 

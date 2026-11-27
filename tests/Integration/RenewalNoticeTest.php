@@ -81,10 +81,10 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
      */
     public function testASubscriptionAlreadySetToEndIsNotWarnedAboutRenewing(): void
     {
-        $id = $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $id = $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
         $this->connection->executeStatement(
             'UPDATE subscriptions SET cancel_at_period_end = true,'
-            . " cancel_effective_at = now() + interval '10 days' WHERE id = :id",
+            . " cancel_effective_at = now() + interval '38 days' WHERE id = :id",
             ['id' => $id],
         );
 
@@ -93,7 +93,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
 
     public function testASubscriptionThatDoesNotRenewItselfNeedsNoNotice(): void
     {
-        $this->tenantSubscription(endsInDays: 10, noticeDays: 30, renewal: 'ENDS_AT_TERM');
+        $this->tenantSubscription(endsInDays: 38, noticeDays: 30, renewal: 'ENDS_AT_TERM');
 
         self::assertSame(0, $this->sweep()['raised'] ?? null);
     }
@@ -117,7 +117,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     public function testEverySubscriptionHasSomebodyToTell(): void
     {
         $this->connection->executeStatement('DELETE FROM tenant_member_roles');
-        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
 
         $pass = $this->sweep();
 
@@ -133,7 +133,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
         // organisation was the contracting party. Since 2026-10-01 there is
         // one party and it is a person: a tacit renewal is notified to whoever
         // agreed to it, which is the only thing §13.1 ever asked for.
-        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
 
         self::assertSame(1, $this->sweep()['raised'] ?? null);
 
@@ -159,7 +159,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
      */
     public function testAColleagueWhoDoesNotHoldItIsNotTold(): void
     {
-        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
         $this->sweep();
 
         $told = $this->connection->fetchOne(
@@ -173,7 +173,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
 
     public function testASeatHoldersNoticeGoesToTheSeatHolder(): void
     {
-        $this->seatSubscription(endsInDays: 7, noticeDays: 30);
+        $this->seatSubscription(endsInDays: 38, noticeDays: 30);
 
         self::assertSame(1, $this->sweep()['raised'] ?? null);
         self::assertSame($this->seatHolder, $this->newestNotice()['recipient_user_id'] ?? null);
@@ -186,7 +186,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
      */
     public function testRunningEveryNightThroughTheWindowSendsOneNotice(): void
     {
-        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
 
         $first = $this->sweep();
         $second = $this->sweep();
@@ -207,7 +207,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
      */
     public function testTheNoticeSaysWhichDayToCancelBy(): void
     {
-        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
         $this->sweep();
 
         $payload = $this->connection->fetchOne(
@@ -217,9 +217,48 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
         $payload = json_decode($payload, true);
         self::assertIsArray($payload);
 
-        $renewsOn = new \DateTimeImmutable('+10 days');
+        $renewsOn = new \DateTimeImmutable('+38 days');
         self::assertSame($renewsOn->format('Y-m-d'), $payload['renews_on'] ?? null);
         self::assertSame($renewsOn->modify('-7 days')->format('Y-m-d'), $payload['cancel_by'] ?? null);
+    }
+
+    /**
+     * **Too late, the customer is told the truth** (ADR-079).
+     *
+     * A notice raised when it can no longer be honoured — cron was down, or
+     * the term is shorter than its own notice — used to say "it renews on X"
+     * for a term the renewal would then refuse to roll. The subscription
+     * ended at its term with nothing further said. What is sent now is that
+     * it ends, and no renewal notice exists for the renewal to mistake.
+     */
+    public function testANoticeThatCanNoLongerBeHonouredSaysTheTermEnds(): void
+    {
+        $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+
+        $pass = $this->sweep();
+
+        self::assertSame(0, $pass['raised'] ?? null);
+        self::assertSame(1, $pass['too_late'] ?? null);
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT count(*) FROM notifications WHERE type = 'subscription.renewal_notice'",
+        ));
+
+        $ending = $this->connection->fetchAssociative(
+            "SELECT legal_effect, payload::text AS payload FROM notifications WHERE type = 'subscription.term_ending'",
+        );
+        self::assertIsArray($ending);
+        self::assertTrue((bool) $ending['legal_effect'], 'kept as sent, like the notice it stands in for');
+        self::assertIsString($ending['payload']);
+        $payload = json_decode($ending['payload'], true);
+        self::assertIsArray($payload);
+        self::assertSame((new \DateTimeImmutable('+10 days'))->format('Y-m-d'), $payload['ends_on'] ?? null);
+
+        // Said once: the term that has its notice is not read again.
+        $again = $this->sweep();
+        self::assertSame(0, $again['too_late'] ?? null);
+        self::assertSame(1, $this->noticesRaised() + $this->rowsMatching(
+            "SELECT count(*) FROM notifications WHERE type = 'subscription.term_ending'",
+        ));
     }
 
     /** Too early: the day to tell them is `notice_days` before the day to cancel by. */
@@ -240,11 +279,11 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
      */
     public function testTheNextTermGetsItsOwnNotice(): void
     {
-        $id = $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
+        $id = $this->tenantSubscription(endsInDays: 38, noticeDays: 30);
         $this->sweep();
 
         $this->connection->executeStatement(
-            "UPDATE subscriptions SET term_ends_at = now() + interval '20 days' WHERE id = :id",
+            "UPDATE subscriptions SET term_ends_at = now() + interval '39 days' WHERE id = :id",
             ['id' => $id],
         );
 

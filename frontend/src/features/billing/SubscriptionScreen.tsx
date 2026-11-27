@@ -15,6 +15,7 @@ import {
   useSubscription,
   type Entitlement,
   type Subscription,
+  type SubscriptionOutlook,
 } from '@/queries/subscription';
 import { useOrganisation, useTenantUsage } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
@@ -215,6 +216,11 @@ export function SubscriptionScreen() {
 
   const terms = current.terms;
 
+  // What happens next, derived by the server (ADR-079). `?? null` for the
+  // reason `coverage` has it below: the type promises the field and a stub
+  // that predates it does not send it.
+  const outlook = subscription.data.outlook ?? null;
+
   // A move down that has not happened yet (spec §4). Read, never derived: the
   // date is the server's and so is the plan it names.
   const pending = current.pending ?? null;
@@ -260,12 +266,26 @@ export function SubscriptionScreen() {
               {billingPeriod(current.offer.version.billing_period)} ·{' '}
               <Amount money={current.offer.version.price} />
             </dd>
-            <dd className="text-xs text-subtle">
-              {t("period")}{' '}{new Date(current.current_period_start).toLocaleDateString(currentLocale())} —{' '}
-              {current.current_period_end === null
-                ? 'open'
-                : new Date(current.current_period_end).toLocaleDateString(currentLocale())}
-            </dd>
+            {/* The period actually running, said by the server (ADR-079). The
+                renewal rolls the row a few days early, so `current_period_*`
+                are the *next* period for those days: this read `period
+                3 Dec — 3 Jan` to somebody still inside November. A stub from
+                before the field existed still gets the old line, and nothing
+                is derived from the dates here either way. */}
+            {outlook === null ? (
+              <dd className="text-xs text-subtle">
+                {t("period")}{' '}{new Date(current.current_period_start).toLocaleDateString(currentLocale())} —{' '}
+                {current.current_period_end === null
+                  ? 'open'
+                  : new Date(current.current_period_end).toLocaleDateString(currentLocale())}
+              </dd>
+            ) : (
+              outlook.service_until !== null && (
+                <dd data-testid="service-until" className="text-xs text-subtle">
+                  {t("Paid until")} <When at={outlook.service_until} />
+                </dd>
+              )
+            )}
           </div>
 
           <div>
@@ -281,6 +301,8 @@ export function SubscriptionScreen() {
           </div>
         </dl>
       </section>
+
+      {outlook !== null && <WhatHappensNext outlook={outlook} terms={terms ?? null} />}
 
       {pending !== null && (
         <PendingChange
@@ -471,6 +493,9 @@ export function SubscriptionScreen() {
             {cancel.data?.cancellation !== undefined && cancel.data.cancellation !== null && (
               <CancellationOutcome decision={cancel.data.cancellation} label={t("What the policy decided")} />
             )}
+            {/* A period that had been invoiced ahead and never began: what
+                became of its invoice, in the server's own word (ADR-079). */}
+            <UnstartedPeriodOutcome period={cancel.data?.cancellation?.unstarted_period ?? null} />
           </section>
         </>
       )}
@@ -596,6 +621,130 @@ function ChangePreview({ offerId }: { offerId: string }) {
  * was agreed, and a missing field means "not recorded" rather than zero. A zero
  * commitment and an unrecorded one are different answers.
  */
+type Outlook = SubscriptionOutlook;
+
+/**
+ * What happens next to the subscription, in sentences (ADR-079).
+ *
+ * Every date and every word of state here is the server's: the end of the
+ * period actually running, the period already invoiced, whether it continues
+ * by itself, the day a term renews and the last day to refuse it. The screen
+ * showed a period and a status and left the rest to be worked out — and what
+ * a customer most needs before a renewal is the one date nobody displayed.
+ */
+function WhatHappensNext({ outlook, terms }: { outlook: Outlook; terms: Record<string, unknown> | null }) {
+  const termEndsAt = typeof terms?.term_ends_at === 'string' ? terms.term_ends_at : null;
+  const commitmentEndsAt = typeof terms?.commitment_ends_at === 'string' ? terms.commitment_ends_at : null;
+  const next = outlook.next_period ?? null;
+
+  return (
+    <section
+      data-testid="what-happens-next"
+      data-continuation={outlook.continuation}
+      className="space-y-2 rounded-card border border-line bg-surface p-4 text-sm shadow-raise"
+    >
+      <h2 className="text-base font-semibold">{t("What happens next")}</h2>
+
+      {outlook.continuation === 'ENDS' && (
+        <p data-testid="outlook-ends">
+          {outlook.ends_on === null ? (
+            t("This subscription does not continue by itself.")
+          ) : (
+            <>
+              {t("This subscription ends on")} <When at={outlook.ends_on} />
+              {t(". Nothing more is invoiced.")}
+            </>
+          )}
+        </p>
+      )}
+
+      {outlook.continuation === 'RENEWS_PERIOD' && outlook.service_until !== null && (
+        <p data-testid="outlook-renews-period">
+          {t("It continues by itself: a new period starts on")} <When at={outlook.service_until} />
+          {t(", and is invoiced a few days before.")}
+        </p>
+      )}
+
+      {outlook.continuation === 'RENEWS_TERM' && outlook.term_renews_on !== null && (
+        <p data-testid="outlook-renews-term">
+          {t("Its term ends on")} <When at={outlook.term_renews_on} />
+          {t(" and it then renews by itself for a new term, on the same conditions.")}
+          {outlook.term_cancel_by !== null && (
+            <>
+              {' '}{t("To stop that, cancel by")}{' '}
+              <strong data-testid="term-cancel-by">
+                {new Date(`${outlook.term_cancel_by}T00:00:00Z`).toLocaleDateString(currentLocale(), { timeZone: 'UTC' })}
+              </strong>
+              .
+            </>
+          )}
+        </p>
+      )}
+
+      {next !== null && (
+        <p data-testid="outlook-next-period" className="text-muted">
+          {t("The next period is already invoiced")}
+          {next.starts_at !== null && (
+            <>
+              {' — '}{t("it starts on")} <When at={next.starts_at} />
+            </>
+          )}
+          {'. '}
+          {next.invoice_id !== null && (
+            <Link to="/invoices/$invoiceId" params={{ invoiceId: next.invoice_id }} className="underline">
+              {t("See the invoice")}
+            </Link>
+          )}{' '}
+          {t("Cancelling before it starts withdraws that invoice: it is cancelled, or refunded if you have already paid it.")}
+        </p>
+      )}
+
+      {(termEndsAt !== null || commitmentEndsAt !== null) && (
+        <dl className="grid gap-x-6 gap-y-1 pt-1 text-xs text-subtle sm:grid-cols-2">
+          {termEndsAt !== null && (
+            <div data-testid="term-ends">
+              <dt className="inline">{t("Term ends")} </dt>
+              <dd className="inline">
+                <When at={termEndsAt} /> ·{' '}
+                {terms?.renewal === 'ENDS_AT_TERM' ? t("ends there") : t("renews by itself")}
+              </dd>
+            </div>
+          )}
+          {commitmentEndsAt !== null && (
+            <div data-testid="commitment-ends">
+              <dt className="inline">{t("Committed until")} </dt>
+              <dd className="inline"><When at={commitmentEndsAt} /></dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A period invoiced ahead and cancelled before it began (ADR-079): what the
+ * server did with its invoice, so nobody is left wondering whether they still
+ * owe it.
+ */
+function UnstartedPeriodOutcome({
+  period,
+}: {
+  period: { outcome: string; invoice_id: string | null } | null;
+}) {
+  if (period === null || period.outcome === 'NO_INVOICE') {
+    return null;
+  }
+
+  return (
+    <p data-testid="unstarted-period" data-outcome={period.outcome} className={notice('success')}>
+      {period.outcome === 'INVOICE_REFUNDED'
+        ? t("The next period had already been invoiced and paid, and had not started: it has been refunded in full to the means it was paid with, and a credit note has been issued.")
+        : t("The next period had already been invoiced and had not started: that invoice is cancelled, and nothing more is owed.")}
+    </p>
+  );
+}
+
 function TermsSummary({ terms }: { terms: Record<string, unknown> }) {
   const months = terms.commitment_months;
   const notice = terms.notice_days;
