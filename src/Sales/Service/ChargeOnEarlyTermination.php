@@ -69,7 +69,12 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
             );
         }
 
-        $version = $subscription->offer->version;
+        // The version the commitment was agreed on (ADR-077), which is the one
+        // held unless the plan has changed since. A buy-out counted at the
+        // price of whatever plan is held on the day of leaving is a figure
+        // the customer chooses by changing plan the day before.
+        $agreed = $subscription->agreedOffer();
+        $version = $agreed->version;
         $periods = $version->periodsIn($months);
 
         if ($periods === null || $periods <= 0) {
@@ -116,7 +121,7 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
             1,
             sprintf(
                 '%s — early termination, %d month(s) of commitment remaining',
-                $subscription->offer->name,
+                $agreed->name,
                 $months,
             ),
             $periods,

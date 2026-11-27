@@ -796,8 +796,12 @@ function WhatItWouldDo({ offerId }: { offerId: string }) {
 
   const decision = preview.data.if_changed_now;
   const net = { minor_units: Math.abs(decision.net_minor_units), currency: decision.currency };
+  // The server's count, never one worked out here (ADR-077): who a
+  // subscription covers and what an offer sells are both the server's to say.
+  const losing = preview.data.people_losing_their_place;
 
   return (
+    <>
     <p
       data-testid="what-it-would-do"
       data-rule={decision.rule_id}
@@ -817,6 +821,16 @@ function WhatItWouldDo({ offerId }: { offerId: string }) {
             ? tx("Immediate — {amount} back to you.", { amount: <Amount money={net} /> })
             : tx("Immediate — {amount} to pay today.", { amount: <Amount money={net} /> })}
     </p>
+    {/* Said before the click, in words and not by colour alone: a change of
+        plan that takes somebody's place away is a decision about people. */}
+    {decision.accepted && losing > 0 && (
+      <p data-testid="people-losing-their-place" role="note" className="text-xs font-medium text-ink">
+        {losing === 1
+          ? t("This offer has fewer places: one person on your subscription will no longer be covered. The most recently added goes first, and they are told.")
+          : t("This offer has fewer places: {count} people on your subscription will no longer be covered. The most recently added go first, and they are told.", { count: losing })}
+      </p>
+    )}
+    </>
   );
 }
 

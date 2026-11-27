@@ -13,12 +13,16 @@ use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
+use App\Commerce\Domain\SubscriptionMember;
 use App\Commerce\Infrastructure\OfferVersionLoader;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Commerce\Service\Catalogue;
 use App\Commerce\Service\Subscriptions;
+use App\Notification\Infrastructure\PostgresNotificationRepository;
+use App\Notification\Service\Notifications;
+use App\Sales\Service\TellWhoLostTheirPlace;
 use App\Shared\Database\Row;
 use App\Shared\Exceptions\HttpException;
 use App\Tests\Support\NothingWasCollected;
@@ -758,9 +762,18 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame(24, $after->terms->commitmentMonths);
         self::assertSame($agreed->format(DATE_ATOM), $after->commitmentEndsAt?->format(DATE_ATOM));
 
-        // And everything that is not the commitment did move.
-        self::assertSame('AT_COMMITMENT_END', $after->terms->cancellationPolicy);
+        // And the conditions that commitment was agreed on stay beside it
+        // (ADR-077): this read `AT_COMMITMENT_END` until 2026-11-27, which is
+        // the arriving offer's rule imposed on a commitment sold as
+        // cancellable at any time. A change of plan is not a new contract in
+        // that direction either.
+        self::assertSame('ANYTIME', $after->terms->cancellationPolicy);
+        self::assertSame('FORBIDDEN', $after->terms->earlyTermination);
+        self::assertSame('pro-committed', $after->agreedOffer()->code);
+
+        // What is not part of the commitment did move.
         self::assertSame(30, $after->terms->noticeDays);
+        self::assertSame(24, $after->terms->termMonths);
     }
 
     /**
@@ -936,6 +949,232 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     // --- Helpers -------------------------------------------------------------
 
+    // --- A change of plan is not a way out, nor a way to stay (ADR-077) --------
+
+    /**
+     * The commitment's date survived a change of plan and its meaning did
+     * not: the exit rules were re-copied from the arriving offer, and
+     * `CancellationPolicy` reads the rules. Two years on "no exit before the
+     * end" became "leave at the end of the month" by moving to a plan sold
+     * as cancellable at any time.
+     */
+    public function testTheExitConditionsAgreedWithACommitmentSurviveAChangeOfPlan(): void
+    {
+        $locked = $this->offerWith('LOCKED', 25, 'locked', 2400, commitmentMonths: 24, cancellationPolicy: 'AT_COMMITMENT_END', earlyTermination: 'CHARGE_REMAINING');
+        // Sold as cancellable at any time, with no buy-out: the opposite of
+        // what was agreed, on both counts.
+        $easy = $this->offerWith('EASY', 40, 'easy', 900);
+
+        $committed = $this->subscriptions()->subscribe($this->tenant, $this->product, $locked, $this->user, $this->user);
+        $agreed = $committed->commitmentEndsAt;
+        self::assertNotNull($agreed);
+
+        $after = $this->changeTo($easy);
+
+        self::assertSame('easy', $after->offer->code);
+        self::assertSame($agreed->format(DATE_ATOM), $after->commitmentEndsAt?->format(DATE_ATOM));
+        self::assertSame('AT_COMMITMENT_END', $after->terms->cancellationPolicy);
+        self::assertSame('CHARGE_REMAINING', $after->terms->earlyTermination);
+
+        // What the customer may do about leaving is what they could do before.
+        $leaving = (new CancellationPolicy())->decide($after, new DateTimeImmutable());
+        self::assertSame('cancel.deferred_to_commitment_end', $leaving->ruleId);
+
+        // And a buy-out is counted at the price that was committed to, not at
+        // the price of whatever plan is held on the day of leaving.
+        self::assertSame('locked', $after->agreedOffer()->code);
+        self::assertSame(2400, $after->agreedOffer()->version->priceMinorUnits);
+    }
+
+    /**
+     * Where the arriving offer's own commitment ends later, that is the
+     * commitment now in force — agreed today, on that offer's conditions.
+     */
+    public function testACommitmentThatEndsLaterBringsItsOwnConditions(): void
+    {
+        $short = $this->offerWith('SHORT', 25, 'short', 2400, commitmentMonths: 6, cancellationPolicy: 'AT_COMMITMENT_END');
+        $long = $this->offerWith('LONG', 40, 'long', 4900, commitmentMonths: 36);
+
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $short, $this->user, $this->user);
+
+        $after = $this->changeTo($long);
+
+        self::assertSame(36, $after->terms->commitmentMonths);
+        self::assertSame('ANYTIME', $after->terms->cancellationPolicy);
+        self::assertSame('long', $after->agreedOffer()->code);
+    }
+
+    /**
+     * `POST /subscription/pending` skipped the refusal `changeOffer` makes.
+     * The change was accepted, the renewal that applied it met the database's
+     * own CHECK on every pass, the period lapsed, and the sweep expired a
+     * committed subscription with no buy-out.
+     */
+    public function testSchedulingAMoveDownOntoATermTheCommitmentOutlastsIsRefused(): void
+    {
+        $brief = $this->offerWith('BRIEF', 15, 'brief', 500, termMonths: 6);
+
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->longCommitmentOffer, $this->user, $this->user);
+
+        $error = $this->refusal(
+            fn (): Subscription => $this->subscriptions()->scheduleChange($this->tenant, $this->product, $brief, $this->user),
+        );
+
+        self::assertSame(409, $error->statusCode());
+        self::assertSame('COMMITMENT_OUTLASTS_TERM', $error->errorCode());
+        self::assertNull($this->subscriptions()->current($this->tenant, $this->product, $this->user)?->pending);
+    }
+
+    /**
+     * A move up reset the period to a whole new one and billed it, while the
+     * cancellation kept the old date — which renewal then skipped the row
+     * for, so the service ran to the end of the new period, past the date the
+     * customer had been given.
+     */
+    public function testAMoveUpIsRefusedWhileACancellationIsScheduled(): void
+    {
+        $this->subscribeToPro();
+        $ending = $this->subscriptions()->cancel($this->tenant, $this->product, false, $this->user)['subscription'];
+
+        $error = $this->refusal(fn (): Subscription => $this->changeTo($this->termsOffer));
+
+        self::assertSame(409, $error->statusCode());
+        self::assertSame('SUBSCRIPTION_ENDING', $error->errorCode());
+
+        $unchanged = $this->subscriptions()->current($this->tenant, $this->product, $this->user);
+        self::assertNotNull($unchanged);
+        self::assertSame('pro', $unchanged->offer->code);
+        self::assertSame(
+            $ending->currentPeriodEnd?->format(DATE_ATOM),
+            $unchanged->currentPeriodEnd?->format(DATE_ATOM),
+        );
+        self::assertSame([], $this->charge->charged, 'nothing is billed for a move that did not happen');
+
+        // And the preview says so before the click, as it does for a move down.
+        $preview = $this->refusal(function (): Subscription {
+            return $this->subscriptions()->previewChange($this->tenant, $this->product, $this->termsOffer, $this->user)['subscription'];
+        });
+        self::assertSame('SUBSCRIPTION_ENDING', $preview->errorCode());
+    }
+
+    /**
+     * A move down scheduled for the end of the period, then a move up taken
+     * since: the intention that was waiting was left in place and applied at
+     * the next renewal.
+     */
+    public function testAMoveUpWithdrawsTheMoveDownThatWasWaiting(): void
+    {
+        $this->subscribeToPro();
+        $scheduled = $this->changeTo($this->freeOffer);
+        self::assertNotNull($scheduled->pending);
+
+        $after = $this->changeTo($this->termsOffer);
+
+        self::assertSame('scale-terms', $after->offer->code);
+        self::assertNull($after->pending, 'what the customer did last is what they meant');
+
+        $types = array_map(
+            static fn (SubscriptionEvent $event): string => $event->type,
+            $this->subscriptions()->events($this->tenant, $this->product, $this->user),
+        );
+        self::assertContains(SubscriptionEvent::CHANGE_CANCELLED, $types);
+    }
+
+    /**
+     * The `users` quota was checked when somebody was added and nowhere else,
+     * so a subscription for three moved to an offer for two went on covering
+     * three. The people beyond the new number stop being covered — the most
+     * recently added first, never the holder — and everybody concerned is
+     * told (the operator's decision, 2026-11-27).
+     */
+    public function testAMoveToAnOfferWithFewerPlacesStopsCoveringTheMostRecentlyAdded(): void
+    {
+        $users = $this->seedFeature('users', 'QUOTA', 'people');
+        $team = $this->offerWith('TEAM', 50, 'team', 9900, grants: [$users => 3]);
+        $pair = $this->offerWith('PAIR', 60, 'pair', 12900, grants: [$users => 2]);
+
+        $subscription = $this->subscriptions()->subscribe($this->tenant, $this->product, $team, $this->user, $this->user);
+        $repository = new PostgresSubscriptionRepository($this->connection);
+
+        $first = $this->seedUser('sub-first');
+        $last = $this->seedUser('sub-last');
+        $repository->addMember($subscription->id, $first, $this->user, 3);
+        $repository->addMember($subscription->id, $last, $this->user, 3);
+        $this->connection->executeStatement(
+            "UPDATE subscription_members SET added_at = now() - interval '2 days' WHERE user_id = :user",
+            ['user' => $first],
+        );
+
+        // Said before the click: the same count the change then acts on.
+        $preview = $this->subscriptions()->previewChange($this->tenant, $this->product, $pair, $this->user);
+        self::assertSame(1, $preview['people_losing_their_place']);
+
+        $this->changeTo($pair);
+
+        $covered = array_map(
+            static fn (SubscriptionMember $member): string => $member->userId,
+            $repository->membersOf($subscription->id),
+        );
+        self::assertSame([$first], $covered, 'whoever has been there longest keeps their place');
+        self::assertSame(2, $repository->placesUsedBy($subscription->id));
+
+        // The holder is told who, and the person is told themselves.
+        $told = $this->connection->fetchAllKeyValue(
+            "SELECT type, recipient_user_id FROM notifications WHERE type LIKE 'subscription.place%' ORDER BY type",
+        );
+        // Compared as a set: which of the two types sorts first is the
+        // database's collation, and not what is being said here.
+        self::assertEquals(
+            ['subscription.place_withdrawn' => $last, 'subscription.places_withdrawn' => $this->user],
+            $told,
+        );
+        self::assertEquals(1, $this->connection->fetchOne(
+            "SELECT payload->>'count' FROM notifications WHERE type = 'subscription.places_withdrawn'",
+        ));
+
+        // Nothing to withdraw where everybody fits.
+        self::assertSame(0, $repository->placesBeyond($subscription->id, 2));
+        self::assertSame(0, $repository->placesBeyond($subscription->id, null));
+    }
+
+    /**
+     * An offer with the terms and grants a scenario needs, published.
+     *
+     * @param array<string, int|null> $grants feature id to limit
+     */
+    private function offerWith(
+        string $planCode,
+        int $rank,
+        string $code,
+        int $price,
+        ?int $termMonths = null,
+        int $commitmentMonths = 0,
+        string $cancellationPolicy = 'ANYTIME',
+        string $earlyTermination = 'FORBIDDEN',
+        array $grants = [],
+    ): string {
+        $offer = $this->seedOffer($this->seedPlan($planCode, $rank), $code);
+        $version = $this->seedVersion(
+            $offer,
+            $price,
+            'MONTHLY',
+            termMonths: $termMonths,
+            commitmentMonths: $commitmentMonths,
+            cancellationPolicy: $cancellationPolicy,
+            earlyTermination: $earlyTermination,
+        );
+
+        $this->grant($version, $this->projectsFeature, 10);
+
+        foreach ($grants as $feature => $limit) {
+            $this->grant($version, $feature, $limit);
+        }
+
+        $this->publish($version);
+
+        return $offer;
+    }
+
     private function subscribeToPro(): Subscription
     {
         return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->proOffer, $this->user, $this->user);
@@ -1031,6 +1270,9 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             // says so rather than inventing money.
             $this->credit,
             $this->charge,
+            // The real notices, against the real database: who was told is
+            // the thing asserted, and a double would only prove it was called.
+            new TellWhoLostTheirPlace(new Notifications(new PostgresNotificationRepository($this->connection))),
         );
     }
 

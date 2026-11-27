@@ -56,7 +56,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
         s.cancel_effective_at, s.owner_user_id, s.is_freemium,
-        s.past_due_since, s.past_due_invoice_id,
+        s.past_due_since, s.past_due_invoice_id, s.commitment_version_id,
         s.pending_offer_version_id, s.pending_effective_at,
         s.pending_requested_at, s.pending_requested_by,
         o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
@@ -286,12 +286,23 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                term_ends_at = :termEndsAt,
                                commitment_months = :commitmentMonths,
                                commitment_ends_at = :commitmentEndsAt,
+                               commitment_version_id = :commitmentVersionId,
                                cancellation_policy = :cancellationPolicy,
                                renewal = :renewal,
                                early_termination = :earlyTermination,
                                notice_days = :noticeDays,
                                current_period_start = :periodStart,
                                current_period_end = :periodEnd,
+                               -- One intention at a time (ADR-077). A move
+                               -- down scheduled for the end of the period and
+                               -- left in place by a move up taken since was
+                               -- applied at the next renewal: the customer on
+                               -- the top plan found themselves on the bottom
+                               -- one. What they did last is what they meant.
+                               pending_offer_version_id = NULL,
+                               pending_effective_at = NULL,
+                               pending_requested_at = NULL,
+                               pending_requested_by = NULL,
                                updated_at = now()
                          WHERE id = :id
                            -- Conditioned on what the move was decided from
@@ -337,6 +348,20 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     ['direction' => $direction] + $detail,
                 );
 
+                if ($subscription->pending !== null) {
+                    // Said, not only done: the destination that was waiting
+                    // travels on the event, as it does when the customer
+                    // withdraws it themselves.
+                    $this->record(
+                        $subscription->id,
+                        SubscriptionEvent::CHANGE_CANCELLED,
+                        $subscription->pending->offerVersionId,
+                        $offer->version->id,
+                        $actorUserId,
+                        ['superseded_by' => 'immediate_change'],
+                    );
+                }
+
                 // The old grants go, the new ones arrive, and they run to the
                 // new period's end: what the tenant may use changes, and so
                 // does what they have paid it for until.
@@ -380,6 +405,9 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
      * customer is buying them now. Counting from the start would hand
      * somebody a twelve-month term with seven months already spent.
      *
+     * **The exit conditions are not re-copied while the commitment they were
+     * agreed with survives** (ADR-077) — see the body.
+     *
      * **`commitment_months` and `commitment_ends_at` are the exception**, and
      * the reasoning is on {@see Subscription::commitmentAfterMovingTo()}
      * because that is where the decision is made: a change of plan is not a
@@ -393,15 +421,28 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         SubscribedOffer $offer,
         DateTimeImmutable $at,
     ): array {
-        $terms = $offer->version->terms;
-        $commitment = $subscription->commitmentAfterMovingTo($terms, $at);
+        $offered = $offer->version->terms;
+        $commitment = $subscription->commitmentAfterMovingTo($offered, $at);
+
+        // **The exit conditions are the second exception** (ADR-077). While
+        // the commitment already agreed is the one that survives, the rules
+        // it was agreed with survive beside it: a date kept and its meaning
+        // replaced is a commitment anybody can leave by changing plan first.
+        $terms = $subscription->termsAfterMovingTo($offered, $at);
+        $keeps = $subscription->keepsAgreedExitAfterMovingTo($offered, $at);
 
         return [
             'versionId' => $offer->version->id,
             'termMonths' => $terms->termMonths,
-            'termEndsAt' => self::moment($terms->termEndsFrom($at)),
+            'termEndsAt' => self::moment($offered->termEndsFrom($at)),
             'commitmentMonths' => $commitment->months,
             'commitmentEndsAt' => self::moment($commitment->endsAt),
+            // The version a buy-out is priced in, while it is not the one
+            // held. Null says "the one held", which is every subscription
+            // whose plan has not moved under a commitment.
+            'commitmentVersionId' => $keeps && $subscription->agreedOffer()->version->id !== $offer->version->id
+                ? $subscription->agreedOffer()->version->id
+                : null,
             'cancellationPolicy' => $terms->cancellationPolicy,
             'renewal' => $terms->renewal,
             'earlyTermination' => $terms->earlyTermination,
@@ -530,6 +571,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                term_ends_at = :termEndsAt,
                                commitment_months = :commitmentMonths,
                                commitment_ends_at = :commitmentEndsAt,
+                               commitment_version_id = :commitmentVersionId,
                                cancellation_policy = :cancellationPolicy,
                                renewal = :renewal,
                                early_termination = :earlyTermination,
@@ -829,7 +871,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         <<<'SQL'
                             UPDATE subscriptions
                                SET term_ends_at = :termEndsAt,
-                                   commitment_ends_at = :commitmentEndsAt
+                                   commitment_ends_at = :commitmentEndsAt,
+                                   -- A commitment re-armed is agreed on the
+                                   -- offer held when it re-arms (ADR-077).
+                                   commitment_version_id = NULL
                              WHERE id = :id
                                AND term_ends_at = :endingTerm
                                AND renewal = 'AUTO_RENEW'
@@ -1813,6 +1858,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     private function toSubscription(array $row): Subscription
     {
         $version = $this->toVersion($row);
+        $agreed = Row::nullableString($row, 'commitment_version_id');
 
         return new Subscription(
             Row::string($row, 'id'),
@@ -1854,6 +1900,9 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             self::boolean($row, 'is_freemium'),
             Row::nullableTimestamp($row, 'past_due_since'),
             Row::nullableString($row, 'past_due_invoice_id'),
+            // Only where the plan has changed under a commitment (ADR-077):
+            // one more read, on the rows that need it and no others.
+            $agreed === null ? null : $this->offerOfVersion($agreed),
         );
     }
 
@@ -1932,6 +1981,87 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                  ORDER BY m.added_at, u.email
                 SQL,
             ['id' => $subscriptionId],
+        );
+
+        return array_map(static fn (array $row): SubscriptionMember => new SubscriptionMember(
+            Row::string($row, 'user_id'),
+            Row::nullableString($row, 'email'),
+            Row::nullableString($row, 'display_name'),
+            Row::timestamp($row, 'added_at'),
+        ), $rows);
+    }
+
+    public function placesBeyond(string $subscriptionId, ?int $quota): int
+    {
+        if ($quota === null || !Uuid::isValid($subscriptionId)) {
+            return 0;
+        }
+
+        $beyond = $this->connection->fetchOne(
+            sprintf(
+                <<<'SQL'
+                    SELECT least(
+                               greatest(%1$s - :quota, 0),
+                               (SELECT count(*) FROM subscription_members m
+                                 WHERE m.subscription_id = s.id AND NOT %2$s)
+                           )
+                      FROM subscriptions s
+                     WHERE s.id = :id
+                    SQL,
+                PlacesUsedSql::count('s'),
+                PlacesUsedSql::administers('m.user_id', 's'),
+            ),
+            ['id' => $subscriptionId, 'quota' => $quota],
+        );
+
+        return is_numeric($beyond) ? (int) $beyond : 0;
+    }
+
+    public function applyWithdrawPlacesBeyond(string $subscriptionId, ?int $quota): array
+    {
+        if ($quota === null || !Uuid::isValid($subscriptionId)) {
+            return [];
+        }
+
+        // The row's lock, which every addition takes too: the count below and
+        // the removal are one decision, and nobody is added in between.
+        $this->connection->fetchOne('SELECT id FROM subscriptions WHERE id = :id FOR UPDATE', ['id' => $subscriptionId]);
+
+        $beyond = $this->placesBeyond($subscriptionId, $quota);
+
+        if ($beyond <= 0) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            sprintf(
+                <<<'SQL'
+                    WITH leaving AS (
+                        SELECT m.subscription_id, m.user_id
+                          FROM subscription_members m
+                          JOIN subscriptions s ON s.id = m.subscription_id
+                         WHERE m.subscription_id = :id
+                           AND NOT %s
+                         -- The most recently added first; the id settles two
+                         -- people added in the same instant, so the answer
+                         -- is the same whoever asks.
+                         ORDER BY m.added_at DESC, m.user_id DESC
+                         LIMIT :beyond
+                    ), gone AS (
+                        DELETE FROM subscription_members m
+                         USING leaving l
+                         WHERE m.subscription_id = l.subscription_id AND m.user_id = l.user_id
+                        RETURNING m.user_id, m.added_at
+                    )
+                    SELECT g.user_id, u.email, u.display_name, g.added_at
+                      FROM gone g
+                      JOIN users u ON u.id = g.user_id
+                     ORDER BY g.added_at DESC, g.user_id DESC
+                    SQL,
+                PlacesUsedSql::administers('m.user_id', 's'),
+            ),
+            ['id' => $subscriptionId, 'beyond' => $beyond],
+            ['beyond' => ParameterType::INTEGER],
         );
 
         return array_map(static fn (array $row): SubscriptionMember => new SubscriptionMember(
