@@ -453,7 +453,9 @@ final class Subscriptions
         // A renewal raised ahead for the plan being left goes first (ADR-076):
         // it is refusable — an attempt against it the provider can no longer
         // stop — and nothing has moved yet.
-        $this->credit->withdrawSuperseded($subscription, $collected, $actorUserId);
+        if ($collected->supersedesInvoiceId !== null) {
+            $this->credit->withdrawSuperseded($subscription, $collected, $actorUserId);
+        }
 
         $refundId = $decision->creditMinorUnits > 0
             ? $this->credit->giveBack($subscription, $collected, $decision->creditMinorUnits, $actorUserId)

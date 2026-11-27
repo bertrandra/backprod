@@ -323,9 +323,9 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('CANCELLED', $abandoned['status']);
         self::assertSame('SUPERSEDED', $abandoned['failure_code']);
 
-        // The provider's late word is taken and recorded stale: no money is
-        // marked collected, and nothing starts.
-        self::assertSame(200, $this->pay($session, 'evt_after_cancel')->getStatusCode());
+        // The provider's late word is taken and recorded stale — 202, taken
+        // and not applied: no money is marked collected, and nothing starts.
+        self::assertSame(202, $this->pay($session, 'evt_after_cancel')->getStatusCode());
         self::assertSame('CANCELLED', $this->connection->fetchOne(
             'SELECT status FROM payments WHERE id = :id',
             ['id' => $session['payment_id']],
