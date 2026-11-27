@@ -40,4 +40,23 @@ final class Places
     {
         return $granted ? $limit : 1;
     }
+
+    /**
+     * The places an offer version sells, counting the holder: its `users`
+     * grant; one where it sells none; null for unlimited.
+     *
+     * Asked of a version rather than of a subscription, because a change of
+     * plan has to know what the *arriving* offer sells before it is held
+     * (ADR-077).
+     */
+    public static function soldBy(OfferVersion $version): ?int
+    {
+        foreach ($version->grants as $grant) {
+            if ($grant->feature->code === self::USERS_FEATURE) {
+                return self::sold(true, $grant->limit);
+            }
+        }
+
+        return self::sold(false, null);
+    }
 }

@@ -144,6 +144,20 @@ final class Checkout
                 );
             }
 
+            // The provider first (ADR-076). "Not settled yet" was the only
+            // thing asked, and a 3-D Secure challenge still open or a debit in
+            // processing is exactly that: the invoice was cancelled under it,
+            // the money arrived afterwards, and nothing was left that it was
+            // allowed to settle — a customer charged for a purchase the screen
+            // had told them was cancelled. An attempt the provider confirms
+            // can no longer collect is abandoned; one it cannot stop refuses
+            // the cancellation (`PAYMENT_STILL_IN_FLIGHT`), because that money
+            // is coming and the purchase it pays must still be there.
+            //
+            // The provider is the lock: no read of ours can be raced once it
+            // has said the attempt is dead.
+            $this->payments->abandonAttempts($tenantId, $productId, $order->invoiceId, $actorUserId);
+
             $invoice = $this->invoicing->show($tenantId, $productId, $order->invoiceId);
 
             if ($invoice->status !== InvoiceStatus::CANCELLED) {

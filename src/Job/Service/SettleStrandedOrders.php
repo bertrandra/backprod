@@ -39,10 +39,11 @@ use Throwable;
  * buyer would have done it, through the same service: the invoice is cancelled
  * with the reversal of the VAT it declared, then the order.
  *
- * **Never while money may still arrive.** A checkout whose last attempt is
- * still open — a card being authenticated, a debit in flight — is left for the
- * next pass. Giving it up would cancel the document an in-flight payment is
- * about to settle.
+ * **Never while money may still arrive.** `Checkout::cancel` abandons an attempt
+ * still open at the provider first (ADR-076), which is what a closed tab leaves
+ * behind; one the provider says it can no longer stop — a debit in flight —
+ * refuses the act, and the checkout is left for the next pass. A checkout whose
+ * money has arrived is never read as abandoned at all.
  *
  * Safe to run twice: a closed order is no longer read, a refund already made is
  * recognised by the refund chain's own refusal, and a checkout given up is no
@@ -185,18 +186,17 @@ final class SettleStrandedOrders implements JobHandler
                     continue;
                 }
 
-                if ($this->moneyMayStillArrive($order)) {
-                    $inFlight++;
-                    $left++;
-
-                    continue;
-                }
-
                 try {
-                    // The buyer's own door, with nobody acting: the invoice is
+                    // The buyer's own door, with nobody acting: the attempt
+                    // still open is abandoned at the provider, the invoice is
                     // cancelled with its VAT reversal, then the order.
                     $this->checkout->cancel($order->tenantId, $order->productId, $order->id, null);
                     $abandoned++;
+                } catch (HttpException) {
+                    // A rule said no: the money has arrived, or is on its way
+                    // and can no longer be stopped. Not abandoned, then.
+                    $inFlight++;
+                    $left++;
                 } catch (Throwable $error) {
                     $failed++;
                     $left++;
@@ -213,17 +213,5 @@ final class SettleStrandedOrders implements JobHandler
         }
 
         return ['abandoned' => $abandoned, 'in_flight' => $inFlight, 'not_yet' => $notYet, 'abandon_failed' => $failed];
-    }
-
-    /** Whether the checkout's last attempt is still open, or has collected. */
-    private function moneyMayStillArrive(Order $order): bool
-    {
-        if ($order->invoiceId === null) {
-            return false;
-        }
-
-        $latest = $this->payments->latestFor($order->tenantId, $order->productId, $order->invoiceId);
-
-        return $latest !== null && (!$latest->isFinal() || $latest->isSettled());
     }
 }

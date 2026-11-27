@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace App\Payment\Service;
 
+use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
-use App\Billing\Service\Invoicing;
+use App\Billing\Service\InvoiceCancellation;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\UnstartedPeriod;
 use App\Commerce\Domain\UnstartedPeriodRelease;
 use App\Payment\Domain\Refund;
-use Closure;
 
 /**
  * Withdraws the invoice of a period cancelled before it began (ADR-079).
  *
  * The operator's decision of 2026-11-27: *cancel the invoice, credit the card
  * with the amount in question, and raise the documents that needs.* Nothing
- * here is a special path — the cancellation is {@see Invoicing::cancel}, with
+ * here is a special path — the cancellation is {@see InvoiceCancellation}, with
  * the VAT reversal every cancelled invoice writes, and the refund is
  * {@see Payments::refund}, with the credit note every refund carries.
  *
@@ -26,15 +26,9 @@ use Closure;
  */
 final class ReleaseTheUnstartedPeriod implements UnstartedPeriodRelease
 {
-    /**
-     * @param Closure(): Invoicing $invoicing asked for when first needed, not
-     *                                        when this is built: invoicing reads
-     *                                        subscriptions, and subscriptions
-     *                                        hold this, so building it eagerly
-     *                                        is a cycle the container refuses
-     */
     public function __construct(
-        private readonly Closure $invoicing,
+        private readonly InvoiceRepository $invoices,
+        private readonly InvoiceCancellation $cancellation,
         private readonly Payments $payments,
     ) {
     }
@@ -45,7 +39,11 @@ final class ReleaseTheUnstartedPeriod implements UnstartedPeriodRelease
             return $period;
         }
 
-        $invoice = ($this->invoicing)()->show($subscription->tenantId, $subscription->productId, $period->invoiceId);
+        $invoice = $this->invoices->find($subscription->tenantId, $subscription->productId, $period->invoiceId);
+
+        if ($invoice === null) {
+            return $period;
+        }
 
         if ($invoice->status === InvoiceStatus::CANCELLED) {
             // Withdrawn already — a cancellation retried after it had got this far.
@@ -94,7 +92,11 @@ final class ReleaseTheUnstartedPeriod implements UnstartedPeriodRelease
             return $period;
         }
 
-        $invoice = ($this->invoicing)()->show($subscription->tenantId, $subscription->productId, $period->invoiceId);
+        $invoice = $this->invoices->find($subscription->tenantId, $subscription->productId, $period->invoiceId);
+
+        if ($invoice === null) {
+            return $period;
+        }
 
         if ($invoice->status !== InvoiceStatus::ISSUED) {
             return $period;
@@ -103,7 +105,7 @@ final class ReleaseTheUnstartedPeriod implements UnstartedPeriodRelease
         // On the caller's transaction: the nested one joins it, so the
         // release and the withdrawal of what it would have cost commit
         // together or not at all.
-        ($this->invoicing)()->cancel($subscription->tenantId, $subscription->productId, $invoice->id, $actorUserId);
+        $this->cancellation->cancel($invoice, $actorUserId);
 
         return $period->withOutcome(UnstartedPeriod::CANCELLED);
     }

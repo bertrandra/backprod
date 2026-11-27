@@ -59,6 +59,7 @@ use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\OrganisationSubscriptions;
+use App\Commerce\Domain\PlacesWithdrawn;
 use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
@@ -102,6 +103,7 @@ use App\Job\Service\JobHandlers;
 use App\Job\Service\JobScheduler;
 use App\Job\Service\PruneJobs;
 use App\Job\Service\RenewSubscriptions;
+use App\Job\Service\ReturnUnowedPayments;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
 use App\Job\Service\SettleStrandedOrders;
@@ -187,6 +189,7 @@ use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
 use App\Sales\Service\PurchaseNotices;
 use App\Sales\Service\RenewalPaymentRequest;
+use App\Sales\Service\TellWhoLostTheirPlace;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -500,6 +503,7 @@ return static function (array $overrides = []): ContainerInterface {
         RenewalCharge::class => autowire(ChargeOnRenewal::class),
         // …and the mail that asks for it, with the link the customer pays from
         // (2026-10-05). The address is the deployment's, like a reset link's.
+        PlacesWithdrawn::class => autowire(TellWhoLostTheirPlace::class),
         RenewalPaymentRequest::class => autowire(RenewalPaymentRequest::class)
             ->constructorParameter('appUrl', $env('APP_URL')),
         // What a person is told about a purchase of theirs (ADR-079): that it
@@ -520,22 +524,7 @@ return static function (array $overrides = []): ContainerInterface {
         ChangeCredit::class => autowire(CreditTheUnconsumedPeriod::class),
         // A period invoiced ahead and cancelled before it began (ADR-079): its
         // invoice is cancelled, or refunded with its credit note if it was paid.
-        UnstartedPeriodRelease::class => factory(
-            static fn (ContainerInterface $container, Payments $payments): UnstartedPeriodRelease => new ReleaseTheUnstartedPeriod(
-                // Lazily: invoicing reads subscriptions and subscriptions hold
-                // this, so resolving it here would be a cycle.
-                static function () use ($container): Invoicing {
-                    $invoicing = $container->get(Invoicing::class);
-
-                    if (!$invoicing instanceof Invoicing) {
-                        throw new \RuntimeException('The container did not build the invoicing service.');
-                    }
-
-                    return $invoicing;
-                },
-                $payments,
-            ),
-        ),
+        UnstartedPeriodRelease::class => autowire(ReleaseTheUnstartedPeriod::class),
 
         // The far side of the payment gate. Both ways an invoice can reach
         // PAID — a provider's webhook, an operator reconciling a transfer —
@@ -707,6 +696,7 @@ return static function (array $overrides = []): ContainerInterface {
         JobHandlers::class => factory(
             static fn (
                 ExpireQuotes $quotes,
+                ReturnUnowedPayments $unowed,
                 ExpireSubscriptions $subscriptions,
                 ExportProject $exports,
                 DispatchNotifications $notify,
@@ -719,7 +709,7 @@ return static function (array $overrides = []): ContainerInterface {
                 PruneJobs $prune,
                 SettleStrandedOrders $orders,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune, $orders],
+                [$quotes, $unowed, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune, $orders],
             ),
         ),
 

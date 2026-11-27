@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Payment\Service;
 
 use App\Billing\Domain\CreditNoteRepository;
+use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
+use App\Billing\Domain\InvoiceStatus;
+use App\Billing\Service\InvoiceCancellation;
 use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\CollectedPeriod;
 use App\Commerce\Domain\Subscription;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\Refund;
+use DateTimeImmutable;
 use LogicException;
 
 /**
@@ -25,12 +29,14 @@ use LogicException;
  *
  * ## Which payment collected the period
  *
- * The most recent **settled** payment against an invoice of this subscription.
- * Not the subscription's first invoice, and not a balance the platform keeps:
- * every immediate change of plan raises its own invoice and resets the anchor,
- * so the newest settled payment is the one that bought the period now being cut
- * short. That is what makes a chain of upgrades work by construction (§3.4)
- * rather than by arithmetic on a running credit.
+ * The settled payment of **the invoice whose period is being cut** (ADR-076).
+ * It used to be the most recent settled payment against any invoice of the
+ * subscription, on the reasoning that every change raises its own invoice and
+ * resets the anchor. That held only while each invoice was paid as it was
+ * raised: a renewal invoice raised days ahead and due at the period's start
+ * (ADR-070), or an upgrade's invoice not yet paid, left the newest *settled*
+ * payment one period behind — and a period already consumed was refunded
+ * while the one being used stayed owed.
  *
  * `payments.subscription_id` cannot be used for this, and the reason is worth
  * writing down: a seat's first invoice is raised *before* the subscription
@@ -58,36 +64,63 @@ final class CreditTheUnconsumedPeriod implements ChangeCredit
         private readonly InvoiceRepository $invoices,
         private readonly CreditNoteRepository $creditNotes,
         private readonly Payments $refunds,
+        private readonly InvoiceCancellation $cancellation,
     ) {
     }
 
-    public function collectedFor(Subscription $subscription): CollectedPeriod
+    public function collectedFor(Subscription $subscription, DateTimeImmutable $now): CollectedPeriod
     {
         $currency = $subscription->offer->version->currency;
 
-        $payment = $this->payments->latestSettledForSubscription(
+        // The two newest period invoices, newest first. Two, because the
+        // newest may be one raised ahead for a period that has not begun.
+        $invoices = $this->invoices->periodInvoicesOf(
             $subscription->tenantId,
             $subscription->productId,
             $subscription->id,
+            2,
         );
 
-        if ($payment === null) {
+        $newest = $invoices[0] ?? null;
+        $superseded = null;
+
+        if ($newest !== null && self::isOwed($newest) && $newest->periodStart !== null && $newest->periodStart > $now) {
+            // Raised ahead by the renewal (ADR-070), unpaid, for a period on
+            // the plan being left that will now never start. It is not the
+            // period being cut — the one before it is — and the change
+            // withdraws it rather than leave it owed and chased.
+            $superseded = $newest->id;
+            $newest = $invoices[1] ?? null;
+        }
+
+        if ($newest === null) {
             return CollectedPeriod::nothing(
                 $currency,
                 'Nothing has been collected for the current period, so there is no unconsumed value to give back.',
-            );
+            )->superseding($superseded);
         }
 
-        $invoice = $this->invoices->find($subscription->tenantId, $subscription->productId, $payment->invoiceId);
-
-        if ($invoice === null) {
-            // A payment whose invoice cannot be read is not something to guess
-            // around: the credit note is raised against that invoice, and
-            // without it there is no document to declare the reversal on.
+        if (self::isOwed($newest)) {
             return CollectedPeriod::nothing(
                 $currency,
-                'The document the current period was paid against cannot be read, so nothing can be credited.',
-            );
+                'The invoice for the current period has not been paid, so there is nothing to give back; it remains due.',
+            )->superseding($superseded);
+        }
+
+        $payment = $this->payments->latestSettledForInvoice(
+            $subscription->tenantId,
+            $subscription->productId,
+            $newest->id,
+        );
+
+        if ($payment === null) {
+            // Settled some other way — a transfer reconciled by hand, a
+            // credit in full — so there is no payment method to send a share
+            // back to.
+            return CollectedPeriod::nothing(
+                $currency,
+                'Nothing was collected by a payment method for the current period, so there is nothing to send back to one.',
+            )->superseding($superseded);
         }
 
         $returnable = min(
@@ -95,15 +128,62 @@ final class CreditTheUnconsumedPeriod implements ChangeCredit
             $payment->amount->minorUnits - self::alreadyReturned($this->payments->refundsOf($payment->id)),
             // What the invoice could still declare. Reversing the same VAT
             // twice would declare a negative sale that never happened.
-            $invoice->gross->minorUnits - $this->creditNotes->creditedOn($invoice->id),
+            $newest->gross->minorUnits - $this->creditNotes->creditedOn($newest->id),
         );
 
-        return CollectedPeriod::of(
+        $collected = CollectedPeriod::of(
             $payment->id,
             $payment->amount->minorUnits,
             $returnable,
             $payment->amount->currency,
-        );
+            $newest->id,
+        )->superseding($superseded);
+
+        // The row has been rolled into a period that has not started, and
+        // this invoice is not that period's: it bought the one still running,
+        // which ends where the row's begins. Without this the share would be
+        // taken of a period that has not begun — "before the start" clamps to
+        // everything — and a period almost consumed came back in full.
+        if (
+            $subscription->currentPeriodStart > $now
+            && $newest->periodStart !== null
+            && $newest->periodStart <= $now
+        ) {
+            return $collected->over($newest->periodStart, $subscription->currentPeriodStart);
+        }
+
+        return $collected;
+    }
+
+    public function withdrawSuperseded(Subscription $subscription, CollectedPeriod $collected, ?string $actorUserId): void
+    {
+        $invoiceId = $collected->supersedesInvoiceId;
+
+        if ($invoiceId === null) {
+            return;
+        }
+
+        // The provider first: an attempt that can still collect would pay a
+        // document that no longer exists. One it cannot stop refuses here,
+        // before anything has moved.
+        $this->refunds->abandonAttempts($subscription->tenantId, $subscription->productId, $invoiceId, $actorUserId);
+
+        $invoice = $this->invoices->find($subscription->tenantId, $subscription->productId, $invoiceId);
+
+        if ($invoice !== null) {
+            // Not through `Invoicing`, which depends on `Subscriptions` — the
+            // service this is called from. The same rule, reached directly.
+            $this->cancellation->cancel($invoice, $actorUserId);
+        }
+    }
+
+    /**
+     * Still to be paid, and for something: an invoice of nothing owes nothing
+     * whatever its status says.
+     */
+    private static function isOwed(Invoice $invoice): bool
+    {
+        return $invoice->gross->minorUnits > 0 && InvoiceStatus::isPayable($invoice->status);
     }
 
     public function giveBack(
@@ -133,6 +213,10 @@ final class CreditTheUnconsumedPeriod implements ChangeCredit
             $amountMinorUnits,
             Refund::REQUESTED,
             $actorUserId,
+            // Once per period cut (ADR-076). The credit commits before the
+            // plan moves, so a crash between the two is retried — and the
+            // retry must find this refund rather than make a second one.
+            sprintf('change:%s:%s', $subscription->id, $collected->invoiceId ?? $paymentId),
         );
 
         return $refund->id;

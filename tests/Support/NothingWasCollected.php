@@ -7,6 +7,7 @@ namespace App\Tests\Support;
 use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\CollectedPeriod;
 use App\Commerce\Domain\Subscription;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -27,12 +28,17 @@ final class NothingWasCollected implements ChangeCredit
     {
     }
 
-    public function collectedFor(Subscription $subscription): CollectedPeriod
+    public function collectedFor(Subscription $subscription, DateTimeImmutable $now): CollectedPeriod
     {
         return CollectedPeriod::nothing(
             $this->currency,
             'Nothing has been collected for the current period, so there is no unconsumed value to give back.',
         );
+    }
+
+    public function withdrawSuperseded(Subscription $subscription, CollectedPeriod $collected, ?string $actorUserId): void
+    {
+        TestCase::fail('An invoice was withdrawn for a subscription nothing was ever invoiced for.');
     }
 
     public function giveBack(

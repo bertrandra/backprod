@@ -75,8 +75,10 @@ A new periodic job (`SettleStrandedOrders`), declared in `Schedule::PERIODIC`:
   (`product_configuration`, key `checkout`, `abandon_after_hours`, **48 by
   default**, 1 to 720), through `Checkout::cancel` — the buyer's own door, so the
   invoice is cancelled with its VAT reversal exactly as it would be by hand.
-  **Never while money may still arrive**: an attempt still open at the provider
-  leaves the checkout for the next pass.
+  **Never while money may still arrive**: that door abandons an attempt still
+  open at the provider first (ADR-076) — what a closed tab leaves behind — and
+  one the provider can no longer stop refuses the act, so the checkout waits for
+  the next pass.
 
 And `Checkout::open` now returns the session when the provider cannot be reached
 — awaiting, payable, with no attempt — instead of an error with nothing to come
@@ -95,7 +97,8 @@ the row           put back on the period running; the entitlements end with it
 ```
 
 In two moments, because a provider cannot be asked inside a transaction and
-unasked afterwards (`UnstartedPeriodRelease`): the refund, or the abandoning of
+unasked afterwards (`UnstartedPeriodRelease`, built on ADR-076's
+`InvoiceCancellation` and `Payments::abandonAttempts` rather than beside them): the refund, or the abandoning of
 an attempt still open, runs first and on its own; the invoice's cancellation and
 the row's return run **on the cancellation's own transaction**. A cancellation
 that fails after a refund is retried and finds nothing left to return.

@@ -145,19 +145,12 @@ final class PostgresPaymentRepository implements PaymentRepository
         return $row === false ? null : self::toPayment($row);
     }
 
-    public function latestSettledForSubscription(
-        string $tenantId,
-        string $productId,
-        string $subscriptionId,
-    ): ?Payment {
-        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($subscriptionId)) {
+    public function latestSettledForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($invoiceId)) {
             return null;
         }
 
-        // Through `invoices.subscription_id`, never `payments.subscription_id`
-        // — the reason is on the interface, and it is that a seat's first
-        // payment predates the subscription it starts.
-        //
         // `PARTIALLY_REFUNDED` counts as settled, exactly as
         // {@see PaymentStatus::isSettled()} says: some of that money is still
         // ours, and how much is what the caller goes on to bound the credit
@@ -169,11 +162,11 @@ final class PostgresPaymentRepository implements PaymentRepository
                 WHERE tenant_id = :tenantId
                   AND product_id = :productId
                   AND status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED')
-                  AND invoice_id IN (SELECT id FROM invoices WHERE subscription_id = :subscriptionId)
+                  AND invoice_id = :invoiceId
                 ORDER BY succeeded_at DESC NULLS LAST, created_at DESC, id DESC
                 LIMIT 1
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'subscriptionId' => $subscriptionId],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'invoiceId' => $invoiceId],
         );
 
         return $row === false ? null : self::toPayment($row);
@@ -358,12 +351,14 @@ final class PostgresPaymentRepository implements PaymentRepository
         string $reason,
         ?string $actorUserId,
         callable $underLock,
+        ?string $onceFor = null,
     ): Refund {
         return $this->connection->transactional(function () use (
             $payment,
             $reason,
             $actorUserId,
             $underLock,
+            $onceFor,
         ): Refund {
             // First, before anything is read: every refund and every credit
             // note of this invoice queues here, so the ceilings `$underLock`
@@ -373,6 +368,22 @@ final class PostgresPaymentRepository implements PaymentRepository
                 ['invoice' => $payment->invoiceId],
             );
 
+            // Asked for before, and it went: the earlier refund is the
+            // answer, and the provider is not asked a second time (ADR-076).
+            // Read under the lock above, so two requests for one purpose
+            // cannot both find nothing; `refunds_once_per_purpose` is what
+            // refuses the second if this read is ever bypassed.
+            if ($onceFor !== null) {
+                $earlier = $this->connection->fetchOne(
+                    "SELECT id FROM refunds WHERE purpose_key = :key AND status <> 'FAILED'",
+                    ['key' => $onceFor],
+                );
+
+                if (is_string($earlier)) {
+                    return $this->requireRefund($earlier);
+                }
+            }
+
             $asked = $underLock();
             $refund = $asked['refund'];
             $amount = $asked['amount'];
@@ -381,10 +392,10 @@ final class PostgresPaymentRepository implements PaymentRepository
                 <<<'SQL'
                     INSERT INTO refunds
                         (payment_id, tenant_id, product_id, provider, provider_refund_id,
-                         amount_minor_units, currency, reason, status, settled_at)
+                         amount_minor_units, currency, reason, status, settled_at, purpose_key)
                     VALUES (:payment, :tenantId, :productId, :provider, :reference,
                             :amount, :currency, :reason, :status,
-                            CASE WHEN :status = 'SUCCEEDED' THEN now() END)
+                            CASE WHEN :status = 'SUCCEEDED' THEN now() END, :purpose)
                     RETURNING id
                     SQL,
                 [
@@ -397,6 +408,7 @@ final class PostgresPaymentRepository implements PaymentRepository
                     'currency' => $amount->currency,
                     'reason' => $reason,
                     'status' => $refund->status,
+                    'purpose' => $onceFor,
                 ],
             );
 
@@ -447,6 +459,31 @@ final class PostgresPaymentRepository implements PaymentRepository
 
             return $this->requireRefund($id);
         });
+    }
+
+    public function settledAgainstVoidInvoices(int $limit): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT p.' . implode(', p.', array_map(trim(...), explode(',', self::COLUMNS))) . <<<'SQL'
+                  FROM payments p
+                  JOIN invoices i ON i.id = p.invoice_id
+                 WHERE p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED')
+                   AND i.status = 'CANCELLED'
+                   -- Not already on its way back: a refund the provider failed
+                   -- returned nothing, so it does not count.
+                   AND p.amount_minor_units > coalesce((
+                        SELECT sum(r.amount_minor_units)
+                          FROM refunds r
+                         WHERE r.payment_id = p.id AND r.status <> 'FAILED'
+                       ), 0)
+                 ORDER BY p.succeeded_at NULLS LAST, p.id
+                 LIMIT :limit
+                SQL,
+            ['limit' => max(1, $limit)],
+            ['limit' => ParameterType::INTEGER],
+        );
+
+        return array_map(self::toPayment(...), $rows);
     }
 
     public function liveAttemptsForInvoice(string $invoiceId): array

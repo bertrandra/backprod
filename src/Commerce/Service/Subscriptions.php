@@ -13,6 +13,8 @@ use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\ChangeDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\FreemiumPeriod;
+use App\Commerce\Domain\Places;
+use App\Commerce\Domain\PlacesWithdrawn;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\RenewalNotice;
@@ -54,6 +56,7 @@ final class Subscriptions
         private readonly ChangeCredit $credit,
         private readonly ChangeCharge $newPeriod,
         private readonly UnstartedPeriodRelease $unstarted,
+        private readonly ?PlacesWithdrawn $placesWithdrawn = null,
     ) {
     }
 
@@ -266,10 +269,12 @@ final class Subscriptions
         $offer = $this->sellable($productId, $offerId);
 
         self::refuseIfAlreadyOnTheOffer($subscription, $offer);
-        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
-        $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
+        self::refuseWhileEnding($subscription);
 
         $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
+
+        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer, self::takesEffectAt($subscription, $direction));
+        $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
 
         // A move down is not refused here and sent elsewhere: it is the same
         // act, and it goes to the same implementation. The defect being
@@ -311,7 +316,7 @@ final class Subscriptions
      * here — and it is the one that matters, because a seat is the only
      * subscription the tenant surface can sell (ADR-055).
      *
-     * @return array{subscription: Subscription, decision: ChangeDecision}
+     * @return array{subscription: Subscription, decision: ChangeDecision, people_losing_their_place: int}
      */
     public function previewChange(
         string $tenantId,
@@ -324,23 +329,31 @@ final class Subscriptions
         $offer = $this->sellable($productId, $offerId);
 
         self::refuseIfAlreadyOnTheOffer($subscription, $offer);
+        self::refuseWhileEnding($subscription);
+
+        $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
 
         // The same refusal the act makes, and made here for the same reason it
         // is made there: the two rules of §3.3 can contradict the database's
         // own CHECK, and a preview that answered "€12.40 today" for a change
         // that will be refused is worse than no preview.
-        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
+        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer, self::takesEffectAt($subscription, $direction));
 
         // And the same again for the free period (§6.4): the catalogue asks
         // this question once per row, so this is where "you have already had
         // it" becomes a sentence on screen instead of a 409 after a click.
         $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
 
-        $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
-
         return [
             'subscription' => $subscription,
             'decision' => $this->decide($subscription, $offer, $direction, new DateTimeImmutable()),
+            // Who would stop being covered (ADR-077): the same count the
+            // change then acts on, so the warning before the click and the
+            // notices after it name the same number of people.
+            'people_losing_their_place' => $this->subscriptions->placesBeyond(
+                $subscription->id,
+                Places::soldBy($offer->version),
+            ),
         ];
     }
 
@@ -366,7 +379,7 @@ final class Subscriptions
             $subscription,
             $offer,
             $direction,
-            $this->credit->collectedFor($subscription),
+            $this->credit->collectedFor($subscription, $now),
             $this->newPeriod->quote($subscription, $offer, $now),
             $now,
         );
@@ -391,8 +404,10 @@ final class Subscriptions
      * answers are not equally bad. Credit-then-fail leaves the customer
      * refunded for a period they still hold, said by a refund and a credit
      * note that name the amount and the invoice — and retrying the change then
-     * finds nothing left to credit and simply charges the new period, which is
-     * the outcome that was wanted. Change-then-fail would leave them on the
+     * finds that refund and makes no second one, because a proration is made
+     * **once per period cut** (`refunds_once_per_purpose`, ADR-076). This
+     * comment used to say the retry "finds nothing left to credit"; it found
+     * the rest of the payment still returnable and sent the same share again. Change-then-fail would leave them on the
      * new plan with the old period's value owed to them and nothing but an
      * event mentioning it, and no retry recovers that. A documented credit is
      * better than an undocumented debt.
@@ -422,7 +437,7 @@ final class Subscriptions
         // they describe two different instants.
         $now = new DateTimeImmutable();
 
-        $collected = $this->credit->collectedFor($subscription);
+        $collected = $this->credit->collectedFor($subscription, $now);
 
         $decision = $this->proration->immediate(
             $subscription,
@@ -433,12 +448,30 @@ final class Subscriptions
             $now,
         );
 
+        if (!$decision->accepted && $decision->ruleId === ProrationPolicy::AWAITS_PAYMENT) {
+            // Its own refusal, because it has its own answer (ADR-076): a
+            // card. `CHANGE_NOT_PERMITTED` reads as "this cannot be done", and
+            // somebody told that goes looking for another plan.
+            throw new ConflictException(
+                'CHANGE_AWAITS_PAYMENT',
+                'This subscription is suspended for an unpaid invoice. Pay it first, then change the plan.',
+                $decision->toArray() + ['invoice_id' => $subscription->pastDueInvoiceId],
+            );
+        }
+
         if (!$decision->accepted) {
             throw new ConflictException(
                 'CHANGE_NOT_PERMITTED',
                 'This change of offer cannot be priced on these terms.',
                 $decision->toArray(),
             );
+        }
+
+        // A renewal raised ahead for the plan being left goes first (ADR-076):
+        // it is refusable — an attempt against it the provider can no longer
+        // stop — and nothing has moved yet.
+        if ($collected->supersedesInvoiceId !== null) {
+            $this->credit->withdrawSuperseded($subscription, $collected, $actorUserId);
         }
 
         $refundId = $decision->creditMinorUnits > 0
@@ -449,6 +482,10 @@ final class Subscriptions
         $chargeInvoiceId = null;
 
         $alsoBill = function (Subscription $moved) use (&$chargeInvoiceId, $decision, $offer, $now, $actorUserId): void {
+            // On the move's own transaction: the plan and the places it no
+            // longer sells go together (ADR-077).
+            $this->withdrawPlacesBeyond($moved);
+
             if ($decision->chargeMinorUnits <= 0) {
                 return;
             }
@@ -524,6 +561,12 @@ final class Subscriptions
         $offer = $this->sellable($productId, $offerId);
 
         self::refuseIfAlreadyOnTheOffer($subscription, $offer);
+        // The refusal `changeOffer` makes, which this door skipped (ADR-077):
+        // the change was accepted, and at the renewal that applied it the
+        // database's own CHECK refused the row — on every pass, until the
+        // period lapsed and a committed subscription was expired by the sweep
+        // with no buy-out. Asked at the boundary it takes effect at.
+        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer, self::takesEffectAt($subscription, self::DOWNGRADE));
         $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
 
         if (self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank) !== self::DOWNGRADE) {
@@ -603,6 +646,61 @@ final class Subscriptions
     }
 
     /**
+     * When a move in this direction takes effect: now, or — for a move down —
+     * at the end of the period already paid for.
+     */
+    private static function takesEffectAt(Subscription $subscription, string $direction): DateTimeImmutable
+    {
+        return $direction === self::DOWNGRADE && $subscription->currentPeriodEnd !== null
+            ? $subscription->currentPeriodEnd
+            : new DateTimeImmutable();
+    }
+
+    /**
+     * One ending, and the cancellation is it (§2.2, ADR-077).
+     *
+     * A move down already refused a subscription due to end. A move up did
+     * not: it reset the period to a whole new one from today and billed it,
+     * while `cancel_effective_at` kept the old date — which renewal then
+     * skipped the row for, so the service ran to the end of the *new* period,
+     * past the date the customer had been given. The customer withdraws the
+     * cancellation first and then chooses a plan, rather than the platform
+     * deciding which of the two they meant.
+     */
+    private static function refuseWhileEnding(Subscription $subscription): void
+    {
+        if ($subscription->cancelAtPeriodEnd || $subscription->cancelEffectiveAt !== null) {
+            throw new ConflictException(
+                'SUBSCRIPTION_ENDING',
+                'This subscription is already due to end; resume it before changing its plan.',
+                ['cancel_effective_at' => $subscription->cancelEffectiveAt?->format(DATE_ATOM)],
+            );
+        }
+    }
+
+    /**
+     * Stops covering the people beyond what the offer now held sells, and
+     * tells them and the holder (ADR-077, the operator's decision of
+     * 2026-11-27).
+     *
+     * The `users` quota was checked when somebody was *added* and nowhere
+     * else, so a subscription for five moved to an offer for one went on
+     * covering five. A number a customer pays for has to bound something —
+     * the sentence ADR-053 was written for.
+     *
+     * Called inside the transaction that moves the plan.
+     */
+    private function withdrawPlacesBeyond(Subscription $moved): void
+    {
+        $sold = Places::soldBy($moved->offer->version);
+        $withdrawn = $this->subscriptions->applyWithdrawPlacesBeyond($moved->id, $sold);
+
+        if ($withdrawn !== [] && $sold !== null) {
+            $this->placesWithdrawn?->tell($moved, $withdrawn, $sold);
+        }
+    }
+
+    /**
      * A surviving commitment must fit inside the term it is served under.
      *
      * The database says so — `commitment_months <= term_months` — and it says
@@ -620,9 +718,13 @@ final class Subscriptions
     private static function refuseIfTheCommitmentOutlastsTheTerm(
         Subscription $subscription,
         SubscribedOffer $offer,
+        DateTimeImmutable $at,
     ): void {
         $terms = $offer->version->terms;
-        $commitment = $subscription->commitmentAfterMovingTo($terms, new DateTimeImmutable());
+        // At the moment the move takes effect, which for a move down is the
+        // end of the period and not today (ADR-077): the surviving commitment
+        // is decided there, by the same call the repository then makes.
+        $commitment = $subscription->commitmentAfterMovingTo($terms, $at);
 
         if ($terms->termMonths !== null && $commitment->months > $terms->termMonths) {
             throw new ConflictException(
@@ -976,7 +1078,13 @@ final class Subscriptions
                 ),
                 // Billed like any period; `billPeriod` raises nothing for a
                 // price of zero, which is what a free period costs.
-                fn (Subscription $changed, DateTimeImmutable $periodEnd): ?string => $this->billPeriod($changed, $from, $periodEnd),
+                function (Subscription $changed, DateTimeImmutable $periodEnd) use ($from): ?string {
+                    // The places first, on the same transaction (ADR-077): a
+                    // move down is the usual way to an offer that sells fewer.
+                    $this->withdrawPlacesBeyond($changed);
+
+                    return $this->billPeriod($changed, $from, $periodEnd);
+                },
                 $freePeriod,
             );
         }

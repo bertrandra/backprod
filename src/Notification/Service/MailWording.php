@@ -78,6 +78,28 @@ final class MailWording
                 . 'If you are asked to sign in again on a device, that is why. If you do not recognise this, '
                 . 'change your password from the sign-in page: that ends every sign-in on every device.',
         ],
+        // A change of plan to an offer that sells fewer places (ADR-077):
+        // the people beyond the new number stop being covered. The holder is
+        // told who, by name, because it is their decision that did it.
+        'subscription.places_withdrawn' => [
+            'about' => 'A subscription moved to an offer that sells fewer places, so the people beyond the new number are no longer covered. Sent to the subscription’s holder, naming them.',
+            'placeholders' => ['offer', 'places', 'count', 'people'],
+            'subject' => 'Your plan changed — {count} of your people are no longer covered',
+            'body' => "Your subscription is now on {offer}, which covers {places} in all, you included.\n\n"
+                . "These people were on it beyond that number and are no longer covered: {people}.\n\n"
+                . 'They keep their account and their role, and nothing they made is lost; they can no longer open the workspace. '
+                . 'To cover them again, move to an offer with more places, or free a place and add them back from the subscription screen.',
+        ],
+        // And each of those people is told themselves, rather than finding
+        // out from a refusal they cannot explain.
+        'subscription.place_withdrawn' => [
+            'about' => 'Somebody was covered by a colleague’s subscription, and that subscription moved to an offer with fewer places. Sent to the person who lost their place.',
+            'placeholders' => ['offer'],
+            'subject' => 'You are no longer covered by a subscription',
+            'body' => "The subscription that covered you has moved to {offer}, which has fewer places, and yours was one of those withdrawn.\n\n"
+                . 'Your account and your role are unchanged, and nothing you made is lost. You can no longer open the workspace until '
+                . 'whoever holds the subscription gives you a place again, or you take out one of your own.',
+        ],
         // A formal demand (spec §5.2, 2026-09-27), and the one mail here that
         // carries legal effect — so the rendered body is kept as it went out,
         // for the reason an invoice keeps its snapshot. It says what is owed,
@@ -198,6 +220,19 @@ final class MailWording
                     . "Si l'on vous redemande de vous connecter sur un appareil, c'est pour cette raison. Si vous ne reconnaissez pas cela, "
                     . 'changez votre mot de passe depuis la page de connexion : cela ferme toutes les connexions sur tous les appareils.',
             ],
+            'subscription.places_withdrawn' => [
+                'subject' => 'Votre offre a changé — {count} personne(s) ne sont plus couvertes',
+                'body' => "Votre abonnement est désormais sur {offer}, qui couvre {places} personne(s) en tout, vous compris.\n\n"
+                    . "Ces personnes y figuraient au-delà de ce nombre et ne sont plus couvertes : {people}.\n\n"
+                    . "Elles gardent leur compte et leur rôle, et rien de ce qu'elles ont fait n'est perdu ; elles ne peuvent plus ouvrir l'atelier. "
+                    . "Pour les couvrir à nouveau, passez à une offre avec plus de places, ou libérez une place et rajoutez-les depuis l'écran d'abonnement.",
+            ],
+            'subscription.place_withdrawn' => [
+                'subject' => "Vous n'êtes plus couvert par un abonnement",
+                'body' => "L'abonnement qui vous couvrait est passé à {offer}, qui compte moins de places, et la vôtre fait partie de celles qui ont été retirées.\n\n"
+                    . "Votre compte et votre rôle ne changent pas, et rien de ce que vous avez fait n'est perdu. Vous ne pouvez plus ouvrir l'atelier tant que "
+                    . "la personne qui tient l'abonnement ne vous redonne pas une place, ou que vous n'en prenez pas une à votre nom.",
+            ],
             'subscription.payment_overdue' => [
                 'subject' => 'Échec de paiement — votre accès est suspendu',
                 'body' => "La facture {invoice_number} était due le {due_on} et reste impayée, {days_overdue} jours plus tard.\n\n"
@@ -271,6 +306,19 @@ final class MailWording
                     . "lo que suele significar que fue copiado.\n\n"
                     . 'Si se le pide que vuelva a iniciar sesión en un dispositivo, es por eso. Si no lo reconoce, '
                     . 'cambie su contraseña desde la página de inicio de sesión: eso cierra todas las sesiones en todos los dispositivos.',
+            ],
+            'subscription.places_withdrawn' => [
+                'subject' => 'Su plan ha cambiado: {count} persona(s) ya no están cubiertas',
+                'body' => "Su suscripción está ahora en {offer}, que cubre a {places} persona(s) en total, usted incluido.\n\n"
+                    . "Estas personas figuraban por encima de ese número y ya no están cubiertas: {people}.\n\n"
+                    . 'Conservan su cuenta y su rol, y nada de lo que hicieron se pierde; ya no pueden abrir el taller. '
+                    . 'Para volver a cubrirlas, pase a una oferta con más plazas, o libere una plaza y añádalas de nuevo desde la pantalla de suscripción.',
+            ],
+            'subscription.place_withdrawn' => [
+                'subject' => 'Ya no está cubierto por una suscripción',
+                'body' => "La suscripción que le cubría ha pasado a {offer}, que tiene menos plazas, y la suya es una de las retiradas.\n\n"
+                    . 'Su cuenta y su rol no cambian, y nada de lo que hizo se pierde. No podrá abrir el taller hasta que '
+                    . 'quien tiene la suscripción le dé una plaza de nuevo, o contrate una a su nombre.',
             ],
             'subscription.payment_overdue' => [
                 'subject' => 'Pago fallido: su acceso está suspendido',
@@ -346,6 +394,19 @@ final class MailWording
                     . 'Wenn Sie auf einem Gerät erneut zur Anmeldung aufgefordert werden, ist das der Grund. Wenn Ihnen das unbekannt vorkommt, '
                     . 'ändern Sie Ihr Passwort über die Anmeldeseite: Damit werden alle Anmeldungen auf allen Geräten beendet.',
             ],
+            'subscription.places_withdrawn' => [
+                'subject' => 'Ihr Tarif hat sich geändert – {count} Person(en) sind nicht mehr abgedeckt',
+                'body' => "Ihr Abonnement läuft jetzt auf {offer} und deckt insgesamt {places} Person(en) ab, Sie eingeschlossen.\n\n"
+                    . "Diese Personen standen über dieser Zahl und sind nicht mehr abgedeckt: {people}.\n\n"
+                    . 'Sie behalten ihr Konto und ihre Rolle, und nichts von dem, was sie erstellt haben, geht verloren; den Arbeitsbereich können sie nicht mehr öffnen. '
+                    . 'Um sie wieder abzudecken, wechseln Sie zu einem Angebot mit mehr Plätzen, oder geben Sie einen Platz frei und fügen Sie sie im Abonnement-Bildschirm wieder hinzu.',
+            ],
+            'subscription.place_withdrawn' => [
+                'subject' => 'Sie sind nicht mehr durch ein Abonnement abgedeckt',
+                'body' => "Das Abonnement, das Sie abgedeckt hat, ist zu {offer} gewechselt, das weniger Plätze hat, und Ihrer gehört zu den entzogenen.\n\n"
+                    . 'Ihr Konto und Ihre Rolle bleiben unverändert, und nichts von dem, was Sie erstellt haben, geht verloren. Den Arbeitsbereich können Sie erst wieder öffnen, '
+                    . 'wenn die Person, die das Abonnement hält, Ihnen wieder einen Platz gibt oder Sie selbst eines abschließen.',
+            ],
             'subscription.payment_overdue' => [
                 'subject' => 'Zahlung fehlgeschlagen – Ihr Zugang ist gesperrt',
                 'body' => "Die Rechnung {invoice_number} war am {due_on} fällig und ist {days_overdue} Tage später noch offen.\n\n"
@@ -419,6 +480,19 @@ final class MailWording
                     . "il che di solito significa che è stato copiato.\n\n"
                     . 'Se ti viene chiesto di accedere di nuovo su un dispositivo, il motivo è questo. Se non lo riconosci, '
                     . 'cambia la password dalla pagina di accesso: così si chiudono tutti gli accessi su tutti i dispositivi.',
+            ],
+            'subscription.places_withdrawn' => [
+                'subject' => 'Il tuo piano è cambiato: {count} persona/e non sono più coperte',
+                'body' => "Il tuo abbonamento è ora su {offer}, che copre {places} persona/e in tutto, te compreso.\n\n"
+                    . "Queste persone vi figuravano oltre quel numero e non sono più coperte: {people}.\n\n"
+                    . "Mantengono il loro account e il loro ruolo, e nulla di ciò che hanno fatto va perso; non possono più aprire l'area di lavoro. "
+                    . "Per coprirle di nuovo, passa a un'offerta con più posti, oppure libera un posto e aggiungile di nuovo dalla schermata dell'abbonamento.",
+            ],
+            'subscription.place_withdrawn' => [
+                'subject' => 'Non sei più coperto da un abbonamento',
+                'body' => "L'abbonamento che ti copriva è passato a {offer}, che ha meno posti, e il tuo è tra quelli ritirati.\n\n"
+                    . "Il tuo account e il tuo ruolo non cambiano, e nulla di ciò che hai fatto va perso. Non potrai aprire l'area di lavoro finché "
+                    . "chi tiene l'abbonamento non ti ridà un posto, o non ne prendi uno a tuo nome.",
             ],
             'subscription.payment_overdue' => [
                 'subject' => 'Pagamento non riuscito: il tuo accesso è sospeso',
@@ -582,6 +656,10 @@ final class MailWording
      */
     public static function sample(string $type, string $email, string $appUrl): array
     {
+        if ($type === 'subscription.places_withdrawn' || $type === 'subscription.place_withdrawn') {
+            return ['email' => $email, 'offer' => 'Sample offer', 'places' => 1, 'count' => 2, 'people' => 'Ada Lovelace, Grace Hopper', 'subscription_id' => 'SAMPLE'];
+        }
+
         if ($type === 'subscription.renewal_notice') {
             return ['email' => $email, 'renews_on' => '2027-01-31', 'cancel_by' => '2027-01-24', 'notice_days' => 30, 'subscription_id' => 'SAMPLE'];
         }

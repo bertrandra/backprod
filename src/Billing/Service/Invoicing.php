@@ -14,7 +14,6 @@ use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Commerce\Service\Subscriptions;
-use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Money\Money;
 use App\Tax\Service\Taxation;
@@ -263,47 +262,11 @@ final class Invoicing
      */
     public function cancel(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): Invoice
     {
-        $invoice = $this->show($tenantId, $productId, $invoiceId);
-
-        InvoiceStatus::assertPermits($invoice->status, InvoiceStatus::CANCELLED);
-
-        if (!InvoiceStatus::isFinal($invoice->status)) {
-            return $this->invoices->transition($invoice, InvoiceStatus::CANCELLED, $actorUserId);
-        }
-
-        if ($this->creditNotes->creditedOn($invoice->id) > 0) {
-            throw new ConflictException(
-                'INVOICE_PARTLY_CREDITED',
-                'Part of this invoice has been credited already. Credit the rest instead of cancelling it.',
-            );
-        }
-
-        // Read before anything is written, as a credit note reads its own.
-        $reversal = Taxation::reversalOf(
-            $this->taxation->factsOfInvoice($invoice->id),
-            'Reversal of the invoice this cancellation withdraws.',
-        );
-        $withdrawnAt = new DateTimeImmutable();
-
-        return $this->invoices->transition(
-            $invoice,
-            InvoiceStatus::CANCELLED,
-            $actorUserId,
-            function (Invoice $cancelled) use ($reversal, $withdrawnAt): void {
-                foreach ($reversal as $supplyType => $calculations) {
-                    $this->taxation->recordFor(
-                        $cancelled->tenantId,
-                        $cancelled->productId,
-                        // The return the sale was filed in (ADR-054).
-                        $cancelled->issuerTenantId,
-                        $cancelled->id,
-                        null,
-                        $supplyType,
-                        $withdrawnAt,
-                        $calculations,
-                    );
-                }
-            },
-        );
+        // The rule itself lives in {@see InvoiceCancellation}, where a change
+        // of plan can reach it too (ADR-076). Built here rather than injected:
+        // it is these three collaborators and nothing else, and this service's
+        // constructor is what every test that builds one by hand spells out.
+        return (new InvoiceCancellation($this->invoices, $this->creditNotes, $this->taxation))
+            ->cancel($this->show($tenantId, $productId, $invoiceId), $actorUserId);
     }
 }

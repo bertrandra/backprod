@@ -559,6 +559,56 @@ end of the paid period, and under commitment the request is refused or
 deferred by the offer's `cancellation_policy` — never silently accepted and
 then ignored. Every request is recorded with its effective date.
 
+**Money follows the document it pays** (ADR-076, 2026-11-27). Three ways it
+used not to, none reachable while every invoice was paid the moment it was
+raised — which is the only way the tests ever paid one:
+
+- **An invoice is never voided under a payment that can still collect.** The
+  attempt is abandoned *at the provider* first (`Payments::abandonAttempts`);
+  one it can no longer stop refuses the act, `PAYMENT_STILL_IN_FLIGHT`. Cancelling
+  a checkout used to ask only "has it settled?", and a 3-D Secure challenge
+  finishing afterwards charged a customer for a purchase the screen had called
+  cancelled. Money that settles on a void invoice anyway goes back by itself
+  (`payment.return_unowed`), with no credit note: cancelling already undid the
+  sale.
+- **A proration credit is a share of the invoice whose period is being cut**,
+  never of "the latest settled payment". A renewal invoice is raised days ahead
+  and due at the period's start, so the newest *settled* payment is one period
+  behind exactly when it matters. An upgrade in that window **withdraws the
+  renewal invoice** of the plan being left and credits what is left of the
+  period still running; an unpaid current period credits nothing and stays due;
+  a suspended subscription pays first (`CHANGE_AWAITS_PAYMENT`).
+- **A proration is made once per period cut** — `refunds_once_per_purpose`, an
+  index and never a check — and the change is written against the row it was
+  decided from (`SUBSCRIPTION_CHANGED`).
+
+**A change of plan is not a way out, nor a way to keep what was not bought**
+(ADR-077, 2026-11-27). The commitment's *date* already survived a change; its
+meaning did not — `cancellation_policy` and `early_termination` were re-copied
+from the arriving offer, and `CancellationPolicy` reads those, so two years on
+"no exit before the end" became "leave at the end of the month" by moving to a
+plan sold as cancellable at any time. While the commitment held is the one that
+survives, **the exit conditions it was agreed with are kept**, and a buy-out is
+priced at the version it was agreed on (`commitment_version_id`, null meaning
+the one held) — never at whatever plan is held on the day of leaving. Where the
+arriving offer's commitment ends later, that one is in force, on its own
+conditions.
+
+And the rest of the same audit, each a single rule: scheduling a move down makes
+the refusal an immediate one makes, judged **at the boundary it takes effect
+at**; a subscription due to end refuses any change of plan (`SUBSCRIPTION_ENDING`
+— one ending, and the cancellation is it); an immediate change clears a pending
+one, and says so on the event.
+
+**The `users` quota bounds who is covered, not only who may be added.** A
+subscription that moves to an offer selling fewer places stops covering the
+people beyond the new number, on the transaction that moves the plan: the most
+recently added first, never the holder, never an administrator. They keep their
+account and their role and lose coverage; the holder is told who and each person
+is told themselves, and the preview says how many before the click. "A number a
+customer pays for has to bound something" was written about joining; it was not
+yet true about changing plan.
+
 Early exit is a product decision (`FORBIDDEN` / `CHARGE_REMAINING` / `FREE`).
 When it is charged, it is invoiced through the normal billing chain, never a
 special path — and on the **cancellation's own transaction**, because a
@@ -779,8 +829,8 @@ Without that line nothing recurring happens at all.
 for a seat already held goes back through the refund chain, with its credit note,
 and a checkout nobody is paying is given up after the product's own delay
 (`product_configuration`, `checkout.abandon_after_hours`, 48 by default) — through
-the buyer's own door, so the invoice and its VAT are withdrawn as by hand, and
-never while an attempt is still open.
+the buyer's own door, so an attempt left open is abandoned at the provider and
+the invoice and its VAT are withdrawn as by hand.
 
 An interval is a minimum gap and never a time of day — there is nowhere to
 express one, and every periodic handler reads dates rather than clocks. The gap
