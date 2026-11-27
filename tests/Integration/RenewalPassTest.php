@@ -466,6 +466,95 @@ final class RenewalPassTest extends DatabaseApiTestCase
         self::assertSame('PAST_DUE', $afterTheRenewal);
     }
 
+    /**
+     * **A lawful cancellation is not undone by a debt** (ADR-076).
+     *
+     * In arrears, under a commitment, and cancelled by a policy that allows it:
+     * the renewal refuses to roll past the date the customer was given, and the
+     * sweep refused the row for being committed arrears. Neither job took it,
+     * so it stayed suspended for ever — chased, and holding the one-seat index
+     * that stops its holder from subscribing again.
+     */
+    public function testCommittedArrearsTheCustomerCancelledEndWhenTheirDateComes(): void
+    {
+        $this->chooseRenewal('{"automatic": true}');
+        $subscription = $this->subscribe();
+        $debt = $this->inArrearsWithAPeriodEndingIn('-1 day');
+        $this->committedFor('6 months');
+        $this->connection->executeStatement(
+            'UPDATE subscriptions SET cancel_at_period_end = true, cancel_effective_at = current_period_end',
+        );
+
+        // The renewal still does not roll it…
+        self::assertSame(0, $this->pass()['renewed']);
+        self::assertSame(1, $this->invoiceCount());
+
+        // …and the sweep now ends it, saying which kind of ending this was.
+        self::assertSame(1, $this->sweep());
+        self::assertSame('EXPIRED', $this->connection->fetchOne('SELECT status FROM subscriptions'));
+        self::assertSame(
+            'CANCELLATION_DUE_IN_ARREARS',
+            $this->connection->fetchOne(
+                "SELECT detail->>'reason' FROM subscription_events WHERE subscription_id = :id AND type = 'EXPIRED'",
+                ['id' => $subscription->id],
+            ),
+        );
+
+        // What was owed is still owed: ending a contract settles nothing.
+        self::assertSame('ISSUED', $this->connection->fetchOne('SELECT status FROM invoices WHERE id = :id', ['id' => $debt]));
+
+        // And the person can subscribe again, which the index refused while
+        // the dead row was still live.
+        self::assertEquals(0, $this->connection->fetchOne(
+            "SELECT count(*) FROM subscriptions WHERE status IN ('ACTIVE', 'PAST_DUE')",
+        ));
+    }
+
+    /**
+     * A cancellation dated later is not due yet, so the commitment still holds
+     * the row for the renewal — the two jobs never want the same one.
+     */
+    public function testCommittedArrearsCancelledForLaterAreStillTheRenewals(): void
+    {
+        $this->chooseRenewal('{"automatic": true}');
+        $this->subscribe();
+        $this->inArrearsWithAPeriodEndingIn('-1 day');
+        $this->committedFor('6 months');
+        $this->connection->executeStatement(
+            'UPDATE subscriptions SET cancel_at_period_end = true, cancel_effective_at = commitment_ends_at',
+        );
+
+        self::assertSame(0, $this->sweep());
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertSame('PAST_DUE', $this->connection->fetchOne('SELECT status FROM subscriptions'));
+    }
+
+    /**
+     * Arrears at a term that does not roll end there, and the history says so
+     * once (2026-11-27). `expire()` matched ACTIVE alone, so the row stayed
+     * suspended while an EXPIRED event was written for it on every pass.
+     */
+    public function testArrearsReachingATermThatDoesNotRollEndOnceAndForReal(): void
+    {
+        $this->chooseRenewal('{"automatic": true}');
+        $subscription = $this->subscribe();
+        $this->inArrearsWithAPeriodEndingIn('1 day');
+        $this->committedFor('6 months');
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET renewal = 'ENDS_AT_TERM', term_months = NULL, term_ends_at = NULL",
+        );
+
+        $service = $this->container()->get(Subscriptions::class);
+        self::assertInstanceOf(Subscriptions::class, $service);
+
+        $ended = $service->renew($subscription->tenantId, $subscription->productId, $subscription->subscriberUserId);
+
+        self::assertSame(Subscription::EXPIRED, $ended->status);
+        self::assertEquals(1, $this->connection->fetchOne(
+            "SELECT count(*) FROM subscription_events WHERE type = 'EXPIRED'",
+        ));
+    }
+
     public function testTheSweepStillEndsArrearsWithNoCommitment(): void
     {
         $this->chooseRenewal('{"automatic": true}');

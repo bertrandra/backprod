@@ -814,8 +814,16 @@ final class SalesChainTest extends DatabaseApiTestCase
         // a payment would strand it forever.
         self::assertSame('COMPLETED', $fulfilled['status'] ?? null);
         self::assertIsString($fulfilled['subscription_id'] ?? null);
-        self::assertIsString($fulfilled['invoice_id'] ?? null);
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM payments'));
+
+        // And no document (ADR-076). It asserted an invoice here until
+        // 2026-11-27: a €0 number in a gapless series for no transaction,
+        // which nothing ever marked paid and the collection pass then
+        // suspended the free seat for.
+        self::assertArrayHasKey('invoice_id', $fulfilled);
+        self::assertNull($fulfilled['invoice_id']);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM tax_records'));
     }
 
     public function testThePaidInvoiceNamesTheSubscriptionItStarted(): void

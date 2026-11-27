@@ -89,6 +89,17 @@ final class CollectOverdueInvoices implements JobHandler
      */
     private const BATCH = 200;
 
+    /**
+     * How many batches one pass reads (2026-11-27).
+     *
+     * It read one. The order is oldest debt first and a debt chased to its last
+     * step never leaves it, so two hundred settled-in rows at the head hid
+     * every newer debt behind them for good: never declared, never told. The
+     * renewal and the notices were given pages for the same reason; this is
+     * the same loop. Bounded still, because a cron pass has to finish.
+     */
+    private const PAGES = 20;
+
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly Notifications $notifications,
@@ -130,57 +141,70 @@ final class CollectOverdueInvoices implements JobHandler
          */
         $asked = [];
 
-        foreach ($this->subscriptions->overdue(self::BATCH) as $debt) {
-            $schedule = $schedules[$debt->productId]
-                ??= DunningSchedule::fromConfiguration($this->settings->all($debt->productId));
+        for ($page = 0; $page < self::PAGES; $page++) {
+            $batch = $this->subscriptions->overdue(self::BATCH, $page * self::BATCH);
 
-            $step = $schedule->stepDueAfter($debt->daysOverdue);
+            foreach ($batch as $debt) {
+                $schedule = $schedules[$debt->productId]
+                    ??= DunningSchedule::fromConfiguration($this->settings->all($debt->productId));
 
-            if ($step === null) {
-                // Inside the grace the operator chose. Not in arrears yet, and
-                // deliberately nothing is written: an invoice issued and paid
-                // within the hour must leave no trace of having been chased.
-                $withinGrace++;
+                $step = $schedule->stepDueAfter($debt->daysOverdue);
 
-                continue;
+                if ($step === null) {
+                    // Inside the grace the operator chose. Not in arrears yet, and
+                    // deliberately nothing is written: an invoice issued and paid
+                    // within the hour must leave no trace of having been chased.
+                    $withinGrace++;
+
+                    continue;
+                }
+
+                if (!$debt->alreadyInArrears && $this->subscriptions->declareArrears($debt->subscriptionId, $debt->invoiceId)) {
+                    $suspended++;
+                }
+
+                if ($debt->recipientUserId === null) {
+                    // An organisation's subscription whose tenant has no
+                    // administrator. Counted rather than skipped: a debt nobody was
+                    // told about must not read as nothing to collect. The
+                    // suspension above still stands — the money is owed whether or
+                    // not there is anybody to write to.
+                    $unaddressed++;
+
+                    continue;
+                }
+
+                if (!$this->tell($debt, $step, $debt->recipientUserId)) {
+                    // The index refused it: this step's notice already exists, so
+                    // no second attempt is started either. This is what keeps a
+                    // nightly pass from authorizing a payment every night.
+                    $alreadyChased++;
+
+                    continue;
+                }
+
+                $chased++;
+
+                if (isset($asked[$debt->dedupKey($step)])) {
+                    // A colleague of theirs was told about this same debt a moment
+                    // ago and the money has already been asked for. They still get
+                    // their own notice — that is why the loop reached here — and
+                    // one debt is asked for once.
+                    continue;
+                }
+
+                $asked[$debt->dedupKey($step)] = true;
+                $this->attempt($debt);
             }
 
-            if (!$debt->alreadyInArrears && $this->subscriptions->declareArrears($debt->subscriptionId, $debt->invoiceId)) {
-                $suspended++;
+            // A debt declared or chased is still an unpaid invoice, so it stays
+            // in the read and an offset walks it. An attempt that collects at
+            // once drops its row and shifts the next page by one: the debt
+            // skipped is read by the next pass, and the dedup key makes
+            // re-reading the others free.
+            if (count($batch) < self::BATCH) {
+                break;
             }
-
-            if ($debt->recipientUserId === null) {
-                // An organisation's subscription whose tenant has no
-                // administrator. Counted rather than skipped: a debt nobody was
-                // told about must not read as nothing to collect. The
-                // suspension above still stands — the money is owed whether or
-                // not there is anybody to write to.
-                $unaddressed++;
-
-                continue;
-            }
-
-            if (!$this->tell($debt, $step, $debt->recipientUserId)) {
-                // The index refused it: this step's notice already exists, so
-                // no second attempt is started either. This is what keeps a
-                // nightly pass from authorizing a payment every night.
-                $alreadyChased++;
-
-                continue;
-            }
-
-            $chased++;
-
-            if (isset($asked[$debt->dedupKey($step)])) {
-                // A colleague of theirs was told about this same debt a moment
-                // ago and the money has already been asked for. They still get
-                // their own notice — that is why the loop reached here — and
-                // one debt is asked for once.
-                continue;
-            }
-
-            $asked[$debt->dedupKey($step)] = true;
-            $this->attempt($debt);
         }
 
         return [

@@ -7,6 +7,7 @@ namespace App\Commerce\Infrastructure;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\DueRenewal;
 use App\Commerce\Domain\Feature;
+use App\Commerce\Domain\FreemiumPeriod;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\OverdueSubscription;
@@ -488,8 +489,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
      * subscription moved to the offer it was going to move to. The detail
      * says it arrived by schedule rather than by somebody clicking.
      */
-    public function applyPendingChange(Subscription $subscription, string $direction, callable $alsoBill): Subscription
-    {
+    public function applyPendingChange(
+        Subscription $subscription,
+        string $direction,
+        callable $alsoBill,
+        ?FreemiumPeriod $freePeriod = null,
+    ): Subscription {
         $pending = $subscription->pending;
 
         if ($pending === null) {
@@ -498,7 +503,28 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
 
         $offer = $this->offerOfVersion($pending->offerVersionId);
         $from = $subscription->currentPeriodEnd ?? new DateTimeImmutable();
-        $periodEnd = $offer->version->periodEndFrom($from);
+
+        // An offer billed by period ends where its period does. The free
+        // period is `CUSTOM` — never billed, so it has no period to count —
+        // and ends where taking it at the door would have ended it: the
+        // product's own number of days, counted from the boundary (ADR-076).
+        // It was left with no end at all until 2026-11-27: entitlements valid
+        // for ever on a row neither the renewal nor the sweep ever reads
+        // again, which is a free period that never finishes.
+        $periodEnd = $offer->version->periodEndFrom($from)
+            ?? ($offer->version->isFreemium() ? $freePeriod?->endsFrom($from) : null);
+
+        if ($periodEnd === null) {
+            // Nothing says how long this would last, so it does not start.
+            // The same refusal the door makes (`FREEMIUM_NOT_OFFERED`) and the
+            // renewal makes of a period it cannot price: fail closed, because
+            // the one direction that cannot be taken back is giving time away.
+            throw new ConflictException(
+                'CHANGE_HAS_NO_PERIOD',
+                'The offer this subscription was to move to has no period to run for.',
+                ['offer_version_id' => $offer->version->id, 'billing_period' => $offer->version->billingPeriod],
+            );
+        }
 
         return $this->connection->transactional(
             function () use ($subscription, $offer, $from, $periodEnd, $pending, $direction, $alsoBill): Subscription {
@@ -725,6 +751,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    -- The flag cannot say which, because every deferral sets it.
                    AND (s.cancel_effective_at IS NULL
                         OR s.cancel_effective_at > s.current_period_end)
+                   -- Nor anything whose cancellation date has come (ADR-076).
+                   -- Only arrears under commitment are read after their period
+                   -- lapsed, and one of those the customer lawfully cancelled
+                   -- is the sweep's from that date on: this condition and the
+                   -- sweep's are each other's negation, so the two jobs still
+                   -- never hold the same row.
+                   AND (s.cancel_effective_at IS NULL OR s.cancel_effective_at > now())
                    -- An offer sold as ending at its term is offered only for
                    -- the periods inside it: its last one ends by the sweep, at
                    -- its end, never by this pass days before (2026-10-29).
@@ -894,19 +927,28 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     {
         return $this->connection->transactional(
             function () use ($subscription, $why): Subscription {
-                $this->connection->executeStatement(
+                // In arrears too (2026-11-27). The renewal reads arrears under
+                // commitment and brings them here at a term that does not roll;
+                // matching ACTIVE alone left the row suspended for ever while
+                // its history said it had ended.
+                $ended = $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
                            SET status = 'EXPIRED',
                                ended_at = coalesce(current_period_end, now()),
                                updated_at = now()
-                         WHERE id = :id AND status = 'ACTIVE'
+                         WHERE id = :id AND status IN ('ACTIVE', 'PAST_DUE')
                         SQL,
                     ['id' => $subscription->id],
                 );
 
-                // No actor: nobody did this, the clock did.
-                $this->record($subscription->id, SubscriptionEvent::EXPIRED, $subscription->offer->version->id, null, null, ['reason' => $why]);
+                // The event is the trace of the transition, so it is written
+                // only when there was one: a row already ended by another pass
+                // must not gain a second ending.
+                if ($ended > 0) {
+                    // No actor: nobody did this, the clock did.
+                    $this->record($subscription->id, SubscriptionEvent::EXPIRED, $subscription->offer->version->id, null, null, ['reason' => $why]);
+                }
 
                 return $this->requireById($subscription->id, 'expired');
             },
@@ -1046,7 +1088,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    public function overdue(int $limit): array
+    public function overdue(int $limit, int $offset = 0): array
     {
         // `coalesce(i.due_at, i.issued_at)`: every invoice this platform raises
         // says "payable on receipt", and `due_at` has never been written by
@@ -1101,10 +1143,15 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    AND i.status IN ('ISSUED', 'READY_FOR_EINVOICE', 'SUBMITTED', 'ACCEPTED', 'REJECTED')
                    AND i.issued_at IS NOT NULL
                    AND coalesce(i.due_at, i.issued_at) < now()
+                   -- Nothing to collect is nothing to chase (ADR-076). A
+                   -- document of zero was a debt in this query's eyes until
+                   -- 2026-11-27: nothing ever marked it paid, so the pass
+                   -- suspended a free seat for owing nothing.
+                   AND i.gross_minor_units > 0
                  ORDER BY coalesce(i.due_at, i.issued_at), i.id, r.user_id
-                 LIMIT :limit
+                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['limit' => $limit],
+            ['limit' => $limit, 'offset' => $offset],
         );
 
         return array_map(
@@ -1319,28 +1366,57 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             // even when the period has lapsed. Expiring it here would end a
             // contract the customer is bound to because one invoice went
             // unpaid — and because two jobs disagreed about the same row.
-            $ids = $this->connection->fetchFirstColumn(
+            //
+            // **Unless the customer cancelled and the date has come**
+            // (ADR-076, 2026-11-27). A commitment binds somebody to keep
+            // paying; it does not undo a cancellation the policy accepted.
+            // The renewal refuses to roll past that date and this sweep
+            // refused the row for being committed arrears, so it stayed
+            // suspended for ever, chased, and holding the one-seat index that
+            // stops its holder subscribing again. It ends here, saying why.
+            // What it owes is still owed: the invoices stay as they are.
+            //
+            // Selected first and updated from the selection, because the
+            // event has to say which kind of ending this was and `RETURNING`
+            // sees the row after it changed — `status` is already EXPIRED
+            // there, so the question could no longer be asked.
+            $rows = $this->connection->fetchAllAssociative(
                 <<<'SQL'
-                    UPDATE subscriptions
-                       SET status = 'EXPIRED', ended_at = now(), updated_at = now()
-                     WHERE status IN ('ACTIVE', 'PAST_DUE')
-                       AND current_period_end IS NOT NULL
-                       AND current_period_end < now()
-                       AND NOT
-                    SQL . self::COMMITTED_ARREARS . <<<'SQL'
+                    WITH lapsed AS (
+                        SELECT id,
+                    SQL . ' ' . self::COMMITTED_ARREARS . <<<'SQL'
+                     AS cancelled_in_arrears
+                          FROM subscriptions
+                         WHERE status IN ('ACTIVE', 'PAST_DUE')
+                           AND current_period_end IS NOT NULL
+                           AND current_period_end < now()
+                           AND (NOT
+                    SQL . ' ' . self::COMMITTED_ARREARS . <<<'SQL'
 
-                    RETURNING id
+                                OR coalesce(cancel_effective_at <= now(), false))
+                           FOR UPDATE
+                    )
+                    UPDATE subscriptions s
+                       SET status = 'EXPIRED', ended_at = now(), updated_at = now()
+                      FROM lapsed
+                     WHERE s.id = lapsed.id
+                    RETURNING s.id, lapsed.cancelled_in_arrears
                     SQL,
             );
 
-            foreach ($ids as $id) {
-                if (is_string($id)) {
-                    // No actor: nobody did this, the clock did.
-                    $this->record($id, SubscriptionEvent::EXPIRED, null, null, null, []);
-                }
+            foreach ($rows as $row) {
+                // No actor: nobody did this, the clock did.
+                $this->record(
+                    Row::string($row, 'id'),
+                    SubscriptionEvent::EXPIRED,
+                    null,
+                    null,
+                    null,
+                    self::boolean($row, 'cancelled_in_arrears') ? ['reason' => 'CANCELLATION_DUE_IN_ARREARS'] : [],
+                );
             }
 
-            return count($ids);
+            return count($rows);
         });
     }
 

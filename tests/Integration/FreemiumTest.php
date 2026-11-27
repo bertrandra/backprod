@@ -9,6 +9,7 @@ use App\Auth\Domain\AuthProvider;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
+use App\Commerce\Domain\FreemiumPeriod;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
@@ -688,11 +689,84 @@ final class FreemiumTest extends DatabaseApiTestCase
             $this->user,
         );
 
-        $after = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
+        $after = $this->subscriptions()->renew(
+            $this->tenant,
+            $this->product,
+            $this->user,
+            FreemiumPeriod::ofDays(self::DAYS),
+        );
 
         self::assertSame('freemium', $after->offer->code);
         self::assertTrue($after->isFreemium, 'the right is consumed, so the row has to say so');
         self::assertSame(1, $this->rowsOf('SELECT count(*) FROM subscriptions WHERE is_freemium'));
+    }
+
+    /**
+     * And it ends when taking it at the door would have ended it (ADR-076).
+     *
+     * A free period is never billed, so its offer has no billing period to
+     * count, and the change used to leave `current_period_end` empty: a row
+     * neither the renewal nor the sweep ever reads again, with entitlements
+     * valid for ever. A free period that never finishes is the product given
+     * away, and nothing on any screen said so.
+     */
+    public function testAFreePeriodReachedByAScheduledChangeEndsLikeOneTakenAtTheDoor(): void
+    {
+        $before = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user, $this->user);
+        $boundary = $before->currentPeriodEnd;
+        self::assertNotNull($boundary);
+
+        $this->subscriptions()->scheduleChange($this->tenant, $this->product, $this->freemiumOffer, $this->user);
+
+        $after = $this->subscriptions()->renew(
+            $this->tenant,
+            $this->product,
+            $this->user,
+            FreemiumPeriod::ofDays(self::DAYS),
+        );
+
+        // Counted from the boundary the change happens at, never from the
+        // moment the pass ran.
+        self::assertNotNull($after->currentPeriodEnd, 'a free period with no end never finishes');
+        self::assertEqualsWithDelta(
+            $boundary->modify('+' . self::DAYS . ' days')->getTimestamp(),
+            $after->currentPeriodEnd->getTimestamp(),
+            2,
+        );
+
+        // And what it grants stops there too: the clock ends a free period,
+        // not a job that might not run.
+        self::assertSame(0, $this->rowsOf(
+            "SELECT count(*) FROM entitlements WHERE source = 'SUBSCRIPTION'"
+            . ' AND valid_until IS NULL AND subscription_id IS NOT NULL',
+        ));
+
+        // No document: a free period costs nothing.
+        self::assertSame(0, $this->rowsOf('SELECT count(*) FROM invoices'));
+    }
+
+    /**
+     * With nothing saying how long it lasts, it does not start.
+     *
+     * The same refusal the door makes of a product that has not configured
+     * its free period — fail closed, because time given away cannot be taken
+     * back. The subscription stays on what it holds and lapses at its period's
+     * end like any other that was not renewed.
+     */
+    public function testAScheduledChangeOntoAFreePeriodOfNoKnownLengthIsRefused(): void
+    {
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user, $this->user);
+        $this->subscriptions()->scheduleChange($this->tenant, $this->product, $this->freemiumOffer, $this->user);
+
+        try {
+            $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
+            self::fail('A change onto a period of no length was applied.');
+        } catch (ConflictException $refusal) {
+            self::assertSame('CHANGE_HAS_NO_PERIOD', $refusal->errorCode());
+        }
+
+        self::assertSame(0, $this->rowsOf('SELECT count(*) FROM subscriptions WHERE current_period_end IS NULL'));
+        self::assertSame(0, $this->rowsOf('SELECT count(*) FROM subscriptions WHERE is_freemium'));
     }
 
     /**

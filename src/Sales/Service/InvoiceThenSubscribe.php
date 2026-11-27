@@ -52,6 +52,20 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         // Who sells and who buys, decided in one place since 2026-09-25 —
         // and it refuses before anything is written, because numbering is
         // gapless and a document raised by mistake cannot be deleted.
+        //
+        // **And nothing to collect raises nothing** (ADR-076, 2026-11-27),
+        // asked before the parties are: tax on nothing is nothing, so
+        // resolving who sells would only be a way of refusing a free seat to
+        // an organisation that has not said which country it sells from —
+        // the reasoning `ChargeOnOfferChange` already gives. The terms are
+        // still checked: free or not, an order is not completed on an offer
+        // withdrawn since it was placed.
+        if ($order->gross->minorUnits === 0) {
+            $this->offerIdFor($order);
+
+            return ['invoice_id' => null];
+        }
+
         $parties = $this->parties->forSale($order->tenantId, $order->productId, $order->subscriberUserId);
 
         $offer = SubscribedOffer::from(
@@ -108,13 +122,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             },
         );
 
-        return [
-            'invoice_id' => $invoice->id,
-            // Nothing to collect is not the same as nothing to do: the
-            // invoice still exists, because a €0 document is still the record
-            // of what was sold. It simply has no payment to wait for.
-            'awaiting_payment' => $order->gross->minorUnits > 0,
-        ];
+        return ['invoice_id' => $invoice->id];
     }
 
     public function activate(Order $order): string

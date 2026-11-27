@@ -560,6 +560,76 @@ final class PastDueTest extends DatabaseApiTestCase
     }
 
     /**
+     * A document of zero is nobody's debt (ADR-076).
+     *
+     * Nothing ever marks a €0 invoice paid — there is nothing to pay it with —
+     * so the pass read it as overdue for ever and suspended a free seat for
+     * owing nothing. Deployments hold such invoices from before 2026-11-27,
+     * which is why the read refuses them rather than trusting that none exist.
+     */
+    public function testAnInvoiceOfNothingIsNeverChased(): void
+    {
+        $subscription = $this->subscribe();
+        $invoice = $this->id(
+            <<<'SQL'
+                INSERT INTO invoices
+                    (tenant_id, product_id, subscription_id, number, status, currency,
+                     net_minor_units, vat_minor_units, gross_minor_units, issued_at)
+                VALUES (:tenant, :product, :subscription, '2026-000001', 'ISSUED', 'EUR',
+                        0, 0, 0, now() - interval '30 days')
+                RETURNING id
+                SQL,
+            ['tenant' => $this->tenant, 'product' => $this->product, 'subscription' => $subscription],
+        );
+
+        $pass = $this->collect();
+
+        self::assertSame(0, $pass['suspended'] ?? null);
+        self::assertSame(0, $pass['chased'] ?? null);
+        self::assertSame('ACTIVE', $this->statusOf($subscription));
+        self::assertSame(0, $this->attemptsOn($invoice));
+        self::assertSame(0, $this->noticesRaised());
+    }
+
+    /**
+     * **Every debt is reached, not only the oldest two hundred** (2026-11-27).
+     *
+     * The pass read one page, oldest first, and a debt chased to its last step
+     * never leaves that order — so a head of settled-in debts hid every newer
+     * one behind it for good: never declared, never told. Here the newest of
+     * 201 is the only one past its grace on a second subscription, and it is
+     * the one the page used to leave out.
+     */
+    public function testADebtBeyondTheFirstPageIsStillDeclaredAndChased(): void
+    {
+        $subscription = $this->subscribe();
+
+        // Two hundred older debts on one subscription fill the first page.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO invoices
+                    (tenant_id, product_id, subscription_id, number, status, currency,
+                     net_minor_units, vat_minor_units, gross_minor_units, issued_at)
+                SELECT :tenant, :product, :subscription, '2025-' || lpad(n::text, 6, '0'), 'ISSUED', 'EUR',
+                       2900, 580, 3480, now() - make_interval(days => 400 - n)
+                  FROM generate_series(1, 200) AS n
+                SQL,
+            ['tenant' => $this->tenant, 'product' => $this->product, 'subscription' => $subscription],
+        );
+
+        // And one newer debt, on a seat of somebody else's.
+        $other = $this->subscribeAs($this->colleague);
+        $newest = $this->overdueInvoice($other, days: 2, number: '2026-000777');
+
+        $pass = $this->collect();
+
+        self::assertSame('PAST_DUE', $this->statusOf($other), 'a debt behind the first page was never declared');
+        self::assertSame(1, $this->attemptsOn($newest));
+        self::assertSame(2, $pass['suspended'] ?? null);
+        self::assertSame(201, $pass['chased'] ?? null);
+    }
+
+    /**
      * **The schedule comes from the product, not from a constant.** Configure a
      * product to wait five days and two days overdue is inside its grace, where
      * the default's J+1 would already have suspended and chased.
@@ -709,6 +779,15 @@ final class PastDueTest extends DatabaseApiTestCase
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
         return $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner)->id;
+    }
+
+    /** A seat of this person's own, started the way the platform does. */
+    private function subscribeAs(string $userId): string
+    {
+        $subscriptions = $this->container()->get(Subscriptions::class);
+        self::assertInstanceOf(Subscriptions::class, $subscriptions);
+
+        return $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $userId, $userId)->id;
     }
 
     /**
