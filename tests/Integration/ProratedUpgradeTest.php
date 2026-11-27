@@ -742,7 +742,8 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
     {
         $this->buyASeat($this->starterOffer);
         $this->connection->executeStatement(
-            "UPDATE subscriptions SET status = 'PAST_DUE', past_due_since = now() WHERE tenant_id = :tenant",
+            "UPDATE subscriptions SET status = 'PAST_DUE', past_due_since = now(),"
+            . ' past_due_invoice_id = (SELECT id FROM invoices WHERE tenant_id = :tenant LIMIT 1) WHERE tenant_id = :tenant',
             ['tenant' => $this->tenant],
         );
 
@@ -810,18 +811,27 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
             ),
             ['tenant' => $this->tenant, 'product' => $this->product],
         );
-        $this->connection->executeStatement(
-            sprintf(
-                <<<'SQL'
-                    UPDATE invoices
-                       SET period_start = now() - interval '%d days',
-                           period_end = now() + interval '3 days'
-                     WHERE tenant_id = :tenant AND product_id = :product
-                    SQL,
-                self::PERIOD_DAYS - 3,
-            ),
-            ['tenant' => $this->tenant, 'product' => $this->product],
-        );
+        // An issued invoice is frozen, and rightly: the trigger is lifted for
+        // the one statement that moves this fixture back in time, exactly as
+        // `TestDatabase` lifts it to clean up, and put back at once.
+        $this->connection->executeStatement('ALTER TABLE invoices DISABLE TRIGGER invoices_issued_is_frozen');
+
+        try {
+            $this->connection->executeStatement(
+                sprintf(
+                    <<<'SQL'
+                        UPDATE invoices
+                           SET period_start = now() - interval '%d days',
+                               period_end = now() + interval '3 days'
+                         WHERE tenant_id = :tenant AND product_id = :product
+                        SQL,
+                    self::PERIOD_DAYS - 3,
+                ),
+                ['tenant' => $this->tenant, 'product' => $this->product],
+            );
+        } finally {
+            $this->connection->executeStatement('ALTER TABLE invoices ENABLE TRIGGER invoices_issued_is_frozen');
+        }
         $this->connection->executeStatement(
             'UPDATE entitlements SET valid_until = now() + interval \'3 days\' WHERE tenant_id = :tenant',
             ['tenant' => $this->tenant],
