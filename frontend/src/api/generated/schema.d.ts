@@ -5074,6 +5074,54 @@ export interface components {
              */
             requested_by: string | null;
         };
+        /** @description What happens next to a subscription, said by the server (ADR-079). The renewal rolls and invoices a few days before a period ends, so the row's own `current_period_*` describe the **next** period for those days; `service_until` is the end of the one actually running. */
+        SubscriptionOutlook: {
+            /**
+             * Format: date-time
+             * @description The end of the period actually running — what is paid for. Null for terms with no period.
+             */
+            service_until: string | null;
+            /** @description The period invoiced ahead that has not begun, when there is one. Cancelling before it starts withdraws its invoice: cancelled if unpaid, refunded with a credit note if paid. */
+            next_period: {
+                /** Format: date-time */
+                starts_at: string | null;
+                /** Format: date-time */
+                ends_at: string | null;
+                /**
+                 * Format: uuid
+                 * @description The invoice raised for it; null for a period that costs nothing.
+                 */
+                invoice_id: string | null;
+            } | null;
+            /**
+             * @description What happens when the period running ends, if nobody does anything. `RENEWS_PERIOD`: the next period of the same contract. `RENEWS_TERM`: the term ends there and the next one starts, tacitly — once the pre-renewal notice was given in time (ADR-071). `ENDS`: nothing follows — a cancellation due, an offer sold as ending at its term, a product that does not renew by itself.
+             * @enum {string}
+             */
+            continuation: "ENDS" | "RENEWS_PERIOD" | "RENEWS_TERM";
+            /**
+             * Format: date-time
+             * @description When the subscription ends, when that is known: a cancellation's effective date, or the term of an offer sold as ending there. Null while it simply continues.
+             */
+            ends_on: string | null;
+            /**
+             * Format: date-time
+             * @description The day the next term starts, when `continuation` is `RENEWS_TERM`.
+             */
+            term_renews_on: string | null;
+            /**
+             * Format: date
+             * @description The last day to refuse that renewal — the product's renewal lead before it, the same date the pre-renewal notice carries.
+             */
+            term_cancel_by: string | null;
+            /** @description What a cancellation asked for now would do: the cancellation policy's own decision, the one `cancelSubscription` would take. Read-only; asking changes nothing. */
+            if_cancelled_now: {
+                accepted: boolean;
+                rule_id: string;
+                effect: string | null;
+                /** Format: date-time */
+                effective_at: string | null;
+            };
+        };
         /** @description Why the answer is what it is. What a customer needs is not `cancelled: true` but *when* it takes effect and which rule decided that (§13.1) — so the rule's id travels with the decision and the reasons are in plain words. */
         CancellationDecision: {
             accepted: boolean;
@@ -6184,10 +6232,10 @@ export interface components {
              */
             order_id: string;
             /**
-             * @description `PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming. `HELD` is the opposite anomaly: paid and yet not completed. The money arrived after the organisation's subscription to this product had already started — the race between two orders opened before either was paid — so nothing was provisioned twice, and the payment is the operator's to refund.
+             * @description `PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming. `HELD` is the opposite anomaly: paid and yet not completed. The money arrived after the buyer's seat on this product had already started — the race between two orders opened before either was paid — so nothing was provisioned twice. It does not last: `sweep.orders` gives the payment back through the ordinary refund chain, with its credit note, and the session then reads `REFUNDED` — cancelled, and the money returned, which is not what `CANCELLED` says (nothing was charged). `AWAITING_PAYMENT` with no `payment_id` is a session whose first attempt could not be started; a new one is started from the invoice.
              * @enum {string}
              */
-            status: "AWAITING_PAYMENT" | "PAYMENT_FAILED" | "COMPLETED" | "CANCELLED" | "HELD";
+            status: "AWAITING_PAYMENT" | "PAYMENT_FAILED" | "COMPLETED" | "CANCELLED" | "HELD" | "REFUNDED";
             /**
              * Format: uuid
              * @description Null only for an order with nothing to collect — a free offer.
@@ -12670,6 +12718,8 @@ export interface operations {
                         events: components["schemas"]["SubscriptionEvent"][];
                         /** @description The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes. */
                         seat: components["schemas"]["Subscription"] | null;
+                        /** @description What happens next to the caller's seat (ADR-079), or null when they hold none. Derived on read from what the platform already holds — the terms the subscription snapshotted, the product's renewal setting, the cancellation policy's own decision — and never stored. A screen renders these dates and computes none of them. */
+                        outlook: components["schemas"]["SubscriptionOutlook"] | null;
                         /**
                          * @description Whether the caller's one free period for this product is spent (spec §6.4). The caller's own fact, like `seat`, and never withheld.
                          *
@@ -12729,6 +12779,15 @@ export interface operations {
                              * @description The early-termination invoice, when one was raised. Null when leaving cost nothing.
                              */
                             charge_invoice_id?: string | null;
+                            /** @description A period that had been invoiced ahead and had not begun when the cancellation took effect, and what became of its invoice (ADR-079). The renewal raises the next period's invoice a few days early; somebody who cancels in those days ends with the period actually running and does not owe the next. `INVOICE_CANCELLED`: it was unpaid and is cancelled, with the reversal of the VAT it declared. `INVOICE_REFUNDED`: it was paid, and everything it collected goes back to the means it was paid with, with a credit note. `NO_INVOICE`: nothing had been raised, or nothing this could withdraw. Null in the ordinary case. */
+                            unstarted_period?: {
+                                /** Format: date-time */
+                                starts_at: string;
+                                /** Format: uuid */
+                                invoice_id: string | null;
+                                /** @enum {string} */
+                                outcome: "INVOICE_CANCELLED" | "INVOICE_REFUNDED" | "NO_INVOICE";
+                            } | null;
                         };
                     };
                 };

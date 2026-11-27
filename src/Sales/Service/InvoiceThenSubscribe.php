@@ -44,6 +44,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         private readonly Catalogue $catalogue,
         private readonly WhoSellsAndWhoBuys $parties,
         private readonly Taxation $taxation,
+        private readonly PurchaseNotices $notices,
     ) {
     }
 
@@ -159,6 +160,11 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         if ($order->invoiceId !== null) {
             $this->invoices->applyAttachSubscription($order->invoiceId, $subscription->id);
         }
+
+        // Said here because this is where it becomes true, for the paid order
+        // and the free one alike — and on this transaction, so a seat that
+        // did not start is never announced (ADR-079).
+        $this->notices->confirmed($order, $offer->name);
 
         return $subscription->id;
     }

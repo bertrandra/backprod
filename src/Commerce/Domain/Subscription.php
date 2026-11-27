@@ -132,6 +132,29 @@ final class Subscription
     }
 
     /**
+     * Whether the period on the row has not begun yet (ADR-079).
+     *
+     * The renewal rolls and invoices a lead before the period ends (ADR-070),
+     * so for those days the row describes the *next* period while the customer
+     * is still inside the one they paid for. Everything that speaks of "the end
+     * of the paid period" has to mean the one running — or cancelling in that
+     * window ends a whole period later than the customer was told it would.
+     */
+    public function hasUnstartedPeriodAt(DateTimeImmutable $moment): bool
+    {
+        return $this->currentPeriodEnd !== null && $this->currentPeriodStart > $moment;
+    }
+
+    /**
+     * Where the period actually running ends: where the unstarted one starts
+     * when the row was rolled ahead, the period's own end otherwise.
+     */
+    public function runningPeriodEndAt(DateTimeImmutable $moment): ?DateTimeImmutable
+    {
+        return $this->hasUnstartedPeriodAt($moment) ? $this->currentPeriodStart : $this->currentPeriodEnd;
+    }
+
+    /**
      * In arrears, and still committed past the end of the period being
      * renewed (ADR-072, 2026-10-29).
      *

@@ -616,6 +616,13 @@ final class PostgresPaymentRepository implements PaymentRepository
             $settlement->settle($payment);
         }
 
+        // And a refusal is told to whoever was waiting on the money, on the
+        // same transaction (ADR-079). FAILED only: an attempt CANCELLED was
+        // abandoned for a newer one, and nobody is waiting on that.
+        if ($status === PaymentStatus::FAILED) {
+            $settlement->failed($payment);
+        }
+
         return WebhookOutcome::of(WebhookOutcome::APPLIED, $payment->id);
     }
 

@@ -166,6 +166,19 @@ final class Payments
     }
 
     /**
+     * Abandons whatever attempt at this invoice is still open, at the
+     * provider, so nothing can settle it afterwards (ADR-079).
+     *
+     * For a caller about to withdraw the document — a period cancelled before
+     * it began. The same refusal as a new attempt meets when the provider says
+     * the money is already on its way: `PAYMENT_STILL_IN_FLIGHT`.
+     */
+    public function abandonAttempts(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): void
+    {
+        $this->supersedeLiveAttempts($this->requireInvoice($tenantId, $productId, $invoiceId), $actorUserId);
+    }
+
+    /**
      * One attempt at a time per invoice (2026-10-29).
      *
      * Every call minted a new attempt beside whatever was still live, so a

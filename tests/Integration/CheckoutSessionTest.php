@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Job\Service\JobRunner;
+use App\Payment\Domain\Payment;
+use App\Payment\Domain\PaymentProvider;
+use App\Payment\Domain\ProviderEvent;
+use App\Payment\Domain\ProviderPayment;
+use App\Payment\Domain\ProviderRefund;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Money\Money;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -17,6 +24,7 @@ use App\Tests\Support\FakeAuthProvider;
 use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
+use RuntimeException;
 
 /**
  * Checkout, against the real chain (§7's Checkout block).
@@ -547,7 +555,307 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('ACTIVE', $this->connection->fetchOne('SELECT status FROM subscriptions'));
     }
 
+    // --- What the buyer is told, and what happens to money nobody can use ----
+
+    /**
+     * A purchase was silent from end to end until ADR-079: the only mail this
+     * platform sent about money was the one asking for it.
+     */
+    public function testThePurchaserIsToldTheSeatHasStarted(): void
+    {
+        $session = $this->sessionOf($this->open());
+
+        // Nothing yet: an order awaiting its money has started nothing.
+        self::assertSame(0, $this->noticesOf('purchase.confirmed'));
+
+        $this->pay($session, 'evt_paid');
+
+        // Raised on the payment's own transaction, to the person the seat is
+        // for, and sent by the queue — never by the webhook that recorded it.
+        self::assertSame(1, $this->noticesOf('purchase.confirmed'));
+        self::assertSame(
+            $this->user,
+            $this->connection->fetchOne("SELECT recipient_user_id FROM notifications WHERE type = 'purchase.confirmed'"),
+        );
+
+        // A second delivery of the same event raises no second notice.
+        $this->pay($session, 'evt_paid');
+        self::assertSame(1, $this->noticesOf('purchase.confirmed'));
+    }
+
+    public function testThePurchaserIsToldTheCardWasRefusedAndWhereToTryAgain(): void
+    {
+        $session = $this->sessionOf($this->open());
+        $reference = $this->connection->fetchOne(
+            'SELECT provider_payment_id FROM payments WHERE id = :id',
+            ['id' => $session['payment_id'] ?? null],
+        );
+        self::assertIsString($reference);
+
+        $body = $this->json(['id' => 'evt_refused', 'type' => 'payment.failed', 'payment_id' => $reference]);
+        $response = $this->request(
+            'POST',
+            '/api/v1/webhooks/payments/stub',
+            [StubPaymentProvider::SIGNATURE_HEADER => (new StubPaymentProvider(self::SECRET))->sign($body)],
+            $body,
+        );
+        self::assertSame(200, $response->getStatusCode());
+
+        self::assertSame(1, $this->noticesOf('purchase.payment_failed'));
+
+        $payload = $this->connection->fetchOne(
+            "SELECT payload::text FROM notifications WHERE type = 'purchase.payment_failed'",
+        );
+        self::assertIsString($payload);
+
+        // The link is to the purchase itself, where a new attempt is made —
+        // and nothing about the card, the provider or the amount leaves (§31).
+        self::assertStringContainsString('/checkout/', $payload);
+        self::assertStringNotContainsString('2900', $payload);
+        self::assertStringNotContainsString('card', strtolower($payload));
+    }
+
+    /**
+     * Somebody suspended for an unpaid invoice is not sold a second seat.
+     *
+     * The index counts a suspended seat as held, so the sale took their money
+     * and could start nothing; the old seat stayed shut because the money had
+     * gone to another invoice. The answer is the invoice they owe.
+     */
+    public function testSomebodyInArrearsIsSentToTheInvoiceTheyOweAndNotSoldAgain(): void
+    {
+        $session = $this->sessionOf($this->open());
+        $this->pay($session, 'evt_first');
+
+        $debt = $this->connection->fetchOne('SELECT id FROM invoices LIMIT 1');
+        self::assertIsString($debt);
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET status = 'PAST_DUE', past_due_since = now(), past_due_invoice_id = :debt",
+            ['debt' => $debt],
+        );
+
+        $response = $this->open();
+
+        self::assertSame(409, $response->getStatusCode());
+        $error = $this->errorOf($response);
+        self::assertSame('SEAT_IN_ARREARS', $error['code'] ?? null);
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM orders'));
+    }
+
+    /**
+     * **A held order is not a dead end** (ADR-079). The money arrived for a
+     * seat already held; the screen promised a refund and nothing made one.
+     * Through `JobRunner::runOnce`, which is what cron calls.
+     */
+    public function testMoneyThatArrivedForASeatAlreadyHeldGoesBackWithItsCreditNote(): void
+    {
+        $first = $this->sessionOf($this->open());
+        $second = $this->sessionOf($this->open());
+        $this->pay($first, 'evt_first');
+        $this->pay($second, 'evt_second');
+        self::assertSame('HELD', $this->sessionOf($this->show($second))['status'] ?? null);
+
+        $this->cron();
+
+        $read = $this->sessionOf($this->show($second));
+
+        // Cancelled, and the money given back — which is not what CANCELLED
+        // says of a checkout nobody paid.
+        self::assertSame('REFUNDED', $read['status'] ?? null);
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM refunds'));
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM credit_notes'));
+        self::assertSame(1, $this->noticesOf('purchase.refunded'));
+
+        // The seat that was live is untouched, and so is its order.
+        self::assertSame('COMPLETED', $this->sessionOf($this->show($first))['status'] ?? null);
+        self::assertEquals(1, $this->connection->fetchOne("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"));
+
+        // A second pass finds nothing left to do.
+        $this->cron();
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM refunds'));
+        self::assertSame(1, $this->noticesOf('purchase.refunded'));
+    }
+
+    /**
+     * **A checkout nobody is paying is given up** once the product's own
+     * delay has passed: invoice cancelled, VAT reversed, order cancelled —
+     * exactly what the buyer's own "cancel" does.
+     */
+    public function testAnAbandonedCheckoutIsGivenUpAfterTheProductsDelay(): void
+    {
+        $session = $this->sessionOf($this->open());
+        $invoice = $session['invoice_id'] ?? null;
+        self::assertIsString($invoice);
+
+        // The first attempt died — a closed tab leaves it open at the
+        // provider, which the next test is about.
+        $this->connection->executeStatement(
+            "UPDATE payments SET status = 'FAILED', failed_at = now(), failure_code = 'card_declined', failure_reason = 'Declined.'",
+        );
+
+        // Not yet: the default is two days.
+        $this->ageTheOrders(47);
+        $this->cron();
+        self::assertSame('PAYMENT_FAILED', $this->sessionOf($this->show($session))['status'] ?? null);
+
+        $this->ageTheOrders(49);
+        $this->finishTheSchedule();
+        $this->cron();
+
+        self::assertSame('CANCELLED', $this->sessionOf($this->show($session))['status'] ?? null);
+        self::assertSame('CANCELLED', $this->connection->fetchOne('SELECT status FROM invoices WHERE id = :id', ['id' => $invoice]));
+
+        // What the invoice declared is reversed: nothing was sold.
+        $vat = $this->vatOf($invoice);
+        self::assertSame(0, $vat['base']);
+        self::assertSame(0, $vat['vat']);
+    }
+
+    public function testACheckoutWhoseMoneyMayStillArriveIsLeftAlone(): void
+    {
+        $session = $this->sessionOf($this->open());
+
+        // The attempt is still open at the provider: a card being
+        // authenticated, a debit in flight.
+        $this->ageTheOrders(500);
+        $this->cron();
+
+        self::assertSame('AWAITING_PAYMENT', $this->sessionOf($this->show($session))['status'] ?? null);
+        self::assertEquals(1, $this->connection->fetchOne("SELECT count(*) FROM invoices WHERE status = 'ISSUED'"));
+    }
+
+    /**
+     * The delay is the product's, read from its configuration and never a
+     * constant: configure six hours and a seven-hour-old checkout goes, where
+     * the default would have kept it two days.
+     */
+    public function testTheProductDecidesHowLongACheckoutMayWait(): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO product_configuration (product_id, key, value)
+                VALUES (:product, 'checkout', CAST('{"abandon_after_hours": 6}' AS jsonb))
+                SQL,
+            ['product' => $this->product],
+        );
+
+        $session = $this->sessionOf($this->open());
+        $this->connection->executeStatement(
+            "UPDATE payments SET status = 'FAILED', failed_at = now(), failure_code = 'card_declined', failure_reason = 'Declined.'",
+        );
+        $this->ageTheOrders(7);
+        $this->cron();
+
+        self::assertSame('CANCELLED', $this->sessionOf($this->show($session))['status'] ?? null);
+    }
+
+    /**
+     * The provider unreachable, after the order and its numbered invoice were
+     * committed: the buyer used to get an error with no session to come back
+     * to, and a second click raised a second invoice for the same purchase.
+     */
+    public function testAProviderOutageStillLeavesASessionToComeBackTo(): void
+    {
+        $stub = new StubPaymentProvider(self::SECRET);
+        $this->override([
+            PaymentProviders::class => new PaymentProviders([
+                new class ($stub) implements PaymentProvider {
+                    public function __construct(private readonly PaymentProvider $inner)
+                    {
+                    }
+
+                    public function name(): string
+                    {
+                        return $this->inner->name();
+                    }
+
+                    public function isSandbox(): bool
+                    {
+                        return $this->inner->isSandbox();
+                    }
+
+                    public function clientKey(): ?string
+                    {
+                        return $this->inner->clientKey();
+                    }
+
+                    public function authorize(Money $amount, string $reference, ?string $attemptKey = null): ProviderPayment
+                    {
+                        throw new RuntimeException('The provider did not answer.');
+                    }
+
+                    public function verify(string $rawBody, array $headers): void
+                    {
+                        $this->inner->verify($rawBody, $headers);
+                    }
+
+                    public function parse(string $rawBody): ?ProviderEvent
+                    {
+                        return $this->inner->parse($rawBody);
+                    }
+
+                    public function refund(Payment $payment, Money $amount, string $reason, int $attempt = 1): ProviderRefund
+                    {
+                        return $this->inner->refund($payment, $amount, $reason, $attempt);
+                    }
+
+                    public function cancel(Payment $payment): bool
+                    {
+                        return $this->inner->cancel($payment);
+                    }
+                },
+            ]),
+        ]);
+
+        $response = $this->open();
+
+        self::assertSame(201, $response->getStatusCode());
+
+        $session = $this->sessionOf($response);
+
+        // Awaiting, payable, and with no attempt: the next one starts from
+        // its invoice.
+        self::assertSame('AWAITING_PAYMENT', $session['status'] ?? null);
+        self::assertIsString($session['invoice_id'] ?? null);
+        self::assertArrayHasKey('payment_id', $session);
+        self::assertNull($session['payment_id']);
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM invoices'));
+    }
+
     // --- Helpers ------------------------------------------------------------
+
+    private function noticesOf(string $type): int
+    {
+        $count = $this->connection->fetchOne('SELECT count(*) FROM notifications WHERE type = :type', ['type' => $type]);
+        self::assertIsInt($count);
+
+        return $count;
+    }
+
+    /** One pass of the queue, scheduled and claimed the way cron does it. */
+    private function cron(): void
+    {
+        $runner = $this->container()->get(JobRunner::class);
+        self::assertInstanceOf(JobRunner::class, $runner);
+
+        $outcome = $runner->runOnce(100);
+        self::assertSame(0, $outcome['failed']);
+    }
+
+    /** Lets the schedule queue its periodic work again within one test. */
+    private function finishTheSchedule(): void
+    {
+        $this->connection->executeStatement("UPDATE jobs SET created_at = now() - interval '2 days'");
+    }
+
+    /** Orders last moved this many hours ago. */
+    private function ageTheOrders(int $hours): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE orders SET updated_at = now() - make_interval(hours => :hours)',
+            ['hours' => $hours],
+        );
+    }
 
     /** A plan that costs nothing and renews: a tier, not a free period. */
     private function seedFreeTier(): string

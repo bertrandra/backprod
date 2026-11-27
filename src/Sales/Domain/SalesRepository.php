@@ -125,6 +125,46 @@ interface SalesRepository
     public function cancelOrder(Order $order, ?string $actorUserId): Order;
 
     /**
+     * Orders held because their money arrived for a seat already live, and
+     * not yet given back (ADR-079). Oldest first.
+     *
+     * Recognised by the ledger row {@see applyHoldOrder} wrote and by the
+     * order still waiting: an order closed by {@see closeHeldOrder} is no
+     * longer returned, which is what makes the pass that reads this safe to
+     * run twice.
+     *
+     * @return list<Order>
+     */
+    public function heldOrders(int $limit): array;
+
+    /**
+     * Ends a held order once its money has gone back: CANCELLED, with a
+     * ledger row saying it was refunded and why it had been held.
+     *
+     * Conditioned on the order still waiting, so two passes close it once.
+     * Runs `$also` on the same transaction — the notice to the person, which
+     * must not be raised for a closing that did not happen.
+     *
+     * @param callable(Order): void $also
+     *
+     * @return bool whether this call closed it
+     */
+    public function closeHeldOrder(Order $order, callable $also): bool;
+
+    /**
+     * Orders still waiting for a payment at least `$minimumHours` after they
+     * last moved, and not held (ADR-079). Oldest first.
+     *
+     * **How long is returned, not whether it is abandoned.** The delay is the
+     * product's ({@see CheckoutPolicy}), so the query answers the clock and
+     * the caller asks the product what that means — the shape `overdue()` and
+     * `dueForRenewal()` have, for the same reason.
+     *
+     * @return list<StrandedOrder>
+     */
+    public function ordersAwaitingPaymentFor(int $minimumHours, int $limit, int $offset = 0): array;
+
+    /**
      * Moves quotes past their date to EXPIRED, and says how many moved.
      *
      * This does not change what a lapsed quote *means* — acceptance has asked

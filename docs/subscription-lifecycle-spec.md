@@ -674,3 +674,26 @@ rencontrent.
 
 Le renouvellement et le balayage restent disjoints : la condition de l'un est la
 négation de celle de l'autre.
+
+## 11. Le client est informé (ADR-079, 27 novembre 2026)
+
+La plateforme ne parlait d'argent à ses clients que pour en demander. Six choses
+changent, chacune avec son test.
+
+| Sujet | Avant | Maintenant |
+|---|---|---|
+| Achat | Aucun message | `purchase.confirmed`, `purchase.payment_failed`, `purchase.refunded` : levés sur la transaction du fait, envoyés par la file, à la personne pour qui est la commande |
+| Paiement arrivé pour une place déjà détenue | Commande « retenue » pour toujours, remboursement promis à l'écran et jamais fait | `sweep.orders` (toutes les heures) rembourse par la chaîne normale, avec l'avoir, clôt la commande et prévient ; la session lit `REFUNDED` |
+| Achat en impayé | Vendu, encaissé, puis retenu | Refusé : `SEAT_IN_ARREARS`, avec la facture à régler |
+| Achat abandonné | Facture émise et TVA déclarée indéfiniment | Abandonné après le délai du produit (`checkout.abandon_after_hours`, 48 h par défaut), facture annulée et TVA contre-passée ; jamais tant qu'un paiement est en cours |
+| Résiliation dans les jours qui précèdent l'échéance | Effective une période plus tard, sans que rien le dise | Effective à la fin de la période **en cours** ; la facture de la période non commencée est annulée, ou remboursée avec son avoir si elle était payée (décision de l'exploitant) |
+| Préavis de reconduction donné trop tard | « Reconduit le X », puis fin sans autre message | `subscription.term_ending` : « prend fin le X » ; et une durée trop courte pour son propre préavis est refusée à la publication |
+
+L'écran d'abonnement lit `outlook` : payé jusqu'à quand, période déjà facturée,
+suite (fin, nouvelle période, nouvelle durée), date de reconduction et dernier jour
+pour la refuser. Aucune de ces dates n'est calculée dans l'écran.
+
+**Reste à faire, dit ici pour ne pas l'oublier :** un préavis levé à temps dont
+l'e-mail échoue ; la dérive des périodes mensuelles commencées un 29, 30 ou 31
+(changer le calcul change des dates déjà données aux clients : décision de
+l'exploitant).

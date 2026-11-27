@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\RenewalPolicy;
 use App\Commerce\Domain\Subscription;
+use App\Commerce\Domain\UnstartedPeriod;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
 use App\Entitlement\Domain\Coverage;
@@ -15,6 +17,9 @@ use App\Job\Domain\Job;
 use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\RenewSubscriptions;
 use App\Job\Service\SendRenewalNotices;
+use App\Payment\Infrastructure\StubPaymentProvider;
+use App\Payment\Service\PaymentProviders;
+use App\Payment\Service\Payments;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
@@ -555,6 +560,241 @@ final class RenewalPassTest extends DatabaseApiTestCase
         ));
     }
 
+    // --- cancelling before a period invoiced ahead begins (ADR-079) -----------
+
+    /**
+     * The renewal rolls and invoices a lead early, so for those days the row
+     * describes a period that has not begun. Cancelling "at period end" then
+     * meant the end of *that* one: a whole period more, with nothing saying so.
+     *
+     * The operator's decision (2026-11-27): it ends with the period actually
+     * running, and the invoice for the one that never began is withdrawn.
+     */
+    public function testCancellingBeforeAPeriodInvoicedAheadBeginsEndsWithTheOneRunning(): void
+    {
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('6 days');
+        $runningEnds = $this->currentPeriodEnd();
+
+        self::assertSame(1, $this->pass()['renewed']);
+        self::assertGreaterThan(new DateTimeImmutable(), $this->currentPeriodStart(), 'the row is rolled ahead');
+
+        $outcome = $this->cancelAtPeriodEnd();
+
+        // The date the customer is given is the end of what they paid for.
+        self::assertSame('cancel.at_period_end', $outcome['decision']->ruleId);
+        self::assertSame($runningEnds->format('Y-m-d'), $outcome['decision']->effectiveAt?->format('Y-m-d'));
+
+        // The invoice of the period that will not happen is cancelled, and the
+        // VAT it declared is reversed with it.
+        self::assertSame('INVOICE_CANCELLED', $outcome['unstarted_period']?->outcome);
+        self::assertSame('CANCELLED', $this->connection->fetchOne('SELECT status FROM invoices'));
+        self::assertEquals(0, $this->connection->fetchOne('SELECT coalesce(sum(vat_amount), 0) FROM vat_transactions'));
+        self::assertEquals(0, $this->connection->fetchOne('SELECT count(*) FROM credit_notes'));
+
+        // The row is back on the period running, and the entitlements end with it.
+        self::assertSame($runningEnds->format('Y-m-d'), $this->currentPeriodEnd()->format('Y-m-d'));
+        self::assertLessThan(new DateTimeImmutable(), $this->currentPeriodStart());
+        self::assertSame(
+            $runningEnds->format('Y-m-d'),
+            $this->connection->fetchOne("SELECT to_char(max(valid_until), 'YYYY-MM-DD') FROM entitlements"),
+        );
+
+        // And nothing rolls it again: the cancellation is due at this period's end.
+        self::assertSame(0, $this->pass()['renewed']);
+        self::assertSame(1, $this->invoiceCount());
+
+        // The history says what was taken back and how.
+        self::assertSame(
+            'INVOICE_CANCELLED',
+            $this->connection->fetchOne(
+                "SELECT detail #>> '{unstarted_period,outcome}' FROM subscription_events WHERE type = 'CANCELLATION_SCHEDULED'",
+            ),
+        );
+    }
+
+    /**
+     * Already paid for, it is given back: the card is credited through the
+     * ordinary refund chain, which raises the credit note that makes the
+     * fiscal fact follow the money (ADR-058).
+     */
+    public function testAPeriodPaidAheadAndCancelledBeforeItBeginsIsRefundedWithItsCreditNote(): void
+    {
+        $this->override([
+            PaymentProviders::class => new PaymentProviders([new StubPaymentProvider('renewal-secret')]),
+        ]);
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('6 days');
+        $runningEnds = $this->currentPeriodEnd();
+        self::assertSame(1, $this->pass()['renewed']);
+
+        $invoiceId = $this->id('SELECT id FROM invoices LIMIT 1');
+        $this->payByCard($invoiceId);
+        self::assertSame('PAID', $this->connection->fetchOne('SELECT status FROM invoices'));
+
+        $outcome = $this->cancelAtPeriodEnd();
+
+        self::assertSame('INVOICE_REFUNDED', $outcome['unstarted_period']?->outcome);
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM refunds'));
+        self::assertEquals(1, $this->connection->fetchOne('SELECT count(*) FROM credit_notes'));
+
+        // Everything it collected, and not a cent of the period that ran.
+        self::assertEquals(
+            $this->connection->fetchOne('SELECT gross_minor_units FROM invoices'),
+            $this->connection->fetchOne('SELECT amount_minor_units FROM refunds'),
+        );
+        self::assertSame($runningEnds->format('Y-m-d'), $this->currentPeriodEnd()->format('Y-m-d'));
+    }
+
+    /**
+     * A cancellation deferred past the period invoiced ahead leaves it alone:
+     * that period will run, and is owed.
+     */
+    public function testACancellationDeferredToACommitmentLeavesThePeriodInvoicedAheadOwed(): void
+    {
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('6 days');
+        self::assertSame(1, $this->pass()['renewed']);
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET commitment_months = 12,
+                       commitment_ends_at = current_period_end + INTERVAL '6 months',
+                       cancellation_policy = 'AT_COMMITMENT_END'
+                SQL,
+        );
+
+        $outcome = $this->cancelAtPeriodEnd();
+
+        self::assertSame('cancel.deferred_to_commitment_end', $outcome['decision']->ruleId);
+        self::assertNull($outcome['unstarted_period']);
+        self::assertSame('ISSUED', $this->connection->fetchOne('SELECT status FROM invoices'));
+        self::assertGreaterThan(new DateTimeImmutable(), $this->currentPeriodStart());
+    }
+
+    /**
+     * **The screen is told, it does not work it out** (ADR-079). After the
+     * early roll the row's own period is one that has not begun; the read says
+     * until when the service is actually paid, what was invoiced ahead, what
+     * follows, and what cancelling now would do.
+     */
+    public function testTheReadSaysWhatHappensNextRatherThanLeavingItToTheScreen(): void
+    {
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('6 days');
+        $runningEnds = $this->currentPeriodEnd();
+
+        $before = $this->outlook();
+        self::assertSame('RENEWS_PERIOD', $before['continuation'] ?? null);
+        self::assertNull($before['next_period'] ?? null);
+
+        self::assertSame(1, $this->pass()['renewed']);
+        $invoiceId = $this->id('SELECT id FROM invoices LIMIT 1');
+
+        $after = $this->outlook();
+
+        self::assertIsString($after['service_until'] ?? null);
+        self::assertSame($runningEnds->format('Y-m-d'), (new DateTimeImmutable($after['service_until']))->format('Y-m-d'));
+
+        $next = $after['next_period'] ?? null;
+        self::assertIsArray($next);
+        self::assertSame($invoiceId, $next['invoice_id'] ?? null);
+
+        // Cancelling now ends with the period running, not the one invoiced ahead.
+        $ifCancelled = $after['if_cancelled_now'] ?? null;
+        self::assertIsArray($ifCancelled);
+        self::assertTrue($ifCancelled['accepted'] ?? null);
+        self::assertIsString($ifCancelled['effective_at'] ?? null);
+        self::assertSame($runningEnds->format('Y-m-d'), (new DateTimeImmutable($ifCancelled['effective_at']))->format('Y-m-d'));
+
+        // Once cancelled, it says it ends, and when.
+        $this->cancelAtPeriodEnd();
+        $ended = $this->outlook();
+        self::assertSame('ENDS', $ended['continuation'] ?? null);
+        self::assertIsString($ended['ends_on'] ?? null);
+        self::assertSame($runningEnds->format('Y-m-d'), (new DateTimeImmutable($ended['ends_on']))->format('Y-m-d'));
+        self::assertNull($ended['next_period'] ?? null);
+    }
+
+    /** A term about to renew names the day it does and the last day to refuse. */
+    public function testTheReadNamesTheDayATermRenewsAndTheLastDayToRefuse(): void
+    {
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('20 days');
+        $this->lastPeriodOfATerm(0, 30);
+
+        $outlook = $this->outlook();
+
+        self::assertSame('RENEWS_TERM', $outlook['continuation'] ?? null);
+        self::assertIsString($outlook['term_renews_on'] ?? null);
+        self::assertSame(
+            (new DateTimeImmutable($outlook['term_renews_on']))->modify('-7 days')->format('Y-m-d'),
+            $outlook['term_cancel_by'] ?? null,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function outlook(): array
+    {
+        $response = $this->request(
+            'GET',
+            '/api/v1/subscription',
+            ['Authorization' => 'Bearer alice-token', 'X-Product' => 'atlas'],
+        );
+        self::assertSame(200, $response->getStatusCode());
+
+        $outlook = $this->decode($response)['outlook'] ?? null;
+        self::assertIsArray($outlook);
+
+        /** @var array<string, mixed> $outlook */
+        return $outlook;
+    }
+
+    /**
+     * @return array{
+     *     subscription: Subscription,
+     *     decision: CancellationDecision,
+     *     charge_invoice_id: string|null,
+     *     unstarted_period: UnstartedPeriod|null,
+     * }
+     */
+    private function cancelAtPeriodEnd(): array
+    {
+        $service = $this->container()->get(Subscriptions::class);
+        self::assertInstanceOf(Subscriptions::class, $service);
+
+        return $service->cancel($this->tenant, $this->product, false, $this->user);
+    }
+
+    /** One card payment of the invoice, settled the way a provider settles it. */
+    private function payByCard(string $invoiceId): void
+    {
+        $payments = $this->container()->get(Payments::class);
+        self::assertInstanceOf(Payments::class, $payments);
+
+        $started = $payments->start($this->tenant, $this->product, $invoiceId, $this->user);
+        $stub = new StubPaymentProvider('renewal-secret');
+        $body = json_encode([
+            'id' => 'evt_renewal_paid',
+            'type' => 'payment.succeeded',
+            'payment_id' => $started['payment']->providerPaymentId,
+        ], JSON_THROW_ON_ERROR);
+
+        $response = $this->request(
+            'POST',
+            '/api/v1/webhooks/payments/stub',
+            [StubPaymentProvider::SIGNATURE_HEADER => $stub->sign($body)],
+            $body,
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+    }
+
     public function testTheSweepStillEndsArrearsWithNoCommitment(): void
     {
         $this->chooseRenewal('{"automatic": true}');
@@ -968,7 +1208,36 @@ final class RenewalPassTest extends DatabaseApiTestCase
     {
         $handler = $this->container()->get(SendRenewalNotices::class);
         self::assertInstanceOf(SendRenewalNotices::class, $handler);
+
+        // Raised **when it was due**, which is in this test's past: the term
+        // already ends tomorrow, and a notice raised today would be too late
+        // to honour — the job says so and tells the customer the term ends
+        // instead (ADR-079). So the subscription is moved forward for the
+        // length of the job's run, to the day the notice was due — the default
+        // renewal lead and the notice before the period's end, plus a day —
+        // and moved back with the dates the notice named.
+        $shift = $this->connection->fetchOne(
+            'SELECT (current_date + 8 + notice_days) - CAST(current_period_end AS date) FROM subscriptions LIMIT 1',
+        );
+        self::assertIsInt($shift);
+        $this->shiftTheContract($shift);
         self::assertSame(1, $handler->handle($this->job())['raised'] ?? null);
+        $this->shiftTheContract(-$shift);
+        TestDatabase::forge(
+            $this->connection,
+            ['notifications'],
+            <<<'SQL'
+                UPDATE notifications n
+                   SET dedup_key = s.id::text || ':' || to_char(s.term_ends_at, 'YYYY-MM-DD'),
+                       payload = n.payload || jsonb_build_object(
+                           'renews_on', to_char(CAST(n.payload ->> 'renews_on' AS date) - CAST(:days AS integer), 'YYYY-MM-DD'),
+                           'cancel_by', to_char(CAST(n.payload ->> 'cancel_by' AS date) - CAST(:days AS integer), 'YYYY-MM-DD')
+                       )
+                  FROM subscriptions s
+                 WHERE n.type = 'subscription.renewal_notice'
+                SQL,
+            ['days' => $shift],
+        );
 
         $sentAt = $outcome === 'SENT' ? 'now() - make_interval(days => :days)' : 'NULL';
         $reason = $outcome === 'SUPPRESSED' ? "'OPTED_OUT'" : 'NULL';
@@ -979,6 +1248,21 @@ final class RenewalPassTest extends DatabaseApiTestCase
             "UPDATE notification_deliveries SET status = :status, sent_at = {$sentAt},"
             . " suppression_reason = {$reason} WHERE channel = 'EMAIL'",
             ['status' => $outcome, 'days' => $daysAgo],
+        );
+    }
+
+    /** Moves the period, the term and the commitment by a number of days. */
+    private function shiftTheContract(int $days): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET current_period_start = current_period_start + make_interval(days => :days),
+                       current_period_end = current_period_end + make_interval(days => :days),
+                       term_ends_at = term_ends_at + make_interval(days => :days),
+                       commitment_ends_at = commitment_ends_at + make_interval(days => :days)
+                SQL,
+            ['days' => $days],
         );
     }
 

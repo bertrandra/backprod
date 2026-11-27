@@ -209,6 +209,20 @@ describe('when the payment was collected but the sale could not start', () => {
   });
 });
 
+describe('when the money for a seat already held has gone back', () => {
+  it('says refunded, which is not what cancelled says', async () => {
+    render(clientFor({ data: { session: session({ status: 'REFUNDED', payment_status: 'SUCCEEDED' }) } }));
+
+    await waitFor(() => expect(screen.getByTestId('checkout-refunded')).toBeTruthy());
+
+    expect(screen.getByTestId('checkout-status').getAttribute('data-status')).toBe('REFUNDED');
+    expect(screen.getByTestId('checkout-refunded').textContent).toMatch(/refunded in full/i);
+    // "Nothing was charged" would be false here: money moved, and came back.
+    expect(screen.queryByTestId('checkout-cancelled')).toBeNull();
+    expect(screen.queryByTestId('checkout-actions')).toBeNull();
+  });
+});
+
 describe('when the payment failed', () => {
   it('says the order survives and that a retry is a new attempt', async () => {
     render(clientFor({ data: { session: session({ status: 'PAYMENT_FAILED' }) } }));

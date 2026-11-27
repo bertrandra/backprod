@@ -69,7 +69,14 @@ final class CancelSubscriptionController implements RouteHandler
             SubscriptionPresenter::one($outcome['subscription'])
             + [
                 'cancellation' => $outcome['decision']->toArray()
-                    + ['charge_invoice_id' => $outcome['charge_invoice_id']],
+                    + [
+                        'charge_invoice_id' => $outcome['charge_invoice_id'],
+                        // A period invoiced ahead that will not happen, and what
+                        // became of its invoice (ADR-079). Null in the ordinary
+                        // case; when it is not, the screen can say that nothing
+                        // more is owed and which document says so.
+                        'unstarted_period' => $outcome['unstarted_period']?->toArray(),
+                    ],
             ],
             200,
         );

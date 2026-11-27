@@ -95,6 +95,11 @@ final class Schedule
         // Rows whose window has already closed and which nothing reads. Hourly
         // because the only cost of keeping them is storage.
         'sweep.rate_limits' => self::HOURLY,
+        // Orders nothing else ends (ADR-079): money that arrived for a seat
+        // already held goes back, and a checkout nobody is paying is given up
+        // once the product's own delay has passed. Hourly, because the first
+        // is somebody's money and the delay of the second is counted in hours.
+        'sweep.orders' => self::HOURLY,
 
         // The rest turn on dates, so a day is the smallest gap that means
         // anything.

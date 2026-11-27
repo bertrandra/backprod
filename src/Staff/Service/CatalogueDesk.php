@@ -11,6 +11,7 @@ use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferCandidate;
 use App\Commerce\Domain\OfferDraft;
 use App\Commerce\Domain\Plan;
+use App\Commerce\Domain\PublicationRules;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\NotFoundException;
@@ -139,7 +140,12 @@ final class CatalogueDesk
         string $offerId,
         int $version,
     ): OfferCandidate {
-        return $this->offers->publishVersion($this->product($productCode)->id, $offerId, $version);
+        $productId = $this->product($productCode)->id;
+
+        // The same rule the tenant's own authoring door applies (ADR-079).
+        PublicationRules::assertPublishable($this->offers->versionsOf($productId, $offerId), $version);
+
+        return $this->offers->publishVersion($productId, $offerId, $version);
     }
 
     /**

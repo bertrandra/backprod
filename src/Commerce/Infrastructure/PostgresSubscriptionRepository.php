@@ -23,6 +23,7 @@ use App\Commerce\Domain\SubscriptionPlaces;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
 use App\Commerce\Domain\TermRenewal;
+use App\Commerce\Domain\UnstartedPeriod;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\ConflictException;
@@ -600,6 +601,8 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         'direction' => $direction,
                         'applied' => 'AT_RENEWAL',
                         'requested_at' => $pending->requestedAt->format(DATE_ATOM),
+                        // Where the period it left began (ADR-079), as on RENEWED.
+                        'previous_period_start' => $subscription->currentPeriodStart->format('Y-m-d H:i:s.uP'),
                     ],
                 );
 
@@ -876,11 +879,19 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     // A term rolled says so, with the dates it now runs to:
                     // "when did this contract start again?" must be answerable
                     // from the history, not inferred from two columns.
-                    $term === null ? [] : [
+                    //
+                    // And where the period it left began, with the term and
+                    // commitment a term roll replaced (ADR-079): a period
+                    // rolled ahead can be taken back while it has not begun,
+                    // and the row itself no longer says what it rolled from.
+                    ['previous_period_start' => $subscription->currentPeriodStart->format('Y-m-d H:i:s.uP')]
+                    + ($term === null ? [] : [
                         'term_renewed' => true,
                         'term_ends_at' => $term->termEndsAt->format(DATE_ATOM),
                         'commitment_ends_at' => $term->commitmentEndsAt?->format(DATE_ATOM),
-                    ],
+                        'previous_term_ends_at' => $subscription->termEndsAt?->format('Y-m-d H:i:s.uP'),
+                        'previous_commitment_ends_at' => $subscription->commitmentEndsAt?->format('Y-m-d H:i:s.uP'),
+                    ]),
                 );
 
                 $this->connection->executeStatement(
@@ -952,6 +963,135 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
 
                 return $this->requireById($subscription->id, 'expired');
             },
+        );
+    }
+
+    public function unstartedPeriod(Subscription $subscription, DateTimeImmutable $now): ?UnstartedPeriod
+    {
+        if (!$subscription->hasUnstartedPeriodAt($now)) {
+            return null;
+        }
+
+        $startsAt = $subscription->currentPeriodStart;
+
+        // What rolled it: the newest renewal or change applied at a boundary.
+        $detail = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT detail::text
+                  FROM subscription_events
+                 WHERE subscription_id = :id AND type IN ('RENEWED', 'OFFER_CHANGED')
+                 ORDER BY occurred_at DESC, id DESC
+                 LIMIT 1
+                SQL,
+            ['id' => $subscription->id],
+        );
+        $roll = is_string($detail) ? json_decode($detail, true) : null;
+        $roll = is_array($roll) ? $roll : [];
+
+        $termRolled = ($roll['term_renewed'] ?? false) === true;
+
+        // A roll from before the event recorded it (2026-11-27) is rebuilt
+        // from the billing period: one period back from where the next
+        // starts, never before the subscription itself.
+        $runningStart = self::momentOf($roll['previous_period_start'] ?? null)
+            ?? max(
+                $subscription->startedAt,
+                match ($subscription->offer->version->billingPeriod) {
+                    'MONTHLY' => $startsAt->modify('-1 month'),
+                    'YEARLY' => $startsAt->modify('-1 year'),
+                    default => $subscription->startedAt,
+                },
+            );
+
+        $invoiceId = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT id
+                  FROM invoices
+                 WHERE subscription_id = :id
+                   AND status NOT IN ('DRAFT', 'CANCELLED')
+                   -- The invoice of the period that has not begun: a renewal
+                   -- writes the period's start on the document it raises.
+                   AND period_start BETWEEN CAST(:start AS timestamptz) - INTERVAL '1 second'
+                                        AND CAST(:start AS timestamptz) + INTERVAL '1 second'
+                 ORDER BY issued_at DESC, id
+                 LIMIT 1
+                SQL,
+            ['id' => $subscription->id, 'start' => self::moment($startsAt)],
+        );
+
+        return new UnstartedPeriod(
+            $startsAt,
+            $runningStart,
+            $termRolled,
+            // The term it replaced ended where the new period starts, when the
+            // event did not say; and the commitment with it.
+            $termRolled ? (self::momentOf($roll['previous_term_ends_at'] ?? null) ?? $startsAt) : null,
+            $termRolled ? self::momentOf($roll['previous_commitment_ends_at'] ?? null) : null,
+            is_string($invoiceId) ? $invoiceId : null,
+        );
+    }
+
+    private static function momentOf(mixed $value): ?DateTimeImmutable
+    {
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+
+        $moment = date_create_immutable($value);
+
+        return $moment === false ? null : $moment;
+    }
+
+    /**
+     * Puts the row back on the period actually running, because the one it
+     * was rolled into will not happen (ADR-079).
+     *
+     * Conditioned on that period still not having begun: once it has, there
+     * is nothing to take back and this does nothing. The entitlements end with
+     * the running period, and what an offer change had granted from the
+     * boundary on never starts.
+     */
+    private function returnToTheRunningPeriod(string $subscriptionId, UnstartedPeriod $period): void
+    {
+        $returned = $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET current_period_end = current_period_start,
+                       current_period_start = :runningStart,
+                       term_ends_at = CASE WHEN :termRolled THEN CAST(:previousTerm AS timestamptz) ELSE term_ends_at END,
+                       commitment_ends_at = CASE WHEN :termRolled
+                                                 THEN CAST(:previousCommitment AS timestamptz)
+                                                 ELSE commitment_ends_at END,
+                       updated_at = now()
+                 WHERE id = :id
+                   AND current_period_start > now()
+                SQL,
+            [
+                'id' => $subscriptionId,
+                'runningStart' => self::moment($period->runningPeriodStartedAt),
+                'termRolled' => $period->termRolled,
+                'previousTerm' => self::moment($period->previousTermEndsAt),
+                'previousCommitment' => self::moment($period->previousCommitmentEndsAt),
+            ],
+            ['termRolled' => ParameterType::BOOLEAN],
+        );
+
+        if ($returned === 0) {
+            return;
+        }
+
+        $this->connection->executeStatement(
+            'DELETE FROM entitlements WHERE subscription_id = :id AND source = \'SUBSCRIPTION\' AND valid_from >= :end',
+            ['id' => $subscriptionId, 'end' => self::moment($period->startsAt)],
+        );
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE entitlements
+                   SET valid_until = :end, updated_at = now()
+                 WHERE subscription_id = :id AND source = 'SUBSCRIPTION'
+                   AND (valid_until IS NULL OR valid_until > :end)
+                SQL,
+            ['id' => $subscriptionId, 'end' => self::moment($period->startsAt)],
         );
     }
 
@@ -1063,7 +1203,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                    -- too late to renew.
                    AND NOT EXISTS (
                         SELECT 1 FROM notifications n
-                         WHERE n.type = 'subscription.renewal_notice'
+                         -- Either kind (ADR-079): the notice of a renewal, or
+                         -- the notice that the term will end instead. A term
+                         -- that has one is not read again, so it never gets both.
+                         WHERE n.type IN ('subscription.renewal_notice', 'subscription.term_ending')
                            AND n.recipient_user_id = r.user_id
                            AND n.dedup_key = s.id::text || ':' || to_char(s.term_ends_at, 'YYYY-MM-DD')
                    )
@@ -1718,9 +1861,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         CancellationDecision $decision,
         ?string $actorUserId,
         ?callable $alsoCharge = null,
+        ?callable $takeBack = null,
     ): Subscription {
         return $this->connection->transactional(
-            function () use ($subscription, $decision, $actorUserId, $alsoCharge): Subscription {
+            function () use ($subscription, $decision, $actorUserId, $alsoCharge, $takeBack): Subscription {
                 if ($decision->effect === CancellationDecision::IMMEDIATE) {
                     // Ends now. The entitlement goes with it, because the
                     // clock is what entitlement resolution asks and there is
@@ -1804,6 +1948,15 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     self::assertUnchanged($moved);
                 }
 
+                // A period invoiced ahead and never begun is taken back with
+                // the cancellation (ADR-079): its invoice first, by whoever
+                // knows how, then the row and the entitlements.
+                $unstarted = $takeBack === null ? null : $takeBack();
+
+                if ($unstarted !== null && $decision->effect !== CancellationDecision::IMMEDIATE) {
+                    $this->returnToTheRunningPeriod($subscription->id, $unstarted);
+                }
+
                 $this->record(
                     $subscription->id,
                     $decision->effect === CancellationDecision::IMMEDIATE
@@ -1813,8 +1966,9 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     $subscription->offer->version->id,
                     $actorUserId,
                     // The decision travels with the event: which rule decided,
-                    // when it takes effect, and what the customer was told.
-                    $decision->toArray(),
+                    // when it takes effect, and what the customer was told —
+                    // and, when a period was taken back, which and how.
+                    $decision->toArray() + ($unstarted === null ? [] : ['unstarted_period' => $unstarted->toArray()]),
                 );
 
                 $updated = $this->findById($subscription->id);

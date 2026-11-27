@@ -11,6 +11,8 @@ use App\Payment\Service\Payments;
 use App\Sales\Domain\Order;
 use App\Sales\Service\Sales;
 use App\Shared\Exceptions\ConflictException;
+use App\Shared\Exceptions\HttpException;
+use Throwable;
 
 /**
  * Buying something in one call (§7's Checkout block).
@@ -65,7 +67,23 @@ final class Checkout
             return ['order' => $order, 'payment' => null, 'client_secret' => null, 'provider' => null];
         }
 
-        $started = $this->payments->start($tenantId, $productId, $order->invoiceId, $actorUserId);
+        try {
+            $started = $this->payments->start($tenantId, $productId, $order->invoiceId, $actorUserId);
+        } catch (HttpException $refusal) {
+            // A rule said no — no provider configured, the invoice not
+            // payable. That is an answer for the caller, as it always was.
+            throw $refusal;
+        } catch (Throwable) {
+            // The provider could not be reached, after the order and its
+            // numbered invoice were committed (ADR-079). Throwing here handed
+            // the buyer an error with no session to come back to, so a second
+            // click raised a second invoice for the same purchase and left the
+            // first one issued for ever. The session is real and payable: it is
+            // returned as it stands, awaiting, and the next attempt starts from
+            // its invoice. A session nobody comes back to is given up by
+            // `sweep.orders`, document and all.
+            return ['order' => $order, 'payment' => null, 'client_secret' => null, 'provider' => null];
+        }
 
         return [
             'order' => $order,

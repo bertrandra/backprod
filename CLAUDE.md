@@ -664,6 +664,27 @@ any other means. At a term the same invoice opens the next term, and only after
 the notice above: an invoice for a term nobody was told about is a debt claimed
 without consent.
 
+**A period invoiced ahead and cancelled before it begins is not owed** (ADR-079,
+2026-11-27, the operator's decision). For the days of the lead the row describes
+the *next* period, so "the end of the paid period" always means the one
+**running** (`Subscription::runningPeriodEndAt`) — or cancelling in that window
+ends a period later than the customer was told. Its invoice is withdrawn in the
+same act: cancelled with its VAT reversal if unpaid, refunded with its credit
+note if paid; the refund first and on its own (a provider cannot be unasked), the
+cancellation of the document and the row's return on the cancellation's own
+transaction. A deferral past that period leaves it alone — it will run.
+
+**And the screen is told what happens next, it does not work it out.**
+`GET /subscription` answers `outlook`: until when the service is paid, the period
+invoiced ahead, whether it continues, the day a term renews and the last day to
+refuse. Derived on read; a date computed in a component is right until the rule
+moves.
+
+**A notice that cannot be honoured says the truth** — `subscription.term_ending`,
+"it ends on D", instead of a renewal that will not happen — and an `AUTO_RENEW`
+term too short for its own notice is refused at publication
+(`OFFER_TERM_CANNOT_RENEW`).
+
 ## Notifications
 
 Full specification in `docs/architecture-v2.md` §27.1.
@@ -708,6 +729,12 @@ Store the payload, render at send time. **Except** where the notification has
 legal effect (pre-renewal notice, formal demand, suspension notice): keep the
 rendered body, for the reason an invoice keeps its snapshot.
 
+**A purchase is told to the person who made it** (ADR-079): confirmed, payment
+failed, refunded — raised on the transaction of the fact, to the person the order
+is for and nobody else, and never kept as sent, because the invoice and the
+credit note are the documents. The platform used to speak about money only when
+it wanted some.
+
 SMS and WhatsApp are not email: no consent recorded, no send attempted. The
 delivery is written `SUPPRESSED` with its reason — fail closed, and never
 silent, because "did we tell them?" has to have an answer.
@@ -746,6 +773,14 @@ runs, so when you add one, add the case that calls what cron calls.
 runs this minute. One crontab line is still the whole schedule (ADR-027): a
 second one would put part of this platform's behaviour where no gate can see it.
 Without that line nothing recurring happens at all.
+
+**Nothing a customer paid for waits on an operator noticing** (ADR-079).
+`sweep.orders` ends the two kinds of order nothing else ended: money that arrived
+for a seat already held goes back through the refund chain, with its credit note,
+and a checkout nobody is paying is given up after the product's own delay
+(`product_configuration`, `checkout.abandon_after_hours`, 48 by default) — through
+the buyer's own door, so the invoice and its VAT are withdrawn as by hand, and
+never while an attempt is still open.
 
 An interval is a minimum gap and never a time of day — there is nowhere to
 express one, and every periodic handler reads dates rather than clocks. The gap

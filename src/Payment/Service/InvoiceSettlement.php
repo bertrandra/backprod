@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Payment\Service;
 
 use App\Billing\Domain\InvoicePaid;
+use App\Billing\Domain\InvoicePaymentFailed;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Payment\Domain\Payment;
@@ -30,6 +31,7 @@ final class InvoiceSettlement implements PaymentSettlement
     public function __construct(
         private readonly InvoiceRepository $invoices,
         private readonly InvoicePaid $paid,
+        private readonly InvoicePaymentFailed $unpaid,
     ) {
     }
 
@@ -52,5 +54,18 @@ final class InvoiceSettlement implements PaymentSettlement
         // and a subscription still switched off is the state this ordering
         // exists to make unobservable.
         $this->paid->paid($invoice);
+    }
+
+    public function failed(Payment $payment): void
+    {
+        $invoice = $this->invoices->find($payment->tenantId, $payment->productId, $payment->invoiceId);
+
+        if ($invoice === null) {
+            return;
+        }
+
+        // On the caller's transaction, like `settle`: the failure and the
+        // notice of it commit together or neither does.
+        $this->unpaid->failed($invoice, $payment->id);
     }
 }

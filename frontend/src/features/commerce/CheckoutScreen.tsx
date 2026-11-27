@@ -210,7 +210,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
               return. */}
           <p>
             {forSelf
-              ? t("The payment was collected, but you already held a live seat on this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded.")
+              ? t("The payment was collected, but you already held a live seat on this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded automatically within the hour, and you will be told when it is.")
               : t("The payment was collected, but this organisation already had a live subscription to this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded.")}
           </p>
         </section>
@@ -226,6 +226,15 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
               from the previous attempt is gone. A retry is a new attempt. */}
           <p>
             {t("The order is intact and nothing has been charged. Paying again starts a new attempt — the credential from the last one is deliberately not kept, so it cannot be resumed.")}</p>
+        </section>
+      )}
+
+      {current.status === 'REFUNDED' && (
+        <section data-testid="checkout-refunded" className={`${notice('neutral')} space-y-1`}>
+          <p className="font-medium">{t("This purchase was refunded.")}</p>
+          {/* Cancelled, and the money given back — which is not what
+              "cancelled" says of a checkout nobody paid (ADR-079). */}
+          <p>{t("The payment arrived for a seat you already held, so nothing was started against it. It has been refunded in full to the means it was paid with, and a credit note has been issued. Depending on your bank it can take a few days to appear.")}</p>
         </section>
       )}
 
@@ -382,6 +391,7 @@ function statusTone(status: string): Tone {
     case 'HELD':
       return 'warning';
     case 'CANCELLED':
+    case 'REFUNDED':
       return 'neutral';
     default:
       return 'warning';

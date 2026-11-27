@@ -54,6 +54,13 @@ final class SendRenewalNotices implements JobHandler
     private const NOTICE_TYPE = 'subscription.renewal_notice';
 
     /**
+     * What is sent instead when the notice can no longer be given in time
+     * (ADR-079): the term ends, and its holder is told that rather than a
+     * renewal that will not happen.
+     */
+    public const ENDING_TYPE = 'subscription.term_ending';
+
+    /**
      * Recipients, not subscriptions: a tenant with three administrators is
      * three of these. Bounded because a cron pass has to finish, and safe to
      * bound because whatever does not fit is picked up next pass — the dedup
@@ -100,6 +107,7 @@ final class SendRenewalNotices implements JobHandler
         $notYet = 0;
         $switchedOff = 0;
         $unpriceable = 0;
+        $tooLateCount = 0;
 
         /** @var array<string, RenewalPolicy> $policies */
         $policies = [];
@@ -140,6 +148,16 @@ final class SendRenewalNotices implements JobHandler
                     continue;
                 }
 
+                // The last day a notice mailed still counts: `notice_days`
+                // before the day to refuse by, which is what the renewal reads
+                // back (ADR-071). Past it nothing sent now can be honoured, so
+                // the term will not roll — and a mail saying "it renews on X"
+                // would be a promise the platform is about to break (ADR-079).
+                // The truth is sent instead, under the same key, so a term has
+                // one notice or the other and never both.
+                $tooLate = $notice->noticeDays > 0
+                    && $today > $cancelBy->modify(sprintf('-%d days', $notice->noticeDays));
+
                 $recipient = $notice->recipientUserId;
 
                 if ($recipient === null) {
@@ -152,9 +170,19 @@ final class SendRenewalNotices implements JobHandler
                     continue;
                 }
 
-                if ($this->raise($notice, $recipient, $renewsOn, $cancelBy) === null) {
+                $notification = $tooLate
+                    ? $this->raiseEnding($notice, $recipient)
+                    : $this->raise($notice, $recipient, $renewsOn, $cancelBy);
+
+                if ($notification === null) {
                     // The index refused it: this term's notice already exists.
                     $alreadyNoticed++;
+
+                    continue;
+                }
+
+                if ($tooLate) {
+                    $tooLateCount++;
 
                     continue;
                 }
@@ -174,6 +202,10 @@ final class SendRenewalNotices implements JobHandler
             'not_yet' => $notYet,
             'switched_off' => $switchedOff,
             'unpriceable' => $unpriceable,
+            // Terms that will end rather than renew, and whose holder was
+            // told so. A number above zero is cron having been down, or an
+            // offer whose notice is longer than the time there was to give it.
+            'too_late' => $tooLateCount,
         ];
     }
 
@@ -199,6 +231,31 @@ final class SendRenewalNotices implements JobHandler
                 // what the customer was told and what is enforced are one date.
                 'renews_on' => $renewsOn->format('Y-m-d'),
                 'cancel_by' => $cancelBy->format('Y-m-d'),
+                'notice_days' => $notice->noticeDays,
+            ],
+            $notice->dedupKey(),
+            true,
+        );
+    }
+
+    /**
+     * The term will end, said in so many words. Null when the index refused it.
+     *
+     * Kept as sent, like the notice it stands in for: "what did we tell them
+     * before their contract ended?" is the same question. Keyed like it too,
+     * and the read skips a term that has either, so a term gets one of the two.
+     */
+    private function raiseEnding(RenewalNotice $notice, string $recipient): ?Notification
+    {
+        return $this->notifications->raise(
+            $notice->tenantId,
+            $notice->productId,
+            $recipient,
+            self::ENDING_TYPE,
+            Category::BILLING,
+            [
+                'subscription_id' => $notice->subscriptionId,
+                'ends_on' => $notice->termEndsAt->format('Y-m-d'),
                 'notice_days' => $notice->noticeDays,
             ],
             $notice->dedupKey(),

@@ -22,6 +22,7 @@ use App\Commerce\Service\Subscriptions;
 use App\Shared\Database\Row;
 use App\Shared\Exceptions\HttpException;
 use App\Tests\Support\NothingWasCollected;
+use App\Tests\Support\NoUnstartedPeriod;
 use App\Tests\Support\RecordingChangeCharge;
 use App\Tests\Support\RecordingRenewalCharge;
 use DateTimeImmutable;
@@ -1031,6 +1032,9 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             // says so rather than inventing money.
             $this->credit,
             $this->charge,
+            // Nothing here is ever rolled ahead of its start, so no period is
+            // ever taken back (ADR-079).
+            new NoUnstartedPeriod(),
         );
     }
 

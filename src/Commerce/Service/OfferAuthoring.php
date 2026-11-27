@@ -7,6 +7,7 @@ namespace App\Commerce\Service;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferCandidate;
 use App\Commerce\Domain\OfferDraft;
+use App\Commerce\Domain\PublicationRules;
 use App\Shared\Exceptions\NotFoundException;
 
 /**
@@ -55,6 +56,10 @@ final class OfferAuthoring
 
     public function publish(string $productId, string $offerId, int $version): OfferCandidate
     {
+        // Asked here because nothing can be changed afterwards: a published
+        // version is frozen and what it sells is snapshotted (ADR-079).
+        PublicationRules::assertPublishable($this->offers->versionsOf($productId, $offerId), $version);
+
         return $this->offers->publishVersion($productId, $offerId, $version);
     }
 
