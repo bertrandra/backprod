@@ -278,7 +278,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 $detail,
                 $alsoBill,
             ): Subscription {
-                $this->connection->executeStatement(
+                $moved = $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
                            SET offer_version_id = :versionId,
@@ -294,9 +294,22 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                current_period_end = :periodEnd,
                                updated_at = now()
                          WHERE id = :id
+                           -- Conditioned on what the move was decided from
+                           -- (ADR-076): the version it leaves and the period it
+                           -- cuts. Two requests at once both pass
+                           -- `ALREADY_ON_OFFER` on their own read, and both
+                           -- used to move the row and raise an invoice each;
+                           -- a renewal rolling the period in between is the
+                           -- same shape. The statement decides, never the read.
+                           AND offer_version_id = :fromVersion
+                           AND current_period_end IS NOT DISTINCT FROM :fromPeriodEnd
+                           AND status = :fromStatus
                         SQL,
                     self::reSnapshot($subscription, $offer, $periodStart)
                         + [
+                            'fromVersion' => $subscription->offer->version->id,
+                            'fromPeriodEnd' => self::moment($subscription->currentPeriodEnd),
+                            'fromStatus' => $subscription->status,
                             // The anchor resets (2026-09-27, spec §3): the
                             // period the customer has just been credited for is
                             // over. The two dates are the caller's, from one
@@ -307,6 +320,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                             'id' => $subscription->id,
                         ],
                 );
+
+                if ($moved === 0) {
+                    throw new ConflictException(
+                        'SUBSCRIPTION_CHANGED',
+                        'This subscription changed while the move was being made. Read it again before retrying.',
+                    );
+                }
 
                 $this->record(
                     $subscription->id,

@@ -99,6 +99,7 @@ use App\Job\Service\JobHandlers;
 use App\Job\Service\JobScheduler;
 use App\Job\Service\PruneJobs;
 use App\Job\Service\RenewSubscriptions;
+use App\Job\Service\ReturnUnowedPayments;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
 use App\Job\Service\SweepRateLimits;
@@ -676,6 +677,7 @@ return static function (array $overrides = []): ContainerInterface {
         JobHandlers::class => factory(
             static fn (
                 ExpireQuotes $quotes,
+                ReturnUnowedPayments $unowed,
                 ExpireSubscriptions $subscriptions,
                 ExportProject $exports,
                 DispatchNotifications $notify,
@@ -687,7 +689,7 @@ return static function (array $overrides = []): ContainerInterface {
                 RenewSubscriptions $renewals,
                 PruneJobs $prune,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune],
+                [$quotes, $unowed, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune],
             ),
         ),
 

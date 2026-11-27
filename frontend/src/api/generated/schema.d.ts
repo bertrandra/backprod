@@ -5100,6 +5100,7 @@ export interface components {
              * @example change.deferred_to_period_end
              * @example change.period_not_priceable
              * @example change.currency_mismatch
+             * @example change.awaits_payment
              */
             rule_id: string;
             /**
@@ -8349,7 +8350,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `CHECKOUT_NOT_CANCELLABLE` — the order is completed or already cancelled. `CHECKOUT_ALREADY_PAID` — a payment has settled against its invoice. */
+            /** @description `CHECKOUT_NOT_CANCELLABLE` — the order is completed or already cancelled. `CHECKOUT_ALREADY_PAID` — a payment has settled against its invoice. `PAYMENT_STILL_IN_FLIGHT` — the payment is past the point where the provider can stop it (a debit in processing, a card already charged): that money is coming, so the purchase stays (ADR-076). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12791,7 +12792,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4): the freemium is the lowest rank, so a move to it is a move *down* and met neither of the two doors that know about free periods — which left it the way round the once-ever rule. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
+            /** @description No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. `CHANGE_AWAITS_PAYMENT` — the subscription is suspended for an unpaid invoice: pay it, then change the plan (ADR-076); the details name the invoice. `SUBSCRIPTION_CHANGED` — the subscription moved while this change was being made (another request, a renewal): read it again. `PAYMENT_STILL_IN_FLIGHT` — a payment of the renewal invoice this change would withdraw can no longer be stopped. `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4): the freemium is the lowest rank, so a move to it is a move *down* and met neither of the two doors that know about free periods — which left it the way round the once-ever rule. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
             409: {
                 headers: {
                     [name: string]: unknown;

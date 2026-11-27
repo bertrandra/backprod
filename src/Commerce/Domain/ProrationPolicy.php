@@ -69,6 +69,7 @@ final class ProrationPolicy
     public const DEFERRED = 'change.deferred_to_period_end';
     public const NOT_PRICEABLE = 'change.period_not_priceable';
     public const CURRENCY_MISMATCH = 'change.currency_mismatch';
+    public const AWAITS_PAYMENT = 'change.awaits_payment';
 
     /**
      * A move that takes effect now: what is credited, what is charged, and
@@ -85,6 +86,23 @@ final class ProrationPolicy
         $currency = $offer->version->currency;
         $periodEnd = $subscription->currentPeriodEnd;
         $newPeriodEnd = $offer->version->periodEndFrom($now);
+
+        if ($subscription->status === Subscription::PAST_DUE) {
+            // Suspended for an unpaid invoice (ADR-060), and a move up is not
+            // the way out of that: it would open a new period and a new
+            // invoice on top of a debt, and the credit would be a share of
+            // money for a period that is itself owed. Answered by a card, in
+            // its own words, exactly as the workshop's refusal is.
+            return ChangeDecision::refused(
+                self::AWAITS_PAYMENT,
+                $direction,
+                $currency,
+                [
+                    'This subscription is suspended for an unpaid invoice.',
+                    'Pay what is owed first; the plan can be changed as soon as it is settled.',
+                ],
+            );
+        }
 
         if ($periodEnd === null || $newPeriodEnd === null) {
             return ChangeDecision::refused(
@@ -116,10 +134,12 @@ final class ProrationPolicy
             );
         }
 
+        // The period the money bought: the row's own, unless the row has
+        // already been rolled into one that has not started (ADR-076).
         $unconsumed = self::unconsumed(
             $collected->collectedMinorUnits,
-            $subscription->currentPeriodStart,
-            $periodEnd,
+            $collected->periodStart ?? $subscription->currentPeriodStart,
+            $collected->periodEnd ?? $periodEnd,
             $now,
         );
 
@@ -238,6 +258,10 @@ final class ProrationPolicy
         int $charge,
     ): array {
         $reasons = ['The new plan applies at once, and the billing period restarts today.'];
+
+        if ($collected->supersedesInvoiceId !== null) {
+            $reasons[] = 'The renewal invoice already raised for the plan being left is withdrawn: that period will not run on those terms.';
+        }
 
         if ($credit > 0) {
             $reasons[] = 'The unconsumed part of the current period goes back to the payment method that paid for it, with a credit note.';

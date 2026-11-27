@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Domain\ChangeCredit;
+use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Subscriptions;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
@@ -12,6 +14,7 @@ use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
 use App\Shared\Database\Row;
+use App\Shared\Exceptions\ConflictException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -318,7 +321,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         self::assertNull($change['credit_refund_id'] ?? null);
         self::assertSame(9_900, $change['net_minor_units'] ?? null, 'the whole new period is payable');
         self::assertContains(
-            'Nothing has been collected for the current period, so there is no unconsumed value to give back.',
+            'The invoice for the current period has not been paid, so there is nothing to give back; it remains due.',
             $this->reasonsOf($change),
         );
 
@@ -498,7 +501,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
     public function testASeatIsChangedByItsHolder(): void
     {
         // Bought the way a customer buys: order, invoice, payment, seat. Which
-        // also exercises the reason `latestSettledForSubscription` goes through
+        // also exercises the reason the settled payment is found through
         // the invoice — that payment predates the subscription it starts, so its
         // own `subscription_id` is null.
         $paid = $this->buyASeat($this->starterOffer);
@@ -605,6 +608,234 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         self::assertSame(404, $refused->getStatusCode());
         self::assertSame('NO_SEAT', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    // --- The credit belongs to the period being cut (ADR-076) -------------------
+
+    /**
+     * The renewal rolls the row and raises the next invoice days ahead, due
+     * when the period starts (ADR-070). An upgrade in that window used to take
+     * "the latest settled payment" — the period still running — and prorate it
+     * over a period that had not begun: before the start clamps to everything,
+     * so twenty-seven consumed days of thirty came back in full while the
+     * renewal invoice for the plan being left stayed owed and chased.
+     */
+    public function testAMoveUpInTheRenewalLeadWindowCreditsWhatIsLeftOfThePeriodStillRunning(): void
+    {
+        $paid = $this->buyASeat($this->starterOffer);
+        $this->threeDaysFromTheEnd();
+
+        $subscriptions = $this->container()->get(Subscriptions::class);
+        self::assertInstanceOf(Subscriptions::class, $subscriptions);
+        $subscriptions->renew($this->tenant, $this->product, $this->user);
+
+        $renewal = $this->latestInvoice();
+        self::assertSame('ISSUED', $this->connection->fetchOne(
+            'SELECT status FROM invoices WHERE id = :id',
+            ['id' => $renewal],
+        ));
+
+        $collected = $this->connection->fetchOne('SELECT amount_minor_units FROM payments WHERE id = :id', ['id' => $paid]);
+        self::assertIsNumeric($collected);
+
+        $change = $this->decode($this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $this->json(['offer_id' => $this->proOffer, 'seat' => true]),
+        ))['change'] ?? null;
+        self::assertIsArray($change);
+
+        // Three days of thirty, of the money that bought the running period.
+        $credit = $this->aboutSame(intdiv((int) $collected * 3, self::PERIOD_DAYS), $change['credit_minor_units'] ?? null, 'a tenth of the period');
+        self::assertLessThan((int) $collected / 2, $credit);
+
+        // Returned against the payment of the period that was cut.
+        self::assertSame($paid, $this->connection->fetchOne('SELECT payment_id FROM refunds'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM refunds'));
+
+        // And the invoice raised ahead for the plan being left is withdrawn,
+        // its declaration with it: nothing is owed for a period that will not
+        // run on those terms.
+        self::assertSame('CANCELLED', $this->connection->fetchOne(
+            'SELECT status FROM invoices WHERE id = :id',
+            ['id' => $renewal],
+        ));
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT coalesce(sum(taxable_base + vat_amount), 0) FROM vat_transactions WHERE invoice_id = '" . $renewal . "'",
+        ));
+        self::assertContains(
+            'The renewal invoice already raised for the plan being left is withdrawn: that period will not run on those terms.',
+            $this->reasonsOf($change),
+        );
+    }
+
+    /**
+     * The credit commits before the plan moves, so a crash between the two is
+     * retried. The retry found `amount - refunded` still returnable and sent
+     * the same share a second time; a proration is now made once per period
+     * cut, by `refunds_once_per_purpose`.
+     */
+    public function testARetriedMoveFindsTheCreditItAlreadyGaveAndMakesNoSecondOne(): void
+    {
+        $this->buyASeat($this->starterOffer);
+        $seat = $this->heldSeat();
+        $this->tenDaysIn();
+        $seat = $this->heldSeat();
+
+        // The first half of a move that then died: the credit, on its own
+        // transaction, and nothing after it.
+        $credit = $this->container()->get(ChangeCredit::class);
+        self::assertInstanceOf(ChangeCredit::class, $credit);
+        $collected = $credit->collectedFor($seat, new \DateTimeImmutable());
+        $first = $credit->giveBack($seat, $collected, intdiv($collected->collectedMinorUnits * 2, 3), $this->user);
+
+        $retried = $this->decode($this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $this->json(['offer_id' => $this->proOffer, 'seat' => true]),
+        ))['change'] ?? null;
+        self::assertIsArray($retried);
+
+        self::assertSame($first, $retried['credit_refund_id'] ?? null, 'the refund already made is the answer');
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM refunds'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+    }
+
+    /**
+     * A second move before the first move's invoice is paid. The old payment
+     * used to be prorated over the *new* period and the rest of it refunded;
+     * the period being cut is the one the unpaid invoice is for, and nobody
+     * has paid for it.
+     */
+    public function testASecondMoveBeforeTheFirstIsPaidGivesNothingBack(): void
+    {
+        $this->buyASeat($this->starterOffer);
+        $this->tenDaysIn();
+
+        $body = fn (string $offer): string => $this->json(['offer_id' => $offer, 'seat' => true]);
+        self::assertSame(200, $this->request('POST', '/api/v1/subscription/change-offer', $this->headers(), $body($this->proOffer))->getStatusCode());
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM refunds'));
+
+        $second = $this->decode($this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $body($this->committedOffer),
+        ))['change'] ?? null;
+        self::assertIsArray($second);
+
+        self::assertSame(0, $second['credit_minor_units'] ?? null);
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM refunds'));
+        self::assertContains(
+            'The invoice for the current period has not been paid, so there is nothing to give back; it remains due.',
+            $this->reasonsOf($second),
+        );
+    }
+
+    /**
+     * Suspended for an unpaid invoice (ADR-060): a move up is not the way out
+     * of that, and the refusal is its own — answered by a card.
+     */
+    public function testASuspendedSubscriptionIsToldToPayBeforeItChangesPlan(): void
+    {
+        $this->buyASeat($this->starterOffer);
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET status = 'PAST_DUE', past_due_since = now(),"
+            . ' past_due_invoice_id = (SELECT id FROM invoices WHERE tenant_id = :tenant LIMIT 1) WHERE tenant_id = :tenant',
+            ['tenant' => $this->tenant],
+        );
+
+        $body = $this->json(['offer_id' => $this->proOffer, 'seat' => true]);
+
+        $refused = $this->request('POST', '/api/v1/subscription/change-offer', $this->headers(), $body);
+        self::assertSame(409, $refused->getStatusCode());
+        self::assertSame('CHANGE_AWAITS_PAYMENT', $this->errorOf($refused)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM refunds'));
+
+        // And the preview says so before the click.
+        $preview = $this->decode($this->request('POST', '/api/v1/subscription/preview-change', $this->headers(), $body))['if_changed_now'] ?? null;
+        self::assertIsArray($preview);
+        self::assertFalse($preview['accepted'] ?? null);
+        self::assertSame('change.awaits_payment', $preview['rule_id'] ?? null);
+    }
+
+    /**
+     * Two requests at once both read the same row and both pass
+     * `ALREADY_ON_OFFER`. The statement decides: the second is written against
+     * a row that is no longer the one it read, and moves nothing.
+     */
+    public function testAMoveDecidedFromARowThatHasSinceMovedIsRefused(): void
+    {
+        $this->buyASeat($this->starterOffer);
+        $stale = $this->heldSeat();
+
+        self::assertSame(200, $this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $this->json(['offer_id' => $this->proOffer, 'seat' => true]),
+        )->getStatusCode());
+
+        $repository = $this->container()->get(SubscriptionRepository::class);
+        self::assertInstanceOf(SubscriptionRepository::class, $repository);
+        $events = $this->rowsMatching('SELECT count(*) FROM subscription_events');
+
+        try {
+            $repository->changeOffer($stale, $stale->offer, 'LATERAL', $this->user, new \DateTimeImmutable(), $stale->currentPeriodEnd);
+            self::fail('a move written against a row that has changed should be refused');
+        } catch (ConflictException $refused) {
+            self::assertSame('SUBSCRIPTION_CHANGED', $refused->errorCode());
+        }
+
+        self::assertSame($events, $this->rowsMatching('SELECT count(*) FROM subscription_events'));
+    }
+
+    /**
+     * Three days from the end of a thirty-day period, with the invoice that
+     * bought it describing the same period — written in SQL because the
+     * alternative is waiting twenty-seven days.
+     */
+    private function threeDaysFromTheEnd(): void
+    {
+        $this->connection->executeStatement(
+            sprintf(
+                <<<'SQL'
+                    UPDATE subscriptions
+                       SET current_period_start = now() - interval '%d days',
+                           current_period_end = now() + interval '3 days'
+                     WHERE tenant_id = :tenant AND product_id = :product
+                    SQL,
+                self::PERIOD_DAYS - 3,
+            ),
+            ['tenant' => $this->tenant, 'product' => $this->product],
+        );
+        // An issued invoice is frozen, and rightly: the trigger is lifted for
+        // the one statement that moves this fixture back in time, exactly as
+        // `TestDatabase` lifts it to clean up, and put back at once.
+        $this->connection->executeStatement('ALTER TABLE invoices DISABLE TRIGGER invoices_issued_is_frozen');
+
+        try {
+            $this->connection->executeStatement(
+                sprintf(
+                    <<<'SQL'
+                        UPDATE invoices
+                           SET period_start = now() - interval '%d days',
+                               period_end = now() + interval '3 days'
+                         WHERE tenant_id = :tenant AND product_id = :product
+                        SQL,
+                    self::PERIOD_DAYS - 3,
+                ),
+                ['tenant' => $this->tenant, 'product' => $this->product],
+            );
+        } finally {
+            $this->connection->executeStatement('ALTER TABLE invoices ENABLE TRIGGER invoices_issued_is_frozen');
+        }
+        $this->connection->executeStatement(
+            'UPDATE entitlements SET valid_until = now() + interval \'3 days\' WHERE tenant_id = :tenant',
+            ['tenant' => $this->tenant],
+        );
     }
 
     // --- Fixtures -------------------------------------------------------------

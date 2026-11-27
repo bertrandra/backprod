@@ -549,6 +549,29 @@ end of the paid period, and under commitment the request is refused or
 deferred by the offer's `cancellation_policy` — never silently accepted and
 then ignored. Every request is recorded with its effective date.
 
+**Money follows the document it pays** (ADR-076, 2026-11-27). Three ways it
+used not to, none reachable while every invoice was paid the moment it was
+raised — which is the only way the tests ever paid one:
+
+- **An invoice is never voided under a payment that can still collect.** The
+  attempt is abandoned *at the provider* first (`Payments::abandonAttempts`);
+  one it can no longer stop refuses the act, `PAYMENT_STILL_IN_FLIGHT`. Cancelling
+  a checkout used to ask only "has it settled?", and a 3-D Secure challenge
+  finishing afterwards charged a customer for a purchase the screen had called
+  cancelled. Money that settles on a void invoice anyway goes back by itself
+  (`payment.return_unowed`), with no credit note: cancelling already undid the
+  sale.
+- **A proration credit is a share of the invoice whose period is being cut**,
+  never of "the latest settled payment". A renewal invoice is raised days ahead
+  and due at the period's start, so the newest *settled* payment is one period
+  behind exactly when it matters. An upgrade in that window **withdraws the
+  renewal invoice** of the plan being left and credits what is left of the
+  period still running; an unpaid current period credits nothing and stays due;
+  a suspended subscription pays first (`CHANGE_AWAITS_PAYMENT`).
+- **A proration is made once per period cut** — `refunds_once_per_purpose`, an
+  index and never a check — and the change is written against the row it was
+  decided from (`SUBSCRIPTION_CHANGED`).
+
 Early exit is a product decision (`FORBIDDEN` / `CHARGE_REMAINING` / `FREE`).
 When it is charged, it is invoiced through the normal billing chain, never a
 special path — and on the **cancellation's own transaction**, because a

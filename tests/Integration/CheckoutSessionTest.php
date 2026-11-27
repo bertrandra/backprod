@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Job\Service\JobRunner;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
@@ -14,6 +15,7 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\RecordingPaymentProvider;
 use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
@@ -296,6 +298,118 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
 
         self::assertSame(409, $again->getStatusCode());
         self::assertSame('CHECKOUT_NOT_CANCELLABLE', $this->errorOf($again)['code'] ?? null);
+    }
+
+    // --- Money after a cancellation (ADR-076) -----------------------------------
+
+    /**
+     * Cancelling used to ask one thing — "has it settled?" — and void the
+     * invoice under an attempt that could still collect. The attempt is now
+     * abandoned at the provider first, so the success that arrives later is
+     * about a payment that can no longer be one.
+     */
+    public function testGivingUpAbandonsTheAttemptSoALateSuccessCollectsNothing(): void
+    {
+        $session = $this->sessionOf($this->open());
+        self::assertIsString($session['payment_id']);
+
+        self::assertSame(200, $this->cancel($session)->getStatusCode());
+
+        $abandoned = $this->connection->fetchAssociative(
+            'SELECT status, failure_code FROM payments WHERE id = :id',
+            ['id' => $session['payment_id']],
+        );
+        self::assertIsArray($abandoned);
+        self::assertSame('CANCELLED', $abandoned['status']);
+        self::assertSame('SUPERSEDED', $abandoned['failure_code']);
+
+        // The provider's late word is taken and recorded stale — 202, taken
+        // and not applied: no money is marked collected, and nothing starts.
+        self::assertSame(202, $this->pay($session, 'evt_after_cancel')->getStatusCode());
+        self::assertSame('CANCELLED', $this->connection->fetchOne(
+            'SELECT status FROM payments WHERE id = :id',
+            ['id' => $session['payment_id']],
+        ));
+        self::assertSame('0', $this->scalar('SELECT count(*) FROM subscriptions'));
+    }
+
+    /**
+     * A debit already in processing cannot be stopped, and that money is
+     * coming: the purchase it pays must still be there when it does.
+     */
+    public function testAnAttemptTheProviderCannotStopRefusesTheCancellation(): void
+    {
+        $session = $this->sessionOf($this->open());
+
+        $this->override([PaymentProviders::class => new PaymentProviders([
+            new RecordingPaymentProvider(new StubPaymentProvider(self::SECRET), false),
+        ])]);
+
+        $refused = $this->cancel($session);
+
+        self::assertSame(409, $refused->getStatusCode());
+        self::assertSame('PAYMENT_STILL_IN_FLIGHT', $this->errorOf($refused)['code'] ?? null);
+        self::assertSame('AWAITING_PAYMENT', $this->sessionOf($this->show($session))['status'] ?? null);
+        self::assertSame('ISSUED', $this->connection->fetchOne(
+            'SELECT status FROM invoices WHERE id = :id',
+            ['id' => $session['invoice_id']],
+        ));
+
+        // And when it lands, it settles what it was for.
+        self::assertSame(200, $this->pay($session, 'evt_in_flight')->getStatusCode());
+        self::assertSame('1', $this->scalar('SELECT count(*) FROM subscriptions'));
+    }
+
+    /**
+     * What the door above cannot reach: an invoice voided by another path
+     * while an attempt was live. The money that then settles against a void
+     * document goes back by itself — through the runner, which is what cron
+     * calls — with no credit note, because the sale was already undone when
+     * the invoice was cancelled.
+     */
+    public function testMoneyThatSettledAgainstAVoidInvoiceGoesBackByItself(): void
+    {
+        $session = $this->sessionOf($this->open());
+        self::assertIsString($session['invoice_id']);
+
+        // Voided underneath the live attempt, as only another path could.
+        $this->connection->executeStatement(
+            "UPDATE invoices SET status = 'CANCELLED' WHERE id = :id",
+            ['id' => $session['invoice_id']],
+        );
+
+        self::assertSame(200, $this->pay($session, 'evt_on_void')->getStatusCode());
+        self::assertSame('SUCCEEDED', $this->connection->fetchOne(
+            'SELECT status FROM payments WHERE id = :id',
+            ['id' => $session['payment_id']],
+        ));
+        self::assertSame('0', $this->scalar('SELECT count(*) FROM subscriptions'));
+
+        $runner = $this->container()->get(JobRunner::class);
+        self::assertInstanceOf(JobRunner::class, $runner);
+        $runner->runOnce(100);
+
+        $refund = $this->connection->fetchAssociative(
+            'SELECT r.amount_minor_units, p.amount_minor_units AS collected, r.credit_note_id'
+            . ' FROM refunds r JOIN payments p ON p.id = r.payment_id WHERE p.id = :id',
+            ['id' => $session['payment_id']],
+        );
+        self::assertIsArray($refund, 'the money should be on its way back');
+        self::assertEquals($refund['collected'], $refund['amount_minor_units']);
+        self::assertNull($refund['credit_note_id']);
+        self::assertSame('0', $this->scalar('SELECT count(*) FROM credit_notes'));
+
+        // A second pass finds it already going back.
+        $this->connection->executeStatement("DELETE FROM jobs WHERE type = 'payment.return_unowed'");
+        $runner->runOnce(100);
+        self::assertSame('1', $this->scalar('SELECT count(*) FROM refunds'));
+    }
+
+    private function scalar(string $sql): string
+    {
+        $value = $this->connection->fetchOne($sql);
+
+        return is_scalar($value) ? (string) $value : 'not counted';
     }
 
     // --- A seat of one's own (2026-09-18) ----------------------------------------

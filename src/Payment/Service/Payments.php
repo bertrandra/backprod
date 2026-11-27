@@ -166,6 +166,95 @@ final class Payments
     }
 
     /**
+     * Abandons every attempt still live against an invoice, at the provider
+     * first (ADR-076).
+     *
+     * For whoever is about to **void** the invoice: a checkout the customer
+     * cancels, a renewal invoice a change of plan makes moot. Voiding the
+     * document while an attempt can still collect is how money arrived with
+     * nothing in front of it — a 3-D Secure challenge finished, or a debit in
+     * processing settled, after the invoice it paid had been cancelled, and
+     * {@see InvoiceSettlement} then had nothing it was allowed to settle.
+     *
+     * The provider is the lock. An attempt it confirms can no longer collect
+     * is recorded abandoned; one it says is past that point refuses the whole
+     * act (`PAYMENT_STILL_IN_FLIGHT`), because that money is coming and the
+     * document it pays must still be there when it does.
+     */
+    public function abandonAttempts(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): void
+    {
+        $this->supersedeLiveAttempts($this->requireInvoice($tenantId, $productId, $invoiceId), $actorUserId);
+    }
+
+    /**
+     * Sends back money that settled against a void document (ADR-076).
+     *
+     * The provider-side cancel above closes the door this used to come
+     * through, and this is what remains for the cases it cannot reach: an
+     * invoice voided by another path while an attempt was live, a provider
+     * that confirmed a cancel and collected anyway. The sale was undone when
+     * the invoice was cancelled — its VAT reversed there — so **no credit note
+     * is raised**: there is no declared sale left to correct, only money that
+     * belongs to somebody else. The refund row and the ledger line are the
+     * record.
+     *
+     * Null when there is nothing to send: the invoice is not void after all,
+     * or everything has already gone back.
+     */
+    public function returnUnowed(Payment $payment): ?Refund
+    {
+        if (!PaymentStatus::isSettled($payment->status)) {
+            return null;
+        }
+
+        $provider = $this->providers->named($payment->provider);
+
+        try {
+            return $this->payments->recordRefund(
+                $payment,
+                Refund::REQUESTED,
+                null,
+                function () use ($payment, $provider): array {
+                    // Under the invoice's lock: the document is read again, so
+                    // a void that was undone — it cannot be, today — or a
+                    // refund that landed since the list was read is seen.
+                    $invoice = $this->requireInvoice($payment->tenantId, $payment->productId, $payment->invoiceId);
+                    $refunds = $this->payments->refundsOf($payment->id);
+                    $left = $payment->amount->minorUnits - self::returned($refunds);
+
+                    if ($invoice->status !== InvoiceStatus::CANCELLED || $left <= 0) {
+                        throw new NothingUnowed();
+                    }
+
+                    return [
+                        'refund' => $provider->refund(
+                            $payment,
+                            Money::of($left, $payment->amount->currency),
+                            Refund::REQUESTED,
+                            count($refunds) + 1,
+                        ),
+                        'amount' => Money::of($left, $payment->amount->currency),
+                        'alsoRecord' => null,
+                    ];
+                },
+            );
+        } catch (NothingUnowed) {
+            return null;
+        }
+    }
+
+    /**
+     * Settled payments whose invoice is void and whose money has not gone
+     * back: what {@see self::returnUnowed()} is for.
+     *
+     * @return list<Payment>
+     */
+    public function unowed(int $limit): array
+    {
+        return $this->payments->settledAgainstVoidInvoices($limit);
+    }
+
+    /**
      * One attempt at a time per invoice (2026-10-29).
      *
      * Every call minted a new attempt beside whatever was still live, so a
@@ -241,6 +330,7 @@ final class Payments
         ?int $amountMinorUnits,
         string $reason,
         ?string $actorUserId,
+        ?string $onceFor = null,
     ): Refund {
         $payment = $this->show($tenantId, $productId, $paymentId);
 
@@ -300,6 +390,7 @@ final class Payments
                     )->id,
                 ];
             },
+            $onceFor,
         );
     }
 

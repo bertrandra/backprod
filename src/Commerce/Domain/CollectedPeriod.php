@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commerce\Domain;
 
+use DateTimeImmutable;
+
 /**
  * What the period about to be cut short actually collected, and how much of
  * that may still go back (spec §3.3).
@@ -43,7 +45,58 @@ final class CollectedPeriod
         public readonly string $currency,
         /** Why nothing may be returned, when nothing may. Null otherwise. */
         public readonly ?string $whyNothing,
+        /**
+         * The period this money bought, when it is **not** the subscription's
+         * current one (ADR-076); null when it is.
+         *
+         * The renewal rolls the row and raises the next invoice days before the
+         * period starts (ADR-070). An upgrade in that window cuts the period
+         * still running, which the row no longer describes — so the share is
+         * taken of these two dates and not of a period that has not begun.
+         */
+        public readonly ?DateTimeImmutable $periodStart = null,
+        public readonly ?DateTimeImmutable $periodEnd = null,
+        /**
+         * An invoice raised ahead for a period the change makes moot: unpaid,
+         * not started, for the plan being left. The change withdraws it — VAT
+         * reversed, attempts abandoned — before anything else moves.
+         */
+        public readonly ?string $supersedesInvoiceId = null,
+        /** The invoice whose period is being cut: what a credit is made once for. */
+        public readonly ?string $invoiceId = null,
     ) {
+    }
+
+    /** The same answer, about a period other than the row's current one. */
+    public function over(DateTimeImmutable $start, DateTimeImmutable $end): self
+    {
+        return new self(
+            $this->paymentId,
+            $this->collectedMinorUnits,
+            $this->returnableMinorUnits,
+            $this->currency,
+            $this->whyNothing,
+            $start,
+            $end,
+            $this->supersedesInvoiceId,
+            $this->invoiceId,
+        );
+    }
+
+    /** The same answer, and an invoice raised ahead that the change withdraws. */
+    public function superseding(?string $invoiceId): self
+    {
+        return new self(
+            $this->paymentId,
+            $this->collectedMinorUnits,
+            $this->returnableMinorUnits,
+            $this->currency,
+            $this->whyNothing,
+            $this->periodStart,
+            $this->periodEnd,
+            $invoiceId,
+            $this->invoiceId,
+        );
     }
 
     public static function of(
@@ -51,6 +104,7 @@ final class CollectedPeriod
         int $collectedMinorUnits,
         int $returnableMinorUnits,
         string $currency,
+        ?string $invoiceId = null,
     ): self {
         $returnable = max(0, min($returnableMinorUnits, $collectedMinorUnits));
 
@@ -62,6 +116,10 @@ final class CollectedPeriod
             $returnable === 0
                 ? 'Everything collected for this period has already been given back.'
                 : null,
+            null,
+            null,
+            null,
+            $invoiceId,
         );
     }
 

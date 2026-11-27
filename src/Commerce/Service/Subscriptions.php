@@ -362,7 +362,7 @@ final class Subscriptions
             $subscription,
             $offer,
             $direction,
-            $this->credit->collectedFor($subscription),
+            $this->credit->collectedFor($subscription, $now),
             $this->newPeriod->quote($subscription, $offer, $now),
             $now,
         );
@@ -387,8 +387,10 @@ final class Subscriptions
      * answers are not equally bad. Credit-then-fail leaves the customer
      * refunded for a period they still hold, said by a refund and a credit
      * note that name the amount and the invoice — and retrying the change then
-     * finds nothing left to credit and simply charges the new period, which is
-     * the outcome that was wanted. Change-then-fail would leave them on the
+     * finds that refund and makes no second one, because a proration is made
+     * **once per period cut** (`refunds_once_per_purpose`, ADR-076). This
+     * comment used to say the retry "finds nothing left to credit"; it found
+     * the rest of the payment still returnable and sent the same share again. Change-then-fail would leave them on the
      * new plan with the old period's value owed to them and nothing but an
      * event mentioning it, and no retry recovers that. A documented credit is
      * better than an undocumented debt.
@@ -418,7 +420,7 @@ final class Subscriptions
         // they describe two different instants.
         $now = new DateTimeImmutable();
 
-        $collected = $this->credit->collectedFor($subscription);
+        $collected = $this->credit->collectedFor($subscription, $now);
 
         $decision = $this->proration->immediate(
             $subscription,
@@ -429,12 +431,30 @@ final class Subscriptions
             $now,
         );
 
+        if (!$decision->accepted && $decision->ruleId === ProrationPolicy::AWAITS_PAYMENT) {
+            // Its own refusal, because it has its own answer (ADR-076): a
+            // card. `CHANGE_NOT_PERMITTED` reads as "this cannot be done", and
+            // somebody told that goes looking for another plan.
+            throw new ConflictException(
+                'CHANGE_AWAITS_PAYMENT',
+                'This subscription is suspended for an unpaid invoice. Pay it first, then change the plan.',
+                $decision->toArray() + ['invoice_id' => $subscription->pastDueInvoiceId],
+            );
+        }
+
         if (!$decision->accepted) {
             throw new ConflictException(
                 'CHANGE_NOT_PERMITTED',
                 'This change of offer cannot be priced on these terms.',
                 $decision->toArray(),
             );
+        }
+
+        // A renewal raised ahead for the plan being left goes first (ADR-076):
+        // it is refusable — an attempt against it the provider can no longer
+        // stop — and nothing has moved yet.
+        if ($collected->supersedesInvoiceId !== null) {
+            $this->credit->withdrawSuperseded($subscription, $collected, $actorUserId);
         }
 
         $refundId = $decision->creditMinorUnits > 0
